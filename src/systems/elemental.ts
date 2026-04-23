@@ -15,17 +15,32 @@ const REACTION_TABLE: Record<string, Reaction> = {
   'fire+lightning': { name: 'Overload', damage: 40, radius: 28, color: ELEMENT_COLORS.lightning, effect: 'shock' },
   'ice+lightning': { name: 'Shatter', damage: 55, radius: 32, color: ELEMENT_COLORS.ice, effect: 'freeze' },
   'ice+poison': { name: 'Wither', damage: 35, radius: 30, color: ELEMENT_COLORS.poison, effect: 'poison' },
-  'poison+lightning': { name: 'Corrode', damage: 45, radius: 28, color: ELEMENT_COLORS.poison, effect: 'shock' },
-  'fire+arcane': { name: 'Rupture', damage: 60, radius: 36, color: ELEMENT_COLORS.arcane, effect: 'explode' },
-  'ice+arcane': { name: 'Prism', damage: 55, radius: 34, color: ELEMENT_COLORS.arcane, effect: 'freeze' },
-  'poison+arcane': { name: 'Corrupt', damage: 50, radius: 32, color: ELEMENT_COLORS.arcane, effect: 'poison' },
-  'lightning+arcane': { name: 'Cascade', damage: 55, radius: 30, color: ELEMENT_COLORS.arcane, effect: 'shock' },
+  'lightning+poison': { name: 'Corrode', damage: 45, radius: 28, color: ELEMENT_COLORS.poison, effect: 'shock' },
+  'arcane+fire': { name: 'Rupture', damage: 60, radius: 36, color: ELEMENT_COLORS.arcane, effect: 'explode' },
+  'arcane+ice': { name: 'Prism', damage: 55, radius: 34, color: ELEMENT_COLORS.arcane, effect: 'freeze' },
+  'arcane+poison': { name: 'Corrupt', damage: 50, radius: 32, color: ELEMENT_COLORS.arcane, effect: 'poison' },
+  'arcane+lightning': { name: 'Cascade', damage: 55, radius: 30, color: ELEMENT_COLORS.arcane, effect: 'shock' },
 };
 
 export function getReaction(a: Element, b: Element): Reaction | null {
   if (a === 'none' || b === 'none' || a === b) return null;
   const key = [a, b].sort().join('+');
   return REACTION_TABLE[key] ?? null;
+}
+
+export function reactionEffectElement(effect: Reaction['effect']): Element {
+  switch (effect) {
+    case 'poison':
+      return 'poison';
+    case 'freeze':
+      return 'ice';
+    case 'shock':
+      return 'lightning';
+    case 'explode':
+      return 'fire';
+    default:
+      return 'none';
+  }
 }
 
 export function elementalDotDps(element: Element, base: number): number {
