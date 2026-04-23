@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { initSprites } from '../sprites';
 import { buildDieSpriteSet, DIE_THEMES, type DieSpriteSet } from '../sprites/dice';
-import { palHex } from '../sprites/palette';
 import { playSfx } from '../audio/sfx';
 
 const W = 96;
@@ -51,31 +50,6 @@ export function DieAltar({ onTap }: Props) {
       const cx = W / 2;
       const cy = H / 2 + Math.sin(t * 1.6) * 1;
 
-      ctx!.save();
-      const pulse = 0.22 + 0.1 * Math.sin(t * 3);
-      ctx!.strokeStyle = palHex('H')!;
-      ctx!.globalAlpha = pulse;
-      ctx!.lineWidth = 1;
-      ctx!.beginPath();
-      ctx!.ellipse(cx, cy + size * 1.1, size * 1.2, size * 0.32, 0, 0, Math.PI * 2);
-      ctx!.stroke();
-      ctx!.globalAlpha = pulse * 0.55;
-      ctx!.beginPath();
-      ctx!.ellipse(cx, cy + size * 1.1, size * 0.95, size * 0.22, 0, 0, Math.PI * 2);
-      ctx!.stroke();
-      ctx!.restore();
-
-      ctx!.save();
-      ctx!.globalAlpha = 0.55;
-      ctx!.fillStyle = palHex('x')!;
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 + t * 0.6;
-        const rx = Math.round(cx + Math.cos(a) * (size * 1.05));
-        const ry = Math.round(cy + size * 1.1 + Math.sin(a) * (size * 0.28));
-        ctx!.fillRect(rx, ry, 1, 1);
-      }
-      ctx!.restore();
-
       let face = lastFace;
       let shaking = false;
       let shakeFrame = 0;
@@ -95,33 +69,16 @@ export function DieAltar({ onTap }: Props) {
         }
       }
 
-      ctx!.save();
-      const hoverHue = shaking ? 'rgba(255, 122, 43, 0.22)' : 'rgba(255, 216, 107, 0.18)';
-      ctx!.fillStyle = hoverHue;
-      ctx!.beginPath();
-      ctx!.arc(cx, cy, size * 1.2, 0, Math.PI * 2);
-      ctx!.fill();
-      ctx!.restore();
-
       const scale = 2;
       const drawW = size * scale;
       const drawH = size * scale;
       const img = shaking
-        ? dieSet.shake[shakeFrame]!
-        : dieSet.faces[Math.max(0, Math.min(5, face - 1))]!;
+        ? dieSet.shake[shakeFrame] ?? dieSet.faces[0]
+        : dieSet.faces[Math.max(0, Math.min(5, face - 1))] ?? dieSet.faces[0];
       const px = Math.round(cx - drawW / 2) + (shaking ? Math.round(Math.sin(wobble * 30) * 1) : 0);
       const py = Math.round(cy - drawH / 2) + (shaking ? Math.round(Math.cos(wobble * 25) * 1) : 0);
-      ctx!.drawImage(img, 0, 0, size, size, px, py, drawW, drawH);
-
-      if (!shaking) {
-        ctx!.save();
-        ctx!.globalAlpha = 0.2 + 0.1 * Math.sin(t * 3);
-        ctx!.fillStyle = palHex('x')!;
-        ctx!.fillRect(px - 1, py, drawW + 2, 1);
-        ctx!.fillRect(px, py - 1, drawW, 1);
-        ctx!.fillRect(px - 1, py + drawH - 1, drawW + 2, 1);
-        ctx!.fillRect(px, py + drawH, drawW, 1);
-        ctx!.restore();
+      if (img) {
+        ctx!.drawImage(img, 0, 0, size, size, px, py, drawW, drawH);
       }
 
       const nextLabel = shaking ? 'ROLLING' : `FACE · ${face}`;
@@ -149,7 +106,7 @@ export function DieAltar({ onTap }: Props) {
   return (
     <button className="die-altar" onClick={handleTap} aria-label="roll the die">
       <canvas ref={canvasRef} width={W} height={H} className="da-canvas" aria-hidden />
-      <span className="da-label" aria-hidden>{label}</span>
+      {/* <span className="da-label" aria-hidden>{label}</span> */}
     </button>
   );
 }
