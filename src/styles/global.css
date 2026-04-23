@@ -4986,10 +4986,10 @@ html[data-high-contrast='on'] .menu-scanlines {
 /* Offer cards without an inline description */
 .forge-offer-compact {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto auto auto;
   gap: 4px;
   padding: 6px 8px 7px;
-  min-height: 92px;
+  min-height: 118px;
 }
 
 .forge-offer-compact .upg-card-name {
@@ -5003,6 +5003,42 @@ html[data-high-contrast='on'] .menu-scanlines {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.forge-offer-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 3px;
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      color-mix(in srgb, var(--card-accent, var(--accent)) 18%, rgba(8, 8, 20, 0.95)) 0%,
+      rgba(6, 6, 16, 0.96) 68%
+    );
+  border: 1px solid color-mix(in srgb, var(--card-accent, rgba(255, 255, 255, 0.1)) 55%, rgba(0, 0, 0, 0.6));
+  clip-path: polygon(
+    4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px),
+    calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px
+  );
+  box-shadow:
+    inset 1px 1px 0 color-mix(in srgb, var(--card-accent, transparent) 30%, transparent),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.55);
+}
+
+.forge-face-icon {
+  image-rendering: pixelated;
+  display: block;
+}
+
+.forge-offer-drag-hint {
+  color: var(--fg-dim);
+  font-size: 10px;
+  letter-spacing: 1px;
+  opacity: 0.8;
 }
 
 .forge-offer-row-top {
@@ -5351,5 +5387,260 @@ html[data-high-contrast='on'] .menu-scanlines {
   letter-spacing: 1.5px;
   color: var(--fg-dim);
   margin-top: 2px;
+}
+
+/* ─── Compact face tiles (icon-only) ───────────────────────────────────── */
+.forge-dice-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+@media (max-width: 760px) {
+  .forge-dice-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.forge-face-tile {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: center;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 4px 5px;
+  min-height: 76px;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--card-accent, rgba(255, 255, 255, 0.08)) 8%, rgba(8, 8, 20, 0.92)) 0%,
+      rgba(5, 5, 14, 0.95) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  color: var(--fg-0);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  image-rendering: pixelated;
+  clip-path: polygon(
+    4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px),
+    calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.85),
+    inset 2px 2px 0 rgba(255, 255, 255, 0.04),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.6);
+  transition: border-color 0.1s, box-shadow 0.1s, background 0.1s, transform 0.1s;
+}
+
+.forge-face-tile:hover:not(.is-empty) {
+  border-color: color-mix(in srgb, var(--card-accent, var(--accent)) 45%, rgba(255, 255, 255, 0.12));
+}
+
+.forge-face-tile.is-selected {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.85),
+    0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+  transform: translateY(-1px);
+}
+
+.forge-face-tile.drop-valid {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.85),
+    0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.forge-face-tile.drop-hover-ok {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, rgba(8, 8, 20, 0.92));
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.85),
+    0 0 16px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.forge-face-tile.drop-hover-bad {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, rgba(8, 8, 20, 0.92));
+  animation: forgeFaceShake 0.25s ease-in-out;
+}
+
+@keyframes forgeFaceShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+.forge-face-tile.drop-source {
+  opacity: 0.55;
+  border-style: dashed;
+  border-color: rgba(255, 216, 107, 0.4);
+}
+
+.forge-face-num {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.forge-face-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+
+.forge-face-empty-glyph {
+  font-size: 20px;
+  color: var(--fg-dim);
+  opacity: 0.6;
+}
+
+.forge-face-pips {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  height: 8px;
+}
+
+.forge-face-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  padding: 1px 4px;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--danger);
+  background: rgba(10, 10, 20, 0.92);
+  border: 1px solid var(--danger);
+  pointer-events: none;
+}
+
+.forge-face-caret {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--accent);
+  line-height: 1;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+/* ─── Inline face details panel (shown when a face is tapped) ─────────── */
+.forge-face-details {
+  margin-top: 8px;
+  padding: 8px 10px 10px;
+  background: rgba(6, 6, 16, 0.95);
+  border: 2px solid color-mix(in srgb, var(--accent) 40%, rgba(255, 255, 255, 0.12));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  clip-path: polygon(
+    4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px),
+    calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.85),
+    0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.forge-face-details-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.forge-face-details-title {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.forge-face-details-pips {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.forge-face-details-close {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 24, 0.85);
+  color: var(--fg-dim);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+
+.forge-face-details-close:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Reuse existing `.forge-slot-replacer`, `.forge-slot-supplements`,
+   `.forge-chip`, and `.forge-slot-expand` styles inside the details panel.
+   The panel itself is not a drop target; chips drop onto face tiles above. */
+.forge-face-details .forge-slot-expand {
+  margin-top: 2px;
+}
+
+/* ─── Warning toast for rejected drops ─────────────────────────────────── */
+.forge-warning {
+  position: fixed;
+  left: 50%;
+  bottom: 22%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(8, 4, 8, 0.96);
+  border: 2px solid var(--danger);
+  color: var(--fg-0);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  z-index: 1200;
+  pointer-events: none;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.08),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.6),
+    0 0 18px color-mix(in srgb, var(--danger) 55%, transparent);
+  animation: forgeWarnPop 0.18s ease-out;
+}
+
+.forge-warning-icon {
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1;
+}
+
+@keyframes forgeWarnPop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
