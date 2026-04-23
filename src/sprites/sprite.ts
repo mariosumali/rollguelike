@@ -94,7 +94,8 @@ export function drawSprite(
   tint?: string,
   tintAlpha = 0,
 ): void {
-  const f = sprite.frames[frameIdx % sprite.frames.length]!;
+  if (!sprite || !sprite.frames || sprite.frames.length === 0) return;
+  const f = sprite.frames[((frameIdx % sprite.frames.length) + sprite.frames.length) % sprite.frames.length]!;
   const dx = Math.round(x - f.anchorX);
   const dy = Math.round(y - f.anchorY);
   if (flipX) {
@@ -131,7 +132,8 @@ export function drawSpriteSilhouette(
   color: string,
   alpha = 1,
 ): void {
-  const f = sprite.frames[frameIdx % sprite.frames.length]!;
+  if (!sprite || !sprite.frames || sprite.frames.length === 0) return;
+  const f = sprite.frames[((frameIdx % sprite.frames.length) + sprite.frames.length) % sprite.frames.length]!;
   const dx = Math.round(x - f.anchorX);
   const dy = Math.round(y - f.anchorY);
   ctx.save();

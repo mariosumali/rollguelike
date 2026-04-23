@@ -55,19 +55,16 @@ export function MenuScene() {
     let start = performance.now();
     let last = start;
 
-    const character = getSprite('char_soldier');
-    const charRight = getSprite('char_gambler') ?? character;
-
     function spawnEmber(tx: number, ty: number, color: string) {
       embers.push({
         x: tx + (Math.random() - 0.5) * 3,
         y: ty,
-        vy: -(0.3 + Math.random() * 0.4),
+        vy: -(0.35 + Math.random() * 0.45),
         vx: (Math.random() - 0.5) * 0.25,
         life: 0,
-        maxLife: 40 + Math.random() * 40,
+        maxLife: 45 + Math.random() * 35,
         color,
-        size: Math.random() < 0.25 ? 2 : 1,
+        size: Math.random() < 0.85 ? 1 : 2,
       });
     }
 
@@ -174,10 +171,10 @@ export function MenuScene() {
       ctx!.fillStyle = palHex('y')!;
       ctx!.fillRect(cx, fy - h + 5, 1, 1);
 
-      if (Math.random() < 0.7) {
+      if (Math.random() < 0.12) {
         const cIdx = Math.random();
         const c = cIdx < 0.45 ? palHex('y')! : cIdx < 0.85 ? palHex('v')! : palHex('u')!;
-        spawnEmber(cx, fy - h + 3, c);
+        spawnEmber(cx + (Math.random() - 0.5) * 2, fy - h + 3, c);
       }
     }
 
@@ -278,25 +275,35 @@ export function MenuScene() {
 
     function drawCharacter(t: number) {
       const cScale = 1.5;
-      if (character) {
-        const frameIdx = Math.floor(t * 2.5) % Math.max(1, character.frames.length);
+      const character = getSprite('char_soldier');
+      const charRight = getSprite('char_gambler') ?? character;
+      const idleCount = (n: number) => Math.min(2, n);
+      const idleRate = 0.9;
+      if (character && character.frames.length > 0) {
+        const frameIdx = Math.floor(t * idleRate) % idleCount(character.frames.length);
         ctx!.save();
-        ctx!.imageSmoothingEnabled = false;
-        ctx!.translate(34, 232);
-        ctx!.scale(cScale, cScale);
-        drawSprite(ctx!, character, frameIdx, 0, 0);
-        ctx!.restore();
+        try {
+          ctx!.imageSmoothingEnabled = false;
+          ctx!.translate(34, 232);
+          ctx!.scale(cScale, cScale);
+          drawSprite(ctx!, character, frameIdx, 0, 0);
+        } finally {
+          ctx!.restore();
+        }
       }
 
-      if (charRight) {
-        const frameIdx2 = (Math.floor(t * 2.5 + 0.5)) % Math.max(1, charRight.frames.length);
+      if (charRight && charRight.frames.length > 0) {
+        const frameIdx2 = Math.floor(t * idleRate + 0.5) % idleCount(charRight.frames.length);
         ctx!.save();
-        ctx!.imageSmoothingEnabled = false;
-        ctx!.translate(W - 34, 232);
-        ctx!.scale(cScale, cScale);
-        ctx!.scale(-1, 1);
-        drawSprite(ctx!, charRight, frameIdx2, 0, 0);
-        ctx!.restore();
+        try {
+          ctx!.imageSmoothingEnabled = false;
+          ctx!.translate(W - 34, 232);
+          ctx!.scale(cScale, cScale);
+          ctx!.scale(-1, 1);
+          drawSprite(ctx!, charRight, frameIdx2, 0, 0);
+        } finally {
+          ctx!.restore();
+        }
       }
     }
 
@@ -308,12 +315,13 @@ export function MenuScene() {
         e.x += e.vx * step;
         e.y += e.vy * step;
         e.vy *= Math.pow(0.985, step);
+        e.vx += (Math.random() - 0.5) * 0.04 * step;
         if (e.life >= e.maxLife) {
           embers.splice(i, 1);
           continue;
         }
         const p = e.life / e.maxLife;
-        const a = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+        const a = p < 0.5 ? 0.9 : Math.max(0, 0.9 * (1 - (p - 0.5) / 0.5));
         ctx!.globalAlpha = a;
         ctx!.fillStyle = e.color;
         ctx!.fillRect(Math.round(e.x), Math.round(e.y), e.size, e.size);
@@ -321,41 +329,34 @@ export function MenuScene() {
       ctx!.globalAlpha = 1;
     }
 
-    function drawVignette() {
-      const g = ctx!.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, Math.max(W, H) * 0.75);
-      g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(1, 'rgba(0,0,0,0.75)');
-      ctx!.fillStyle = g;
-      ctx!.fillRect(0, 0, W, H);
-    }
-
-    function drawScanlines() {
-      ctx!.fillStyle = 'rgba(0,0,0,0.18)';
-      for (let y = 0; y < H; y += 2) {
-        ctx!.fillRect(0, y, W, 1);
+    function safe(fn: () => void) {
+      try {
+        fn();
+      } catch (err) {
+        if (import.meta.env?.DEV) console.warn('[MenuScene] draw step failed', err);
       }
     }
 
     function frame(now: number) {
+      raf = requestAnimationFrame(frame);
       const t = (now - start) / 1000;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
 
+      ctx!.setTransform(1, 0, 0, 1, 0, 0);
+      ctx!.globalAlpha = 1;
+      ctx!.globalCompositeOperation = 'source-over';
       ctx!.fillStyle = '#000';
       ctx!.fillRect(0, 0, W, H);
-      drawBackdrop(t);
-      drawDistantWall();
-      drawPillars();
-      drawTorch(15, 155, t, 1.1);
-      drawTorch(W - 15, 155, t, 2.3);
-      drawBigDie(t);
-      drawFloor(t);
-      drawEmbers(dt);
-      drawCharacter(t);
-      drawVignette();
-      drawScanlines();
-
-      raf = requestAnimationFrame(frame);
+      safe(() => drawBackdrop(t));
+      safe(() => drawDistantWall());
+      safe(() => drawPillars());
+      safe(() => drawTorch(15, 155, t, 1.1));
+      safe(() => drawTorch(W - 15, 155, t, 2.3));
+      safe(() => drawBigDie(t));
+      safe(() => drawFloor(t));
+      safe(() => drawCharacter(t));
+      safe(() => drawEmbers(dt));
     }
 
     raf = requestAnimationFrame(frame);
