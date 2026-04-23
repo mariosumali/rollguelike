@@ -19,6 +19,8 @@ export interface FaceOps {
   heal: (amount: number) => void;
   consumeSouls: (n: number) => boolean;
   repeatPrev: () => void;
+  applyStatusNearest?: (status: 'burn' | 'poison' | 'slow' | 'freeze' | 'stun' | 'mark', power: number, duration: number) => void;
+  addGold?: (amount: number) => void;
 }
 
 const DEFAULT_AIM = -Math.PI / 2;

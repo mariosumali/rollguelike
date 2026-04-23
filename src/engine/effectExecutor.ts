@@ -164,10 +164,16 @@ function verbBounce(_effect: Extract<Effect, { verb: 'bounce' }>, _ctx: EffectCo
 }
 
 function verbApplyStatus(
-  _effect: Extract<Effect, { verb: 'applyStatus' }>,
-  _ctx: EffectContext,
+  effect: Extract<Effect, { verb: 'applyStatus' }>,
+  ctx: EffectContext,
 ): void {
-  // TODO(applyStatus): requires status-effect runtime; no-op scaffold.
+  if (!ctx.ops.applyStatusNearest) return;
+  if (effect.chance !== undefined && effect.chance < 1) {
+    if (Math.random() > effect.chance) return;
+  }
+  const duration = effect.duration * ctx.intensity.scale;
+  const power = effect.power * ctx.intensity.brightness;
+  ctx.ops.applyStatusNearest(effect.status, power, duration);
 }
 
 function verbHeal(effect: Extract<Effect, { verb: 'heal' }>, ctx: EffectContext): void {
@@ -180,10 +186,21 @@ function verbShield(effect: Extract<Effect, { verb: 'shield' }>, ctx: EffectCont
 }
 
 function verbSpawnPickup(
-  _effect: Extract<Effect, { verb: 'spawnPickup' }>,
-  _ctx: EffectContext,
+  effect: Extract<Effect, { verb: 'spawnPickup' }>,
+  ctx: EffectContext,
 ): void {
-  // TODO(spawnPickup): awaiting gold/soul pickup runtime integration.
+  if (effect.chance !== undefined && effect.chance < 1) {
+    if (Math.random() > effect.chance) return;
+  }
+  const amount = Math.max(0, Math.floor(effect.amount * ctx.intensity.brightness));
+  if (amount <= 0) return;
+  if (effect.kind === 'gold') {
+    ctx.ops.addGold?.(amount);
+  } else if (effect.kind === 'heal') {
+    ctx.ops.heal(amount);
+  } else if (effect.kind === 'soul') {
+    ctx.run.souls += amount;
+  }
 }
 
 function verbPull(_effect: Extract<Effect, { verb: 'pull' }>, _ctx: EffectContext): void {
