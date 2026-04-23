@@ -12,7 +12,8 @@
  *   public/apple-touch-icon.png              (180x180)
  *   public/icon-192.png, icon-512.png        (PWA any)
  *   public/icon-maskable-512.png             (PWA maskable)
- *   public/og-image.png                      (1200x630 social card)
+ *   public/og-image.png                      (1200x630 social card — Facebook, Twitter, LinkedIn, Discord, Slack)
+ *   public/share-square.png                  (1200x1200 square card — iMessage, WhatsApp, Signal, Instagram DM)
  *   public/logo.png                          (640x160 raster of wordmark)
  *
  * Run:
@@ -52,10 +53,14 @@ async function renderSvgAt(svg, size, out, { deviceScaleFactor = 1 } = {}) {
 async function renderHtmlAt(html, width, height, out) {
   const page = await browser.newPage({ viewport: { width, height } });
   await page.setContent(html, { waitUntil: 'networkidle' });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(150);
   await page.screenshot({ path: out, type: 'png', fullPage: false, clip: { x: 0, y: 0, width, height } });
   await page.close();
   console.log(`  wrote ${out.replace(root + '/', '')}`);
 }
+
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');`;
 
 // --- square icons --------------------------------------------------------
 console.log('rendering square icons…');
@@ -82,59 +87,67 @@ console.log('rendering wordmark logo…');
   console.log('  wrote public/logo.png (2x)');
 }
 
-// --- OG / social card (1200x630) ----------------------------------------
-console.log('rendering OG image…');
-{
-  const ogHtml = `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<style>
+// --- shared card styles -------------------------------------------------
+// One CSS block reused across OG (landscape) and square share variants so
+// edits stay in sync. The pixel font is @imported so Playwright fetches it
+// before we screenshot (document.fonts.ready is awaited in renderHtmlAt).
+const CARD_CSS = `
+  ${FONT_IMPORT}
   :root { color-scheme: dark }
-  html,body { margin:0; padding:0; width:1200px; height:630px; background:#05050c; font-family: ui-monospace, 'Courier New', monospace; color:#f0ecd8; image-rendering: pixelated; }
+  html,body { margin:0; padding:0; background:#05050c; color:#f0ecd8; image-rendering: pixelated; }
   .card {
-    position:relative; width:1200px; height:630px; overflow:hidden;
+    position:relative; overflow:hidden; box-sizing:border-box;
     background:
       radial-gradient(1100px 500px at 30% 40%, rgba(255,216,107,0.10), transparent 60%),
       radial-gradient(900px 600px at 85% 90%, rgba(226,60,76,0.12), transparent 60%),
       linear-gradient(180deg, #0a0a18 0%, #05050c 100%);
-    box-sizing:border-box;
     border: 8px solid #ffd86b;
-    padding: 60px 72px;
-    display:flex; align-items:center; gap:56px;
+    font-family: 'VT323', ui-monospace, 'Courier New', monospace;
   }
-  .die { width:360px; height:360px; flex-shrink:0; filter: drop-shadow(0 8px 0 rgba(0,0,0,0.6)); }
+  .die { flex-shrink:0; filter: drop-shadow(0 8px 0 rgba(0,0,0,0.6)); }
   .die svg { width:100%; height:100%; display:block; }
-  .copy { display:flex; flex-direction:column; gap:18px; min-width:0; }
-  .kicker {
-    font-size:22px; letter-spacing:10px; color:#9fa7bd; text-transform:uppercase;
-  }
+  .kicker { color:#9fa7bd; text-transform:uppercase; font-family: 'VT323', monospace; }
   .title {
     font-family: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
-    font-weight:800; font-size:96px; line-height:1; letter-spacing:2px;
-    color:#f0ecd8; text-shadow: 6px 6px 0 #2c2f55, 6px 6px 0 #2c2f55;
+    font-weight:800; line-height:1; color:#f0ecd8;
+    text-shadow: 6px 6px 0 #2c2f55;
   }
   .title .accent { color:#ffd86b; }
-  .tag {
-    font-size:28px; line-height:1.4; color:#d6dde8; letter-spacing:1px; max-width:640px;
-    margin-top:10px;
-  }
+  .tag { color:#d6dde8; line-height:1.4; font-family: 'VT323', monospace; }
   .tag b { color:#ffd86b; font-weight:700; }
-  .chips { display:flex; gap:14px; margin-top:18px; flex-wrap:wrap; }
+  .chips { display:flex; gap:14px; flex-wrap:wrap; }
   .chip {
-    font-size:18px; padding:8px 14px; border:2px solid #2c2f55; color:#9fa7bd;
-    background:#0a0a18; letter-spacing:2px; text-transform:uppercase;
+    border:2px solid #2c2f55; color:#9fa7bd; background:#0a0a18;
+    letter-spacing:2px; text-transform:uppercase;
+    font-family: 'Press Start 2P', ui-monospace, monospace;
   }
   .chip.red { border-color:#8a1e1e; color:#ff6a7a; }
   .chip.gold { border-color:#8a5a00; color:#ffd86b; }
-  .corner {
-    position:absolute; width:24px; height:24px; background:#ffd86b;
-  }
+  .corner { position:absolute; width:24px; height:24px; background:#ffd86b; }
   .tl{top:0;left:0}.tr{top:0;right:0}.bl{bottom:0;left:0;background:#8a5a00}.br{bottom:0;right:0;background:#8a5a00}
-</style>
-</head>
+`;
+
+// --- OG / social card (1200x630) ----------------------------------------
+// Landscape — used by Facebook, Twitter (summary_large_image), LinkedIn,
+// Discord, Slack. 1.91:1 aspect ratio is the sweet spot.
+console.log('rendering OG image…');
+{
+  const ogHtml = `<!doctype html>
+<html><head><meta charset="utf-8"/><style>${CARD_CSS}
+  .card.og {
+    width:1200px; height:630px; padding:60px 72px;
+    display:flex; align-items:center; gap:56px;
+  }
+  .og .die { width:340px; height:340px; }
+  .og .copy { display:flex; flex-direction:column; gap:18px; min-width:0; }
+  .og .kicker { font-size:22px; letter-spacing:8px; }
+  .og .title { font-size:62px; letter-spacing:2px; }
+  .og .tag { font-size:32px; letter-spacing:1px; max-width:680px; margin-top:8px; }
+  .og .chips { margin-top:18px; }
+  .og .chip { font-size:14px; padding:10px 14px; letter-spacing:2px; }
+</style></head>
 <body>
-  <div class="card">
+  <div class="card og">
     <span class="corner tl"></span><span class="corner tr"></span>
     <span class="corner bl"></span><span class="corner br"></span>
     <div class="die">${iconSvg}</div>
@@ -149,9 +162,46 @@ console.log('rendering OG image…');
       </div>
     </div>
   </div>
-</body>
-</html>`;
+</body></html>`;
   await renderHtmlAt(ogHtml, 1200, 630, pub('og-image.png'));
+}
+
+// --- square share card (1200x1200) --------------------------------------
+// Square — preferred by iMessage link previews, WhatsApp, Signal, Telegram,
+// Instagram DMs, and anywhere a 1:1 tile shows up. Vertical stack so the
+// die reads big at thumbnail sizes.
+console.log('rendering square share image…');
+{
+  const squareHtml = `<!doctype html>
+<html><head><meta charset="utf-8"/><style>${CARD_CSS}
+  .card.sq {
+    width:1200px; height:1200px; padding:72px 80px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:36px; text-align:center;
+  }
+  .sq .die { width:480px; height:480px; margin-top:-10px; }
+  .sq .kicker { font-size:26px; letter-spacing:10px; }
+  .sq .title { font-size:86px; letter-spacing:2px; }
+  .sq .tag { font-size:40px; letter-spacing:1px; max-width:1000px; }
+  .sq .chips { justify-content:center; margin-top:8px; }
+  .sq .chip { font-size:18px; padding:12px 18px; letter-spacing:2px; }
+</style></head>
+<body>
+  <div class="card sq">
+    <span class="corner tl"></span><span class="corner tr"></span>
+    <span class="corner bl"></span><span class="corner br"></span>
+    <div class="die">${iconSvg}</div>
+    <div class="kicker">mobile roguelite · tap to roll</div>
+    <div class="title">ROLL<span class="accent">guelike</span></div>
+    <div class="tag">Tap the die. <b>Bend the odds.</b> Survive the shrine.</div>
+    <div class="chips">
+      <span class="chip gold">endless waves</span>
+      <span class="chip">6 heroes</span>
+      <span class="chip red">free rerolls</span>
+    </div>
+  </div>
+</body></html>`;
+  await renderHtmlAt(squareHtml, 1200, 1200, pub('share-square.png'));
 }
 
 await browser.close();
