@@ -7,9 +7,14 @@ import { MenuScene } from './MenuScene';
 import { DieAltar } from './DieAltar';
 import { SettingsPanel } from './SettingsPanel';
 import { HowToPlay } from './HowToPlay';
-import { consumePendingArsenalUnlocks } from '../state/persistence';
+import { DicePicker } from './DicePicker';
+import {
+  consumePendingArsenalUnlocks,
+  consumePendingDiceThemeUnlocks,
+} from '../state/persistence';
 import { getUpgrade } from '../content/upgrades/registry';
-import { ARSENAL_UPGRADES } from '../content/upgrades/arsenal';
+import { listFaceUpgrades } from '../content/upgrades/faceRegistry';
+import { DIE_THEME_LABELS, DIE_THEME_UNLOCKS, type DieThemeId } from '../sprites/dice';
 
 const FLAVOR_LINES = [
   'TAP THE DIE · BEND THE ODDS',
@@ -27,7 +32,9 @@ export function MainMenu() {
   const [tick, setTick] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showHow, setShowHow] = useState(false);
+  const [showDicePicker, setShowDicePicker] = useState(false);
   const [unlockToasts, setUnlockToasts] = useState<string[]>([]);
+  const [diceToasts, setDiceToasts] = useState<DieThemeId[]>([]);
   const [showArsenalPanel, setShowArsenalPanel] = useState(false);
 
   useEffect(() => {
@@ -45,10 +52,16 @@ export function MainMenu() {
   useEffect(() => {
     const pending = consumePendingArsenalUnlocks();
     if (pending.length > 0) setUnlockToasts(pending);
+    const dicePending = consumePendingDiceThemeUnlocks();
+    if (dicePending.length > 0) setDiceToasts(dicePending as DieThemeId[]);
   }, []);
 
   const dismissToast = () => {
     setUnlockToasts((arr) => arr.slice(1));
+  };
+
+  const dismissDiceToast = () => {
+    setDiceToasts((arr) => arr.slice(1));
   };
 
   const onStart = () => {
@@ -65,10 +78,12 @@ export function MainMenu() {
 
   const topScore = Math.max(0, ...Object.values(meta.highScores));
   const unlocks = meta.unlockedCharacters.length;
-  const arsenalTotal = ARSENAL_UPGRADES.length;
-  const arsenalUnlocked = (meta.unlockedArsenal ?? []).length;
+  const faceUpgradeTotal = listFaceUpgrades().length;
+  const faceUpgradeSeen = faceUpgradeTotal;
   const currentToast = unlockToasts[0];
   const toastUpgrade = currentToast ? getUpgrade(currentToast) : null;
+  const currentDiceToast = !toastUpgrade ? diceToasts[0] : undefined;
+  const diceToastRule = currentDiceToast ? DIE_THEME_UNLOCKS[currentDiceToast] : null;
 
   const runSnapshot = useMemo(() => {
     const run = getRunState();
@@ -84,22 +99,20 @@ export function MainMenu() {
       <div className="menu-vignette" aria-hidden />
       <div className="menu-scanlines" aria-hidden />
 
-      <div className="menu-corner menu-corner-tl" aria-hidden>
-        <span className="corner-glyph">◈</span>
-        <span className="corner-text">CH·0</span>
-      </div>
-      <div className="menu-corner menu-corner-tr" aria-hidden>
-        <span className="corner-text">SHRINE</span>
-        <span className="corner-glyph">◈</span>
-      </div>
-
-      <div className="menu-toolbar" aria-hidden={showSettings || showHow}>
+      <div className="menu-toolbar" aria-hidden={showSettings || showHow || showDicePicker}>
         <button
           className="toolbar-btn"
           aria-label="how to play"
           onClick={() => { playSfx('ui_click'); setShowHow(true); }}
         >
           ?
+        </button>
+        <button
+          className="toolbar-btn toolbar-btn-dice"
+          aria-label="change dice look"
+          onClick={() => { playSfx('ui_click'); setShowDicePicker(true); }}
+        >
+          <span aria-hidden>⚀</span>
         </button>
         <button
           className="toolbar-btn"
@@ -112,8 +125,9 @@ export function MainMenu() {
 
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showHow && <HowToPlay onClose={() => setShowHow(false)} />}
+      {showDicePicker && <DicePicker onClose={() => setShowDicePicker(false)} />}
       {showArsenalPanel && (
-        <ArsenalPanel meta={meta} onClose={() => setShowArsenalPanel(false)} />
+        <CodexPanel onClose={() => setShowArsenalPanel(false)} />
       )}
 
       {toastUpgrade && (
@@ -130,13 +144,37 @@ export function MainMenu() {
         </div>
       )}
 
+      {!toastUpgrade && currentDiceToast && (
+        <div className="unlock-toast unlock-toast-dice pixel-text" role="status">
+          <div className="unlock-toast-head">
+            <span className="unlock-badge">NEW</span>
+            <span className="unlock-title">DIE UNLOCKED</span>
+          </div>
+          <div className="unlock-name">{DIE_THEME_LABELS[currentDiceToast]} Dice</div>
+          <div className="unlock-desc">
+            {diceToastRule?.description ?? 'A new die is now available.'}
+          </div>
+          <button
+            className="btn btn-ghost unlock-dismiss"
+            onClick={() => {
+              playSfx('ui_click');
+              dismissDiceToast();
+              setShowDicePicker(true);
+            }}
+          >
+            EQUIP
+          </button>
+          <button
+            className="btn btn-ghost unlock-dismiss unlock-dismiss-alt"
+            onClick={() => { playSfx('ui_click'); dismissDiceToast(); }}
+          >
+            {diceToasts.length > 1 ? `NEXT (${diceToasts.length - 1})` : 'LATER'}
+          </button>
+        </div>
+      )}
+
       <div className="menu-inner-v2 pixel-text">
         <div className="title-wrap">
-          <div className="title-kicker">
-            <span className="chev">▸</span>
-            <span>A POCKET-SIZED ROGUELIKE</span>
-            <span className="chev">◂</span>
-          </div>
           <h1 className="title-v2" aria-label="Rollguelike">
             <span className="title-shadow" aria-hidden>
               <span className="ts-roll">ROLL</span>
@@ -176,13 +214,24 @@ export function MainMenu() {
             <span className="btn-chev">▸</span>
             <span className="btn-body">
               <span className="btn-label">{hasRun ? 'NEW RUN' : 'ENTER THE SHRINE'}</span>
-              <span className="btn-sub">CHOOSE YOUR CHALICE</span>
+              <span className="btn-sub">CHOOSE YOUR ROLLER</span>
             </span>
             <span className="btn-dot">{pip}</span>
           </button>
         </div>
 
         <DieAltar />
+
+        <button
+          type="button"
+          className="dice-look-btn pixel-text"
+          onClick={() => { playSfx('ui_click'); setShowDicePicker(true); }}
+          aria-label="change dice look"
+        >
+          <span className="dice-look-ico" aria-hidden>⚀</span>
+          <span className="dice-look-label">CHANGE DICE LOOK</span>
+          <span className="dice-look-chev" aria-hidden>▸</span>
+        </button>
 
         <div className="stats-card">
           <div className="stats-head">
@@ -192,30 +241,18 @@ export function MainMenu() {
           </div>
           <div className="stats-grid">
             <div className="stat-tile">
-              <span className="stat-icon" aria-hidden>
-                ☗
-              </span>
               <span className="stat-val">{meta.totalRunsCompleted}</span>
               <span className="stat-key">RUNS</span>
             </div>
             <div className="stat-tile">
-              <span className="stat-icon" aria-hidden>
-                ≡
-              </span>
               <span className="stat-val">{meta.totalWavesCleared}</span>
               <span className="stat-key">WAVES</span>
             </div>
             <div className="stat-tile">
-              <span className="stat-icon" aria-hidden>
-                ♛
-              </span>
               <span className="stat-val">{topScore}</span>
               <span className="stat-key">HIGH</span>
             </div>
             <div className="stat-tile">
-              <span className="stat-icon" aria-hidden>
-                ✶
-              </span>
               <span className="stat-val">
                 {unlocks}<span className="stat-of">/6</span>
               </span>
@@ -225,64 +262,52 @@ export function MainMenu() {
               type="button"
               className="stat-tile stat-tile-btn"
               onClick={() => { playSfx('ui_click'); setShowArsenalPanel(true); }}
-              aria-label="view arsenal"
+              aria-label="view face upgrade codex"
             >
-              <span className="stat-icon" aria-hidden>
-                ⚔
-              </span>
               <span className="stat-val">
-                {arsenalUnlocked}<span className="stat-of">/{arsenalTotal}</span>
+                {faceUpgradeSeen}<span className="stat-of">/{faceUpgradeTotal}</span>
               </span>
-              <span className="stat-key">ARSENAL</span>
+              <span className="stat-key">CODEX</span>
             </button>
           </div>
         </div>
 
         <div className="foot-row">
-          <span className="foot-seg">V0.1</span>
+          <span className="foot-seg">V0.2</span>
           <span className="foot-dot">◆</span>
           <span className="foot-seg">MOBILE</span>
-          <span className="foot-dot">◆</span>
-          <span className="foot-seg foot-blink">TAP TO PLAY</span>
         </div>
       </div>
     </div>
   );
 }
 
-function ArsenalPanel({ meta, onClose }: { meta: import('../types').MetaState; onClose: () => void }) {
-  const unlocked = new Set(meta.unlockedArsenal ?? []);
-  const entries = ARSENAL_UPGRADES.map((u) => ({ upgrade: u, unlocked: unlocked.has(u.id) }));
-  const sorted = entries.sort((a, b) => {
-    if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
+function CodexPanel({ onClose }: { onClose: () => void }) {
+  const entries = listFaceUpgrades();
+  const sorted = [...entries].sort((a, b) => {
     const order = { common: 0, rare: 1, epic: 2, legendary: 3 } as const;
-    return (order[a.upgrade.rarity] - order[b.upgrade.rarity]);
+    return order[a.rarity] - order[b.rarity] || a.name.localeCompare(b.name);
   });
   return (
     <div className="overlay arsenal-overlay" onClick={onClose}>
       <div className="arsenal-panel" onClick={(e) => e.stopPropagation()}>
         <div className="arsenal-head pixel-text">
-          <span>ARSENAL</span>
-          <span className="arsenal-count">{entries.filter((e) => e.unlocked).length}/{entries.length}</span>
+          <span>FACE CODEX</span>
+          <span className="arsenal-count">{sorted.length}</span>
           <button className="btn btn-ghost arsenal-close" onClick={() => { playSfx('ui_click'); onClose(); }}>
             ✕
           </button>
         </div>
         <div className="arsenal-list">
-          {sorted.map(({ upgrade: u, unlocked: isUnlocked }) => (
-            <div
-              key={u.id}
-              className={`arsenal-row rarity-${u.rarity} ${isUnlocked ? 'is-unlocked' : 'is-locked'}`}
-            >
+          {sorted.map((u) => (
+            <div key={u.id} className={`arsenal-row rarity-${u.rarity} is-unlocked`}>
               <div className="arsenal-row-head">
-                <span className="arsenal-name pixel-text">{isUnlocked ? u.name : '???'}</span>
+                <span className="arsenal-name pixel-text">{u.name}</span>
                 <span className={`arsenal-rarity pixel-text rarity-tag-${u.rarity}`}>
                   {u.rarity.toUpperCase()}
                 </span>
               </div>
-              <div className="arsenal-desc">
-                {isUnlocked ? u.desc : (u.unlockHint ?? 'Locked')}
-              </div>
+              <div className="arsenal-desc">{u.description}</div>
             </div>
           ))}
         </div>

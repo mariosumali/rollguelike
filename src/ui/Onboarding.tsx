@@ -5,7 +5,7 @@ import { playSfx } from '../audio/sfx';
 
 const STEPS = [
   { title: 'Tap the die', body: 'Tap anywhere to roll. The face that lands is your action.' },
-  { title: 'Chain faces', body: 'Back-to-back same faces build a streak multiplier.' },
+  { title: 'Forge your die', body: 'Clear waves to earn gold, then spend it at the Forge Shop to upgrade each face.' },
   { title: 'Protect the wall', body: 'Enemies that cross the wall damage you.' },
 ];
 
