@@ -45,7 +45,7 @@ html, body, #root {
   overflow: hidden;
   background: var(--bg-0);
   color: var(--fg-0);
-  font-family: 'Courier New', ui-monospace, monospace;
+  font-family: 'Silkscreen', 'Press Start 2P', ui-monospace, monospace;
   -webkit-font-smoothing: none;
   font-smoothing: none;
   overscroll-behavior: none;
@@ -68,14 +68,8 @@ button {
   padding: 0;
 }
 
-@font-face {
-  font-family: 'Pixel';
-  src: local('Courier New');
-  font-display: swap;
-}
-
 .pixel-text {
-  font-family: 'Pixel', 'Courier New', monospace;
+  font-family: 'Press Start 2P', 'Silkscreen', monospace;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   image-rendering: pixelated;
@@ -830,7 +824,7 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: 'Pixel', 'Courier New', monospace;
+  font-family: 'Press Start 2P', 'Silkscreen', monospace;
   font-size: 10px;
   letter-spacing: 1.5px;
   color: var(--accent);
@@ -905,14 +899,14 @@ button {
 .title-v2 {
   position: relative;
   margin: 0;
-  font-size: clamp(36px, 11vw, 54px);
-  line-height: 0.95;
-  letter-spacing: 2px;
+  font-size: clamp(26px, 8.5vw, 40px);
+  line-height: 1;
+  letter-spacing: 0;
   text-align: center;
   color: var(--fg-0);
-  font-family: 'Pixel', 'Courier New', monospace;
+  font-family: 'Press Start 2P', 'Silkscreen', monospace;
   image-rendering: pixelated;
-  padding: 4px 0 6px;
+  padding: 6px 0 8px;
 }
 
 .title-main,
@@ -939,9 +933,9 @@ button {
 }
 .ts-gue {
   color: #0a0a14;
-  font-size: 0.7em;
+  font-size: 0.6em;
   margin-bottom: 0.12em;
-  letter-spacing: 3px;
+  letter-spacing: 0;
 }
 .tm-roll {
   color: var(--accent);
@@ -954,9 +948,9 @@ button {
 }
 .tm-gue {
   color: var(--fg-0);
-  font-size: 0.7em;
+  font-size: 0.6em;
   margin-bottom: 0.12em;
-  letter-spacing: 3px;
+  letter-spacing: 0;
   text-shadow:
     0 1px 0 rgba(0, 0, 0, 0.5),
     0 0 8px rgba(240, 236, 216, 0.15);
@@ -1481,7 +1475,7 @@ button.stat-tile-btn:hover {
     gap: 8px;
   }
   .title-v2 {
-    font-size: clamp(32px, 10vw, 48px);
+    font-size: clamp(24px, 8vw, 36px);
   }
   .stats-head {
     font-size: 8px;
@@ -2358,15 +2352,15 @@ button.stat-tile-btn:hover {
 .panel-title-v2 {
   position: relative;
   margin: 0;
-  font-size: clamp(26px, 8vw, 36px);
+  font-size: clamp(20px, 6.5vw, 28px);
   line-height: 1;
-  letter-spacing: 3px;
+  letter-spacing: 0;
   text-align: center;
-  font-family: 'Pixel', 'Courier New', monospace;
+  font-family: 'Press Start 2P', 'Silkscreen', monospace;
   image-rendering: pixelated;
-  padding: 2px 0 4px;
+  padding: 4px 0 6px;
   color: var(--fg-0);
-  font-weight: 700;
+  font-weight: 400;
 }
 .panel-title-v2 .pt-shadow,
 .panel-title-v2 .pt-main {
@@ -2944,7 +2938,7 @@ button.stat-tile-btn:hover {
   color: var(--fg-0);
   text-transform: uppercase;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8);
-  font-family: 'Pixel', 'Courier New', monospace;
+  font-family: 'Press Start 2P', 'Silkscreen', monospace;
 }
 .upg-card-v2 .upg-card-desc {
   font-size: 10.5px;
@@ -2952,7 +2946,7 @@ button.stat-tile-btn:hover {
   color: var(--fg-1);
   letter-spacing: 0.2px;
   text-transform: none;
-  font-family: 'Courier New', monospace;
+  font-family: 'VT323', 'Courier New', monospace;
 }
 .upg-card-foot {
   display: flex;
@@ -3034,7 +3028,7 @@ button.stat-tile-btn:hover {
   margin-top: 2px;
   text-transform: none;
   letter-spacing: 0.2px;
-  font-family: 'Courier New', monospace;
+  font-family: 'VT323', 'Courier New', monospace;
 }
 
 @media (max-height: 680px) {
@@ -3101,8 +3095,8 @@ button.stat-tile-btn:hover {
 }
 
 .gameover-title-v2 {
-  font-size: clamp(32px, 10vw, 48px);
-  letter-spacing: 4px;
+  font-size: clamp(22px, 7.5vw, 32px);
+  letter-spacing: 0;
 }
 .gameover-title-v2 .pt-main.gameover-main {
   color: var(--danger);
@@ -3176,7 +3170,7 @@ button.stat-tile-btn:hover {
   line-height: 1;
   color: var(--fg-0);
   font-weight: 700;
-  font-family: 'Pixel', 'Courier New', monospace;
+  font-family: 'Press Start 2P', 'Silkscreen', monospace;
 }
 .gameover-stat-tile .stat-key {
   font-size: 8.5px;
@@ -3242,7 +3236,7 @@ button.stat-tile-btn:hover {
 
 @media (max-height: 640px) {
   .gameover-inner-v2 { gap: 10px; }
-  .gameover-title-v2 { font-size: clamp(26px, 9vw, 40px); }
+  .gameover-title-v2 { font-size: clamp(20px, 7vw, 28px); }
   .gameover-stat-tile { padding: 8px 4px 6px; }
   .gameover-stat-tile .stat-val { font-size: 15px; }
 }
@@ -3329,12 +3323,12 @@ button.stat-tile-btn:hover {
 .bwn-shadow,
 .bwn-main {
   display: block;
-  font-size: clamp(24px, 7vw, 34px);
-  letter-spacing: 3px;
-  line-height: 1;
-  font-family: 'Pixel', 'Courier New', monospace;
+  font-size: clamp(16px, 5vw, 22px);
+  letter-spacing: 0;
+  line-height: 1.1;
+  font-family: 'Press Start 2P', 'Silkscreen', monospace;
   image-rendering: pixelated;
-  font-weight: 700;
+  font-weight: 400;
   text-align: center;
 }
 .bwn-shadow {

@@ -157,10 +157,10 @@ export function MenuScene() {
       const cx = tx + 1;
       const fy = ty - 2;
 
-      ctx!.fillStyle = 'rgba(255, 122, 43, 0.25)';
-      ctx!.beginPath();
-      ctx!.arc(cx, fy - 2, 22 + flick * 2, 0, Math.PI * 2);
-      ctx!.fill();
+      // ctx!.fillStyle = 'rgba(255, 122, 43, 0.25)';
+      // ctx!.beginPath();
+      // ctx!.arc(cx, fy - 2, 22 + flick * 2, 0, Math.PI * 2);
+      // ctx!.fill();
 
       ctx!.fillStyle = palHex('t')!;
       ctx!.fillRect(cx - Math.floor(w / 2), fy - h + 2, w, h - 2);
@@ -351,8 +351,8 @@ export function MenuScene() {
       safe(() => drawBackdrop(t));
       safe(() => drawDistantWall());
       safe(() => drawPillars());
-      safe(() => drawTorch(15, 155, t, 1.1));
-      safe(() => drawTorch(W - 15, 155, t, 2.3));
+      safe(() => drawTorch(18, 155, t, 1.1));
+      safe(() => drawTorch(W - 20, 155, t, 2.3));
       safe(() => drawBigDie(t));
       safe(() => drawFloor(t));
       safe(() => drawCharacter(t));

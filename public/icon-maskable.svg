@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges" role="img" aria-label="ROLLguelike">
+  <title>ROLLguelike</title>
+  <!-- full-bleed shrine background -->
+  <rect width="64" height="64" fill="#0a0a18"/>
+  <!-- subtle vignette ring (outside safe zone) -->
+  <rect x="0"  y="0"  width="64" height="8"  fill="#05050c"/>
+  <rect x="0"  y="56" width="64" height="8"  fill="#05050c"/>
+  <rect x="0"  y="0"  width="8"  height="64" fill="#05050c"/>
+  <rect x="56" y="0"  width="8"  height="64" fill="#05050c"/>
+
+  <!-- die body centered within safe zone (16..48) -->
+  <rect x="16" y="16" width="32" height="32" fill="#f0ecd8"/>
+  <rect x="16" y="16" width="32" height="3"  fill="#ffffff"/>
+  <rect x="16" y="16" width="3"  height="32" fill="#ffffff"/>
+  <rect x="16" y="45" width="32" height="3"  fill="#8a5a00"/>
+  <rect x="45" y="16" width="3"  height="32" fill="#8a5a00"/>
+  <rect x="19" y="19" width="26" height="1"  fill="#ffffff"/>
+  <rect x="19" y="44" width="26" height="1"  fill="#d4a24a"/>
+
+  <!-- 5-pip face -->
+  <rect x="21" y="21" width="6" height="6" fill="#1a1a3a"/>
+  <rect x="37" y="21" width="6" height="6" fill="#1a1a3a"/>
+  <rect x="21" y="37" width="6" height="6" fill="#1a1a3a"/>
+  <rect x="37" y="37" width="6" height="6" fill="#1a1a3a"/>
+  <rect x="29" y="29" width="6" height="6" fill="#e23c4c"/>
+  <rect x="30" y="30" width="2" height="2" fill="#ff8a9a"/>
+  <rect x="29" y="34" width="6" height="1" fill="#8a1e1e"/>
+</svg>
