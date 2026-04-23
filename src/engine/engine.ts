@@ -754,12 +754,15 @@ function executeFace(face: Face, dieId: string, streak: number, streakMul: numbe
         if (status === 'burn' || status === 'poison') {
           e.poisonDps = Math.max(e.poisonDps, power);
           e.poisonT = Math.max(e.poisonT, duration);
-          e.hitFlash = 0.15;
-        } else if (status === 'slow' || status === 'freeze' || status === 'stun') {
-          (e as Enemy & { slowT?: number; slowMul?: number }).slowT = duration;
-          (e as Enemy & { slowT?: number; slowMul?: number }).slowMul = status === 'freeze' ? 0 : status === 'stun' ? 0 : 1 - Math.max(0, Math.min(0.9, power));
-          e.hitFlash = 0.15;
+        } else if (status === 'freeze' || status === 'stun') {
+          e.freeze = Math.max(e.freeze, duration);
+        } else if (status === 'slow') {
+          e.slow = Math.max(e.slow, duration);
+        } else if (status === 'mark') {
+          e.voidMark = Math.max(e.voidMark, duration);
         }
+        void power;
+        e.hitFlash = Math.max(e.hitFlash, 0.15);
         break;
       }
     },
