@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { initSprites } from '../sprites';
 import { buildDieSpriteSet, DIE_THEMES, type DieSpriteSet } from '../sprites/dice';
 import { playSfx } from '../audio/sfx';
@@ -13,7 +13,6 @@ type Props = {
 export function DieAltar({ onTap }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rollRef = useRef<{ started: number; duration: number; target: number } | null>(null);
-  const [label, setLabel] = useState<string>('ROLL');
   const labelRef = useRef<string>('ROLL');
 
   useEffect(() => {
@@ -84,7 +83,6 @@ export function DieAltar({ onTap }: Props) {
       const nextLabel = shaking ? 'ROLLING' : `FACE · ${face}`;
       if (labelRef.current !== nextLabel) {
         labelRef.current = nextLabel;
-        setLabel(nextLabel);
       }
 
       raf = requestAnimationFrame(frame);

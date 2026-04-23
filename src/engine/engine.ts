@@ -23,7 +23,6 @@ import {
   PLAYER_X,
   PLAYER_Y,
   DIE_Y,
-  PROJECTILE_SPAWN_Y,
   FIXED_DT,
 } from '../config/constants';
 import { mulberry32 } from './rng';
@@ -56,6 +55,7 @@ import {
 import { emitEvent } from './events';
 import { addTrauma, updateShake, getShakeOffset, resetShake } from './shake';
 import { drawArenaBackground, drawWall, drawGroundBelow } from '../sprites/environment';
+import { stageForWave, stageIndexForWave, STAGES } from '../content/stages/themes';
 import {
   drawExplosion,
   drawHealParticle,
@@ -176,6 +176,9 @@ interface EngineState {
   deathT: number;
   saveT: number;
   hitAnimT: number;
+  stageBannerT: number;
+  stageBannerIdx: number;
+  announcedStageIdx: number;
   lastHud: {
     wave: number; score: number; streak: number; hp: number; maxHp: number;
     shield: number; souls: number; rage: number; characterId: string;
@@ -216,6 +219,9 @@ const state: EngineState = {
   deathT: 0,
   saveT: 10,
   hitAnimT: 0,
+  stageBannerT: 0,
+  stageBannerIdx: -1,
+  announcedStageIdx: -1,
   lastHud: null,
 };
 
@@ -254,6 +260,9 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   state.deathT = 0;
   state.saveT = 10;
   state.hitAnimT = 0;
+  state.stageBannerT = 0;
+  state.stageBannerIdx = -1;
+  state.announcedStageIdx = -1;
   state.lastHud = null;
 
   const run: RunState =
@@ -339,6 +348,14 @@ function setupWave(waveNum: number): void {
   state.tapQueued = false;
   run.waveStartedAt = state.time;
   fireOnWaveStart(envFor(run), waveNum);
+
+  const stageIdx = stageIndexForWave(waveNum);
+  if (stageIdx !== state.announcedStageIdx) {
+    state.announcedStageIdx = stageIdx;
+    state.stageBannerIdx = stageIdx;
+    state.stageBannerT = 2.8;
+  }
+
   useStore.getState().setHud({ wave: waveNum, isBossWave: isBoss });
   if (isBoss) {
     const bossId = state.wave.bossTypeId ?? 'boss_facelocker';
@@ -381,6 +398,10 @@ export function update(dt: number): void {
     if (state.bossWarnT <= 0 && useStore.getState().screen === 'boss-warn') {
       useStore.getState().setScreen('game');
     }
+  }
+
+  if (state.stageBannerT > 0) {
+    state.stageBannerT = Math.max(0, state.stageBannerT - dt);
   }
 
   if (state.paused) return;
@@ -1553,7 +1574,8 @@ export function render(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = palHex('1')!;
   ctx.fillRect(0, 0, CANVAS_W, HUD_H);
 
-  drawArenaBackground(ctx, ARENA_W, HUD_H, ARENA_H, state.time * 4);
+  const theme = stageForWave(run?.wave ?? 1);
+  drawArenaBackground(ctx, ARENA_W, HUD_H, ARENA_H, state.time * 4, theme);
 
   for (const e of state.enemies) {
     if (!e.alive) continue;
@@ -1577,8 +1599,8 @@ export function render(ctx: CanvasRenderingContext2D): void {
     drawVfx(ctx, v);
   }
 
-  drawWall(ctx, WALL_Y, ARENA_W);
-  drawGroundBelow(ctx, WALL_Y + 2, ARENA_W, CANVAS_H - WALL_Y - 2);
+  drawWall(ctx, WALL_Y, ARENA_W, theme);
+  drawGroundBelow(ctx, WALL_Y + 2, ARENA_W, CANVAS_H - WALL_Y - 2, theme);
 
   if (run) drawPlayer(ctx, run);
   if (run) drawDice(ctx, run);
@@ -1587,6 +1609,10 @@ export function render(ctx: CanvasRenderingContext2D): void {
     if (!p.alive) continue;
     const a = 1 - p.age / p.life;
     drawNumberPopup(ctx, p.x, p.y, p.text, a, p.color, p.size);
+  }
+
+  if (state.stageBannerT > 0 && state.stageBannerIdx >= 0) {
+    drawStageBanner(ctx, state.stageBannerIdx, state.stageBannerT);
   }
 
   if (state.screenFlashT > 0) {
@@ -1688,6 +1714,47 @@ function drawVfx(ctx: CanvasRenderingContext2D, v: VfxParticle): void {
     default:
       break;
   }
+}
+
+function drawStageBanner(ctx: CanvasRenderingContext2D, stageIdx: number, remaining: number): void {
+  const stage = STAGES[stageIdx];
+  if (!stage) return;
+  const DUR = 2.8;
+  const elapsed = Math.max(0, DUR - remaining);
+  let alpha: number;
+  if (elapsed < 0.35) alpha = elapsed / 0.35;
+  else if (remaining < 0.6) alpha = remaining / 0.6;
+  else alpha = 1;
+  alpha = Math.max(0, Math.min(1, alpha));
+
+  const cy = HUD_H + 60;
+  const slide = elapsed < 0.35 ? (1 - elapsed / 0.35) * -6 : 0;
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.55;
+  ctx.fillStyle = palHex('0')!;
+  ctx.fillRect(0, cy - 16 + slide, CANVAS_W, 36);
+
+  ctx.globalAlpha = alpha * 0.8;
+  ctx.fillStyle = stage.silhouetteColor;
+  ctx.fillRect(0, cy - 17 + slide, CANVAS_W, 1);
+  ctx.fillRect(0, cy + 19 + slide, CANVAS_W, 1);
+
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold 12px 'Courier New', monospace`;
+  ctx.fillStyle = palHex('0')!;
+  ctx.fillText(stage.name, CANVAS_W / 2 + 1, cy + 1 + slide);
+  ctx.fillStyle = stage.starColor;
+  ctx.fillText(stage.name, CANVAS_W / 2, cy + slide);
+
+  ctx.font = `8px 'Courier New', monospace`;
+  ctx.globalAlpha = alpha * 0.85;
+  ctx.fillStyle = palHex('c')!;
+  ctx.fillText(stage.subtitle, CANVAS_W / 2, cy + 12 + slide);
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 function drawRing(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, alpha: number): void {
