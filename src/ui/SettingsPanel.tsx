@@ -101,6 +101,20 @@ function applyCheatCode(code: string): CheatStatus {
       useStore.getState().setHud({ gold: run.gold });
       return { kind: 'success', message: 'Your touch turns all to gold!' };
     }
+    case 'TERMINAL': {
+      const debugMode = !store.debugMode;
+      store.setDebugMode(debugMode);
+      if (!debugMode) {
+        store.setDebugMenuTheme(null);
+        store.setDebugMenuTrack(null);
+      }
+      return {
+        kind: 'success',
+        message: debugMode
+          ? 'Debug mode ENABLED. Press ~ or use the overlay.'
+          : 'Debug mode disabled.',
+      };
+    }
     default:
       return { kind: 'error', message: 'Unknown code.' };
   }
@@ -248,6 +262,12 @@ export function SettingsPanel({ onClose, inline }: Props) {
         ENEMY_HP_BAR_VALUES,
         HP_BAR_LABELS,
         (v) => setSettings({ enemyHpBars: v }),
+      )}
+      {toggle(
+        'Show dice numbers',
+        settings.showDiceNumbers,
+        (v) => setSettings({ showDiceNumbers: v }),
+        'Always show pips instead of weapon icons',
       )}
     </>
   );

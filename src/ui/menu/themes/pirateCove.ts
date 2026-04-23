@@ -42,18 +42,18 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
   const rightCliff = cliff('right', 4.3);
 
   const fogs: FoggyWisp[] = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 4; i++) {
     fogs.push({
       x: Math.random() * W,
-      y: 145 + Math.random() * 20,
-      w: 40 + Math.floor(Math.random() * 40),
-      speed: 4 + Math.random() * 6,
-      alpha: 0.12 + Math.random() * 0.12,
+      y: 148 + Math.random() * 14,
+      w: 32 + Math.floor(Math.random() * 28),
+      speed: 3 + Math.random() * 4,
+      alpha: 0.08 + Math.random() * 0.08,
     });
   }
 
   const gulls: Gull[] = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     gulls.push({
       x: Math.random() * W,
       y: 40 + Math.random() * 30,
@@ -61,13 +61,6 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
       phase: Math.random() * Math.PI * 2,
     });
   }
-
-  // Pre-computed serpent hump positions (3 visible humps on the water).
-  const serpentHumps = [
-    { x: 78, baseY: 156, size: 5, phase: 0 },
-    { x: 92, baseY: 158, size: 3, phase: 1.2 },
-    { x: 104, baseY: 159, size: 2, phase: 2.1 },
-  ];
 
   return {
     torchPal: TORCH_FIRE,
@@ -148,47 +141,44 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
       for (const p of leftCliff) ctx.fillRect(p.x, p.y, 1, 1);
       for (const p of rightCliff) ctx.fillRect(p.x, p.y, 1, 1);
 
-      // Left cliff — tall fantasy beacon tower.
+      // Distant lighthouse perched on the left cliff.
       drawBeaconTower(t);
 
-      // Distant pirate galleon.
-      drawGalleon(t, 52, 138);
+      // Single pirate galleon anchored in the cove.
+      drawGalleon(t, 72, 138);
 
-      // Nearer, smaller ship.
-      drawSmallShip(t, 130, 152);
-
-      // Sea serpent slithering between ships.
-      drawSerpent(t);
-
-      // Fog rolling across water.
+      // Fog rolling low across the water.
       ctx.save();
       for (const f of fogs) {
         f.x -= (f.speed * 0.05) * (0.8 + Math.sin(t + f.y) * 0.1);
         if (f.x + f.w < -4) f.x = W + 4;
         ctx.globalAlpha = f.alpha;
         ctx.fillStyle = palHex('c')!;
-        ctx.fillRect(Math.round(f.x), Math.round(f.y), f.w, 2);
-        ctx.fillRect(Math.round(f.x) + 4, Math.round(f.y) - 1, Math.max(0, f.w - 8), 1);
-        ctx.fillRect(Math.round(f.x) + 8, Math.round(f.y) + 2, Math.max(0, f.w - 16), 1);
+        ctx.fillRect(Math.round(f.x), Math.round(f.y), f.w, 1);
+        ctx.fillRect(Math.round(f.x) + 6, Math.round(f.y) + 1, Math.max(0, f.w - 12), 1);
       }
       ctx.restore();
 
-      // Wooden dock pilings carrying the torches.
+      // Short stone plinths on the dock, directly beneath the torches.
       for (const px of [10, W - 24]) {
-        // Piling post.
-        ctx.fillStyle = palHex('5')!;
-        ctx.fillRect(px + 4, 160, 4, 70);
-        ctx.fillStyle = palHex('6')!;
-        ctx.fillRect(px + 4, 160, 1, 70);
-        // Iron brackets.
+        // Mossy stone cap.
         ctx.fillStyle = palHex('a')!;
+        ctx.fillRect(px + 2, 159, 8, 2);
+        ctx.fillStyle = palHex('b')!;
+        ctx.fillRect(px + 2, 159, 8, 1);
+        // Plinth body.
+        ctx.fillStyle = palHex('a')!;
+        ctx.fillRect(px + 3, 161, 6, 6);
+        ctx.fillStyle = palHex('b')!;
+        ctx.fillRect(px + 3, 161, 1, 6);
+        ctx.fillStyle = palHex('1')!;
+        ctx.fillRect(px + 8, 161, 1, 6);
+        // Damp mossy seam.
+        ctx.fillStyle = palHex('l')!;
         ctx.fillRect(px + 3, 164, 6, 1);
-        ctx.fillRect(px + 3, 188, 6, 1);
-        // Wrapped rope.
-        ctx.fillStyle = palHex('7')!;
-        for (let y = 175; y < 185; y += 2) {
-          ctx.fillRect(px + 3, y, 6, 1);
-        }
+        // Foot shadow on the planks.
+        ctx.fillStyle = palHex('0')!;
+        ctx.fillRect(px + 2, 167, 8, 1);
       }
     },
 
@@ -264,70 +254,50 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
   // ── Helpers used by this theme ─────────────────────────────────────────
 
   function drawBeaconTower(t: number) {
-    const bx = 8;
-    const base = 160;
-    const top = 80;
+    // Distant lighthouse perched on the left cliff shoulder. Short and clearly
+    // seated on stone so it reads as far-away, not as a mast in open water.
+    const bx = 20;
+    const base = 106;
+    const top = 82;
     const height = base - top;
-    // Stone shaft (tapered).
+
+    // Tapered stone shaft.
     for (let y = 0; y < height; y++) {
       const prog = y / height;
-      const w = Math.round(10 - prog * 2);
-      const cx = bx + 6;
+      const w = Math.round(6 - prog * 1);
+      const cx = bx + 3;
       const left = cx - Math.floor(w / 2);
       ctx.fillStyle = palHex('a')!;
       ctx.fillRect(left, base - y, w, 1);
-      // Mossy green seam.
-      if (y === 2 || y === height - 10) {
-        ctx.fillStyle = palHex('l')!;
+      if (y === 2 || y === height - 4) {
+        ctx.fillStyle = palHex('b')!;
         ctx.fillRect(left, base - y, w, 1);
       }
-      // Arrow slits.
-      if (y === 40 || y === 55) {
-        ctx.fillStyle = palHex('0')!;
-        ctx.fillRect(cx, base - y, 1, 2);
-      }
     }
 
-    // Crenellation ring.
+    // Lantern housing.
     ctx.fillStyle = palHex('b')!;
-    ctx.fillRect(bx + 1, top - 2, 10, 2);
-    for (let i = 0; i < 3; i++) {
-      ctx.fillRect(bx + 2 + i * 3, top - 4, 2, 2);
-    }
+    ctx.fillRect(bx, top - 2, 7, 2);
+    ctx.fillStyle = palHex('a')!;
+    ctx.fillRect(bx + 1, top - 4, 5, 2);
 
-    // Conical roof with flag.
+    // Conical cap.
     ctx.fillStyle = palHex('g')!;
-    for (let i = 0; i < 6; i++) {
-      ctx.fillRect(bx + 3 + i * 0.5 - 1, top - 4 - i, 6 - i, 1);
-    }
-    ctx.fillStyle = palHex('8')!;
-    ctx.fillRect(bx + 6, top - 12, 1, 4);
-    const flagWave = Math.round(Math.sin(t * 3) * 1);
-    ctx.fillStyle = palHex('g')!;
-    ctx.fillRect(bx + 7, top - 12 + flagWave, 3, 2);
+    ctx.fillRect(bx + 1, top - 5, 5, 1);
+    ctx.fillRect(bx + 2, top - 6, 3, 1);
+    ctx.fillRect(bx + 3, top - 7, 1, 1);
 
-    // Beacon fire inside the crown.
+    // Pulsing beacon light.
     const pulse = 0.5 + 0.5 * Math.sin(t * 5);
     ctx.save();
-    ctx.globalAlpha = 0.35 + pulse * 0.25;
+    ctx.globalAlpha = 0.28 + pulse * 0.22;
     ctx.fillStyle = palHex('u')!;
     ctx.beginPath();
-    ctx.arc(bx + 6, top, 9, 0, Math.PI * 2);
+    ctx.arc(bx + 3, top - 3, 7, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     ctx.fillStyle = palHex('y')!;
-    ctx.fillRect(bx + 5, top - 3, 3, 3);
-    ctx.fillStyle = palHex('v')!;
-    ctx.fillRect(bx + 5, top - 1 + Math.round(pulse), 3, 2);
-
-    // Soft warm light washed on surrounding rocks.
-    ctx.save();
-    ctx.globalAlpha = 0.1 + pulse * 0.05;
-    ctx.fillStyle = palHex('t')!;
-    ctx.beginPath();
-    ctx.arc(bx + 6, top, 24, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    ctx.fillRect(bx + 2, top - 4, 3, 2);
   }
 
   function drawGalleon(t: number, x: number, y: number) {
@@ -405,54 +375,6 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
     ctx.arc(x + 22, y - 1, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-  }
-
-  function drawSmallShip(t: number, x: number, y: number) {
-    const bob = Math.round(Math.sin(t * 1.1 + 2) * 0.6);
-    y += bob;
-
-    ctx.fillStyle = palHex('5')!;
-    ctx.fillRect(x, y, 14, 3);
-    ctx.fillRect(x + 2, y - 1, 10, 1);
-    ctx.fillRect(x + 4, y + 3, 6, 1);
-    // Mast.
-    ctx.fillRect(x + 7, y - 10, 1, 10);
-    // Triangular sail.
-    ctx.fillStyle = palHex('d')!;
-    for (let i = 0; i < 8; i++) {
-      ctx.fillRect(x + 3, y - 9 + i, 4 + i, 1);
-    }
-    ctx.fillStyle = palHex('b')!;
-    ctx.fillRect(x + 3, y - 9, 1, 8);
-  }
-
-  function drawSerpent(t: number) {
-    ctx.fillStyle = palHex('U')!;
-    for (const h of serpentHumps) {
-      const bob = Math.sin(t * 1.3 + h.phase) * 2;
-      const y = h.baseY + Math.round(bob);
-      // Hump arc.
-      for (let i = 0; i < h.size; i++) {
-        const w = Math.max(1, (h.size - i) * 2 - 1);
-        ctx.fillRect(h.x - Math.floor(w / 2), y - i, w, 1);
-      }
-      // Spine highlight.
-      ctx.fillStyle = palHex('T')!;
-      ctx.fillRect(h.x, y - h.size + 1, 1, 1);
-      ctx.fillStyle = palHex('U')!;
-    }
-    // Head of the serpent — surfaces occasionally.
-    const surface = Math.sin(t * 0.7) > 0.4;
-    if (surface) {
-      const hx = 112;
-      const hy = 150 + Math.round(Math.sin(t * 2) * 1);
-      ctx.fillStyle = palHex('U')!;
-      ctx.fillRect(hx, hy, 5, 3);
-      ctx.fillRect(hx + 3, hy - 1, 3, 1);
-      // Eye.
-      ctx.fillStyle = palHex('h')!;
-      ctx.fillRect(hx + 4, hy, 1, 1);
-    }
   }
 
   function drawBarrel(x: number, y: number) {

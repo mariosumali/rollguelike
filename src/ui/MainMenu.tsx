@@ -76,6 +76,11 @@ export function MainMenu() {
     startRun(run.characterId, run);
   };
 
+  const onEnterDen = () => {
+    playSfx('ui_click');
+    setScreen('den');
+  };
+
   const topScore = Math.max(0, ...Object.values(meta.highScores));
   const unlocks = meta.unlockedCharacters.length;
   const faceUpgradeTotal = listFaceUpgrades().length;
@@ -215,6 +220,14 @@ export function MainMenu() {
             <span className="btn-body">
               <span className="btn-label">{hasRun ? 'NEW RUN' : 'ENTER THE SHRINE'}</span>
               <span className="btn-sub">CHOOSE YOUR ROLLER</span>
+            </span>
+            <span className="btn-dot">{pip}</span>
+          </button>
+          <button className="btn-pixel btn-den" onClick={onEnterDen}>
+            <span className="btn-chev">▸</span>
+            <span className="btn-body">
+              <span className="btn-label">ENTER THE DEN</span>
+              <span className="btn-sub">TEST NEW GAMBLES</span>
             </span>
             <span className="btn-dot">{pip}</span>
           </button>
