@@ -4,6 +4,24 @@ A mobile-first browser roguelite. Tap a die fixed at the bottom of the screen; e
 
 Built with Vite + React + TypeScript, HTML5 Canvas for the arena and React for menus/HUD. State via Zustand. Deploys to Vercel as a static SPA.
 
+## Screenshots
+
+Portrait layout, pixel UI, and the core loop: shrine → chalice (character) → arena.
+
+| Main menu | Choose your chalice | Wave 1 — tap to roll |
+|:---:|:---:|:---:|
+| ![Title screen with die altar and enter button](docs/screenshots/menu.png) | ![Character grid and dossier for Soldier](docs/screenshots/character-select.png) | ![Combat arena with HUD, wall, and enemies](docs/screenshots/gameplay.png) |
+| Enter the shrine, pick **New run**, and check your meta stats. | Six heroes (one unlockable); each chalice has its own die and playstyle. | Auto-attacks from rolled faces; protect the wall and your HP. |
+
+To refresh these images after UI changes, run a dev server on **`http://127.0.0.1:5173`** (default Vite port), then:
+
+```bash
+npx playwright install chromium   # first time only
+npm run screenshot:readme
+```
+
+Or set `README_SHOT_URL` if your dev server uses another origin (e.g. `README_SHOT_URL=http://127.0.0.1:5174 npm run screenshot:readme`).
+
 ## Run locally
 
 ```bash
