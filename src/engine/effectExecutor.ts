@@ -1,11 +1,23 @@
 import type { Effect, FaceUpgrade, SlotState } from '../content/upgrades/types';
-import type { Face, RunState } from '../types';
+import type { Face, RunState, Element } from '../types';
 import type { FaceOps } from '../systems/faceResolve';
 import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
 import { getAnimationSpec } from '../content/animations/registry';
 import { intensity, type TierIntensity } from '../content/animations/types';
 import { BALANCE } from '../config/balance';
-import { PLAYER_X, PROJECTILE_SPAWN_Y } from '../config/constants';
+import { PLAYER_X, PLAYER_Y, PROJECTILE_SPAWN_Y } from '../config/constants';
+
+export interface PendingMods {
+  pierce?: number;
+  bounces?: number;
+  chain?: number;
+  aoeOnHit?: number;
+  homing?: boolean;
+  lifesteal?: number;
+  sizeMul?: number;
+  damageMul?: number;
+  animTrailId?: string;
+}
 
 export interface EffectContext {
   face: Face;
@@ -16,6 +28,7 @@ export interface EffectContext {
   intensity: TierIntensity;
   upgradeId: string;
   animation: FaceUpgrade['animation'];
+  pendingMods: PendingMods;
 }
 
 export function resolveSlot(
@@ -26,12 +39,13 @@ export function resolveSlot(
   ops: FaceOps,
   defaultUpgradeId?: string,
 ): void {
+  const shared: PendingMods = {};
   const replacerId = slot.replacerId ?? defaultUpgradeId;
   if (replacerId) {
-    executeUpgrade(replacerId, 1, face, baseDamage, run, ops);
+    executeUpgrade(replacerId, 1, face, baseDamage, run, ops, shared);
   }
   for (const suppId of slot.supplementIds) {
-    executeUpgrade(suppId, 1, face, baseDamage, run, ops);
+    executeUpgrade(suppId, 1, face, baseDamage, run, ops, shared);
   }
 }
 
@@ -42,6 +56,7 @@ export function executeUpgrade(
   baseDamage: number,
   run: RunState,
   ops: FaceOps,
+  sharedMods?: PendingMods,
 ): void {
   const upgrade = getFaceUpgrade(upgradeId);
   if (!upgrade) {
@@ -54,26 +69,39 @@ export function executeUpgrade(
   const tierData = upgrade.tiers[safeTier - 1];
   if (!tierData) return;
 
+  const intens = intensity(safeTier);
   const ctx: EffectContext = {
     face,
     baseDamage: baseDamage * (tierData.damageMul ?? 1),
     run,
     ops,
     tier: safeTier,
-    intensity: intensity(safeTier),
+    intensity: intens,
     upgradeId,
     animation: upgrade.animation,
+    pendingMods: sharedMods ?? {},
   };
 
-  for (const effect of tierData.effects) {
-    executeEffect(effect, ctx);
+  ops.playAnim?.(upgrade.animation.cast, PLAYER_X, PROJECTILE_SPAWN_Y, intens);
+  if (upgrade.animation.projectile) {
+    ctx.pendingMods.animTrailId = upgrade.animation.projectile;
   }
 
+  const effects: Effect[] = [...tierData.effects];
   if (safeTier === 5 && upgrade.evolution?.extraEffects) {
-    for (const effect of upgrade.evolution.extraEffects) {
-      executeEffect(effect, ctx);
-    }
+    effects.push(...upgrade.evolution.extraEffects);
   }
+
+  for (const effect of effects) {
+    if (isModifierVerb(effect.verb)) executeEffect(effect, ctx);
+  }
+  for (const effect of effects) {
+    if (!isModifierVerb(effect.verb)) executeEffect(effect, ctx);
+  }
+}
+
+function isModifierVerb(v: Effect['verb']): boolean {
+  return v === 'chain' || v === 'bounce' || v === 'modifyProjectile';
 }
 
 function executeEffect(effect: Effect, ctx: EffectContext): void {
@@ -109,6 +137,7 @@ function executeEffect(effect: Effect, ctx: EffectContext): void {
       verbColumn(effect, ctx);
       break;
     case 'modifyProjectile':
+      verbModifyProjectile(effect, ctx);
       break;
     case 'orbit':
       verbOrbit(effect, ctx);
@@ -125,6 +154,18 @@ function executeEffect(effect: Effect, ctx: EffectContext): void {
   }
 }
 
+function applyPendingTo(p: { pierce: number; bounces: number; chain: number; aoeOnHit: number; homing: boolean; lifesteal: number; radius: number; damage: number; animTrailId?: string }, mods: PendingMods): void {
+  if (mods.pierce) p.pierce += mods.pierce;
+  if (mods.bounces) p.bounces += mods.bounces;
+  if (mods.chain) p.chain += mods.chain;
+  if (mods.aoeOnHit) p.aoeOnHit = Math.max(p.aoeOnHit, mods.aoeOnHit);
+  if (mods.homing) p.homing = true;
+  if (mods.lifesteal) p.lifesteal += mods.lifesteal;
+  if (mods.sizeMul) p.radius *= mods.sizeMul;
+  if (mods.damageMul) p.damage *= mods.damageMul;
+  if (mods.animTrailId) p.animTrailId = mods.animTrailId;
+}
+
 function verbFireProjectile(
   effect: Extract<Effect, { verb: 'fireProjectile' }>,
   ctx: EffectContext,
@@ -132,12 +173,14 @@ function verbFireProjectile(
   const count = Math.max(1, effect.count);
   const delayStep = BALANCE.combat.shotSequenceDelay;
   const dmg = ctx.baseDamage * (effect.damageMul ?? 1);
+  const mods = ctx.pendingMods;
   for (let i = 0; i < count; i++) {
     ctx.ops.queueShot(i * delayStep, PLAYER_X, PROJECTILE_SPAWN_Y, dmg, ctx.face, (p) => {
       if (effect.pierce !== undefined) p.pierce = Math.max(p.pierce, effect.pierce);
       if (effect.bounce !== undefined) p.bounces = Math.max(p.bounces, effect.bounce);
       if (effect.homing) p.homing = true;
       if (effect.size !== undefined) p.radius *= effect.size;
+      applyPendingTo(p, mods);
     });
   }
 }
@@ -153,14 +196,29 @@ function verbPulse(effect: Extract<Effect, { verb: 'pulse' }>, ctx: EffectContex
     }
     ctx.ops.pulse(radius, dmg, ctx.face.element);
   }
+  ctx.ops.playAnim?.(ctx.animation.hit, PLAYER_X, PLAYER_Y, ctx.intensity);
 }
 
-function verbChain(_effect: Extract<Effect, { verb: 'chain' }>, _ctx: EffectContext): void {
-  // TODO(chain): hook into projectile chaining when integrated with engine.
+function verbChain(effect: Extract<Effect, { verb: 'chain' }>, ctx: EffectContext): void {
+  ctx.pendingMods.chain = (ctx.pendingMods.chain ?? 0) + Math.max(0, effect.maxChains);
 }
 
-function verbBounce(_effect: Extract<Effect, { verb: 'bounce' }>, _ctx: EffectContext): void {
-  // TODO(bounce): applied via modifyProjectile today; keep verb for completeness.
+function verbBounce(effect: Extract<Effect, { verb: 'bounce' }>, ctx: EffectContext): void {
+  ctx.pendingMods.bounces = (ctx.pendingMods.bounces ?? 0) + Math.max(0, effect.count);
+}
+
+function verbModifyProjectile(
+  effect: Extract<Effect, { verb: 'modifyProjectile' }>,
+  ctx: EffectContext,
+): void {
+  const m = ctx.pendingMods;
+  if (effect.pierce) m.pierce = (m.pierce ?? 0) + effect.pierce;
+  if (effect.bounce) m.bounces = (m.bounces ?? 0) + effect.bounce;
+  if (effect.aoeOnHit) m.aoeOnHit = Math.max(m.aoeOnHit ?? 0, effect.aoeOnHit);
+  if (effect.homing) m.homing = true;
+  if (effect.lifesteal) m.lifesteal = (m.lifesteal ?? 0) + effect.lifesteal;
+  if (effect.sizeMul) m.sizeMul = (m.sizeMul ?? 1) * effect.sizeMul;
+  if (effect.damageMul) m.damageMul = (m.damageMul ?? 1) * effect.damageMul;
 }
 
 function verbApplyStatus(
@@ -179,10 +237,15 @@ function verbApplyStatus(
 function verbHeal(effect: Extract<Effect, { verb: 'heal' }>, ctx: EffectContext): void {
   const amount = effect.amount * ctx.intensity.brightness;
   ctx.ops.heal(amount);
+  ctx.ops.playAnim?.(ctx.animation.hit, PLAYER_X, PLAYER_Y, ctx.intensity);
 }
 
 function verbShield(effect: Extract<Effect, { verb: 'shield' }>, ctx: EffectContext): void {
   ctx.ops.addShield(effect.stacks);
+  if (effect.reflect && effect.reflect > 0) {
+    ctx.ops.startReflect?.({ duration: 3, multiplier: effect.reflect, radius: 80 });
+  }
+  ctx.ops.playAnim?.(ctx.animation.hit, PLAYER_X, PLAYER_Y, ctx.intensity);
 }
 
 function verbSpawnPickup(
@@ -199,38 +262,86 @@ function verbSpawnPickup(
   } else if (effect.kind === 'heal') {
     ctx.ops.heal(amount);
   } else if (effect.kind === 'soul') {
-    ctx.run.souls += amount;
+    ctx.run.souls = Math.min(BALANCE.necromancer.soulsMax, ctx.run.souls + amount);
   }
 }
 
-function verbPull(_effect: Extract<Effect, { verb: 'pull' }>, _ctx: EffectContext): void {
-  // TODO(pull): requires gravity/pull runtime; no-op scaffold.
+function verbPull(effect: Extract<Effect, { verb: 'pull' }>, ctx: EffectContext): void {
+  ctx.ops.startPull?.({
+    radius: effect.radius * ctx.intensity.scale,
+    strength: effect.strength,
+    dps: effect.dps * ctx.intensity.brightness,
+    duration: effect.duration,
+    destroyProjectiles: !!effect.destroyProjectiles,
+    element: ctx.face.element,
+  });
+  ctx.ops.playAnim?.(ctx.animation.hit, PLAYER_X, PLAYER_Y, ctx.intensity);
 }
 
 function verbColumn(effect: Extract<Effect, { verb: 'column' }>, ctx: EffectContext): void {
   const count = Math.max(1, effect.count);
+  const mods = ctx.pendingMods;
   for (let i = 0; i < count; i++) {
-    ctx.ops.queueShot(i * effect.delay, PLAYER_X, PROJECTILE_SPAWN_Y, ctx.baseDamage * effect.damageMul, ctx.face);
+    ctx.ops.queueShot(i * effect.delay, PLAYER_X, PROJECTILE_SPAWN_Y, ctx.baseDamage * effect.damageMul, ctx.face, (p) => {
+      applyPendingTo(p, mods);
+    });
   }
 }
 
-function verbOrbit(_effect: Extract<Effect, { verb: 'orbit' }>, _ctx: EffectContext): void {
-  // TODO(orbit): requires Orbiter pool in engine; no-op scaffold.
+function verbOrbit(effect: Extract<Effect, { verb: 'orbit' }>, ctx: EffectContext): void {
+  const element: Element = effect.element ?? ctx.face.element;
+  ctx.ops.startOrbit?.({
+    count: Math.max(1, effect.count),
+    radius: effect.radius * ctx.intensity.scale,
+    rpm: effect.rpm,
+    damage: ctx.baseDamage * effect.damageMul,
+    duration: effect.duration,
+    pierce: effect.pierce ?? 0,
+    element,
+    face: ctx.face,
+  });
+  ctx.ops.playAnim?.(ctx.animation.cast, PLAYER_X, PLAYER_Y, ctx.intensity);
 }
 
-function verbBeam(_effect: Extract<Effect, { verb: 'beam' }>, _ctx: EffectContext): void {
-  // TODO(beam): requires continuous beam segment runtime; no-op scaffold.
+function verbBeam(effect: Extract<Effect, { verb: 'beam' }>, ctx: EffectContext): void {
+  const element: Element = effect.element ?? ctx.face.element;
+  ctx.ops.startBeam?.({
+    width: effect.width * ctx.intensity.scale,
+    dps: effect.dps * ctx.intensity.brightness,
+    duration: effect.duration,
+    pierce: effect.pierce ?? 999,
+    element,
+    lifesteal: effect.lifesteal ?? 0,
+    face: ctx.face,
+    baseDamage: ctx.baseDamage,
+  });
 }
 
 function verbSummonMinion(
-  _effect: Extract<Effect, { verb: 'summonMinion' }>,
-  _ctx: EffectContext,
+  effect: Extract<Effect, { verb: 'summonMinion' }>,
+  ctx: EffectContext,
 ): void {
-  // TODO(summonMinion): requires Minion pool + autonomous FSM; no-op scaffold.
+  const trigger = effect.trigger ?? 'onResolve';
+  if (trigger !== 'onResolve') return;
+  ctx.ops.summonMinion?.({
+    kind: effect.kind,
+    count: Math.max(1, effect.count),
+    hp: effect.hp,
+    duration: effect.duration,
+    damagePerHit: effect.damagePerHit * ctx.intensity.brightness,
+    face: ctx.face,
+    baseDamage: ctx.baseDamage,
+    trigger,
+  });
 }
 
-function verbReflect(_effect: Extract<Effect, { verb: 'reflect' }>, _ctx: EffectContext): void {
-  // TODO(reflect): requires projectile reflection bit on collision filter; no-op scaffold.
+function verbReflect(effect: Extract<Effect, { verb: 'reflect' }>, ctx: EffectContext): void {
+  ctx.ops.startReflect?.({
+    duration: effect.duration,
+    multiplier: effect.multiplier,
+    radius: effect.radius ?? 80,
+  });
+  ctx.ops.playAnim?.(ctx.animation.cast, PLAYER_X, PLAYER_Y, ctx.intensity);
 }
 
 export function getTieredAnimationIds(

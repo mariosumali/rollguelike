@@ -31,9 +31,9 @@ export function onApply(env: HookEnv): void {
   for (const fn of gather(env.run, 'onApply')) (fn as UpgradeHooks['onApply'])(env.ctx);
 }
 
-export function onRoll(env: HookEnv, face: Face, streak: number, dieId: string): void {
+export function onRoll(env: HookEnv, face: Face, dieId: string): void {
   for (const fn of gather(env.run, 'onRoll')) {
-    (fn as UpgradeHooks['onRoll'])({ ...env.ctx, face, streak, dieId });
+    (fn as UpgradeHooks['onRoll'])({ ...env.ctx, face, dieId });
   }
 }
 
