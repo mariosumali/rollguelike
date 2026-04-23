@@ -2569,58 +2569,6 @@ function spriteIdFor(characterId: string): string {
   return `char_${characterId}`;
 }
 
-function drawPlayer(ctx: CanvasRenderingContext2D, run: RunState): void {
-  const sprite = getSprite(spriteIdFor(run.characterId));
-  if (!sprite) return;
-  if (run.shield > 0) {
-    drawShieldBubble(ctx, PLAYER_X, PLAYER_Y - 10, 14, state.time * 4, Math.min(4, run.shield));
-  }
-  if (run.characterId === 'berserker' && run.rage > 0) {
-    const a = Math.min(0.8, run.rage / 10);
-    ctx.globalAlpha = a * (0.4 + Math.sin(state.time * 10) * 0.2);
-    ctx.fillStyle = palHex('L')!;
-    ctx.fillRect(PLAYER_X - 13, PLAYER_Y - 22, 26, 24);
-    ctx.globalAlpha = 1;
-  }
-  const { tint, tintAlpha, dy } = resolvePoseVisual(state.playerPose);
-  drawSprite(ctx, sprite, state.playerAnim.frameIdx, PLAYER_X, PLAYER_Y + 4 + dy, false, tint, tintAlpha);
-}
-
-function resolvePoseVisual(pose: PlayerPose): { tint?: string; tintAlpha: number; dy: number } {
-  if (pose.kind === 'none' || pose.dur <= 0) return { tintAlpha: 0, dy: 0 };
-  const p = Math.min(1, pose.t / pose.dur);
-  const wave = Math.sin(p * Math.PI);
-  switch (pose.kind) {
-    case 'attack':
-      return { tint: palHex('y')!, tintAlpha: wave * 0.45, dy: wave * 2 };
-    case 'burst':
-      return { tint: palHex('v')!, tintAlpha: wave * 0.5, dy: wave * 1 };
-    case 'bomb':
-      return { tint: palHex('u')!, tintAlpha: wave * 0.55, dy: wave * 2 };
-    case 'rage':
-      return { tint: palHex('L')!, tintAlpha: wave * 0.7, dy: wave * 2 };
-    case 'charged':
-      return { tint: palHex('x')!, tintAlpha: wave * 0.6, dy: wave * 1 };
-    case 'pulse':
-      return { tint: palHex('q')!, tintAlpha: wave * 0.55, dy: -wave * 2 };
-    case 'drain':
-      return { tint: palHex('H')!, tintAlpha: wave * 0.65, dy: -wave * 2 };
-    case 'shield':
-      return { tint: palHex('q')!, tintAlpha: wave * 0.7, dy: 0 };
-    case 'heal':
-      return { tint: palHex('m')!, tintAlpha: wave * 0.7, dy: -wave * 1 };
-    case 'wild': {
-      const hues = ['u', 'y', 'q', 'z', 'H'];
-      const hue = hues[Math.floor(pose.t * 24) % hues.length]!;
-      return { tint: palHex(hue)!, tintAlpha: wave * 0.65, dy: 0 };
-    }
-    case 'blank':
-      return { tint: palHex('b')!, tintAlpha: wave * 0.4, dy: wave * 1 };
-    default:
-      return { tintAlpha: 0, dy: 0 };
-  }
-}
-
 const FACE_ICON_SLOTS: (HTMLCanvasElement | null)[] = [null, null, null, null, null, null];
 let lastIconSignature = '';
 

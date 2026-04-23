@@ -1,11 +1,5 @@
 import { palHex } from '../../../sprites/palette';
-import {
-  createDrifters,
-  drawMagicCircle,
-  skyGradient,
-  TORCH_MAGMA,
-  updateAndDrawDrift,
-} from '../primitives';
+import { createDrifters, drawMagicCircle, TORCH_MAGMA, updateAndDrawDrift } from '../primitives';
 import type { MenuEngine, ThemeController } from '../types';
 
 interface LavaCrack {

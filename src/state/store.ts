@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { Screen, RunState, MetaState } from '../types';
-import { DIE_THEME_IDS, type DieThemeId } from '../sprites/dice';
+import { DIE_THEME_DEFAULT_UNLOCKS, DIE_THEME_IDS, type DieThemeId } from '../sprites/dice';
 
 interface UpgradeOffer {
   id: string;
@@ -205,6 +205,8 @@ export const useStore = create<StoreState>()(
       pendingArsenalUnlocks: [],
       maxGoldSpentInRun: 0,
       bestSingleRunKills: 0,
+      unlockedDiceThemes: [...DIE_THEME_DEFAULT_UNLOCKS],
+      pendingDiceThemeUnlocks: [],
     },
     settings: { ...DEFAULT_SETTINGS },
     onboarded: false,
