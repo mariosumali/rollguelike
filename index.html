@@ -33,21 +33,46 @@
       href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap"
     />
 
-    <!-- Open Graph -->
+    <!-- Canonical -->
+    <link rel="canonical" href="https://rollguelike.vercel.app/" />
+
+    <!--
+      Social sharing meta.
+      Absolute URLs are intentional: iMessage, Twitter, Discord, Slack and
+      LinkedIn all fetch tags server-side and some won't resolve relative
+      image paths reliably (iMessage in particular silently drops them).
+      Two images are declared:
+        - og-image.png     1200×630   for feed-style link cards (FB/LI/Twitter large, Discord, Slack)
+        - share-square.png 1200×1200  for bubble-style previews (iMessage, WhatsApp, Signal, Telegram, IG DM)
+      Most scrapers pick the first og:image; platforms that prefer square
+      will fall through to the second.
+    -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="ROLLguelike" />
+    <meta property="og:url" content="https://rollguelike.vercel.app/" />
     <meta property="og:title" content="ROLLguelike — Tap the die. Bend the odds. Survive the shrine." />
     <meta property="og:description" content="A pocket-sized dice-rolling roguelite. Auto-aim attacks, stacking upgrades, endless waves — built for one thumb." />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:locale" content="en_US" />
+
+    <meta property="og:image" content="https://rollguelike.vercel.app/og-image.png" />
+    <meta property="og:image:secure_url" content="https://rollguelike.vercel.app/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="ROLLguelike logo: a pixel-art die with a red center pip, framed by a gold shrine wall." />
+    <meta property="og:image:alt" content="ROLLguelike — pixel-art die with a red center pip, framed by a gold shrine wall." />
 
-    <!-- Twitter -->
+    <meta property="og:image" content="https://rollguelike.vercel.app/share-square.png" />
+    <meta property="og:image:secure_url" content="https://rollguelike.vercel.app/share-square.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="1200" />
+    <meta property="og:image:alt" content="ROLLguelike — pixel-art die and wordmark on a gold-framed shrine tile." />
+
+    <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="ROLLguelike" />
     <meta name="twitter:description" content="Tap the die. Bend the odds. Survive the shrine." />
-    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:image" content="https://rollguelike.vercel.app/og-image.png" />
     <meta name="twitter:image:alt" content="ROLLguelike pixel-art die logo." />
   </head>
   <body>
