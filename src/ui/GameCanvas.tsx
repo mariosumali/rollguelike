@@ -1,14 +1,11 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { startLoop, stopLoop } from '../engine/gameLoop';
 import { bindInput, unbindInput } from '../engine/input';
 import { CANVAS_W, CANVAS_H } from '../config/constants';
-import { useStore } from '../state/store';
-import { startBgm, stopBgm, setBgmIntensity } from '../audio/bgm';
 
 export function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const isBossWave = useStore((s) => s.hud.isBossWave);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -43,15 +40,6 @@ export function GameCanvas() {
       unbindInput();
     };
   }, []);
-
-  useEffect(() => {
-    startBgm();
-    return () => stopBgm();
-  }, []);
-
-  useEffect(() => {
-    setBgmIntensity(isBossWave ? 'boss' : 'normal');
-  }, [isBossWave]);
 
   return (
     <div className="canvas-wrap" ref={wrapRef}>
