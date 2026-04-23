@@ -745,6 +745,27 @@ function executeFace(face: Face, dieId: string, streak: number, streakMul: numbe
         executeFace(state.lastRolled, dieId, streak, streakMul, run);
       }
     },
+    applyStatusNearest: (status, power, duration) => {
+      const target = findNearestEnemyXY(state.enemies);
+      if (!target) return;
+      for (const e of state.enemies) {
+        if (!e.alive || e.state === 'die') continue;
+        if (e.x !== target.x || e.y !== target.y) continue;
+        if (status === 'burn' || status === 'poison') {
+          e.poisonDps = Math.max(e.poisonDps, power);
+          e.poisonT = Math.max(e.poisonT, duration);
+          e.hitFlash = 0.15;
+        } else if (status === 'slow' || status === 'freeze' || status === 'stun') {
+          (e as Enemy & { slowT?: number; slowMul?: number }).slowT = duration;
+          (e as Enemy & { slowT?: number; slowMul?: number }).slowMul = status === 'freeze' ? 0 : status === 'stun' ? 0 : 1 - Math.max(0, Math.min(0.9, power));
+          e.hitFlash = 0.15;
+        }
+        break;
+      }
+    },
+    addGold: (amount) => {
+      run.gold += Math.max(0, Math.floor(amount));
+    },
   });
 }
 
@@ -1449,6 +1470,18 @@ function pickBestSlotFor(
     candidates.push(i);
   }
   if (candidates.length === 0) return -1;
+  if (upgrade.kind === 'replacer') {
+    const empty = candidates.filter((i) => slots[i]!.replacerId === null);
+    if (empty.length > 0) {
+      return empty[Math.floor(state.rng() * empty.length)] ?? -1;
+    }
+  } else {
+    candidates.sort((a, b) => slots[a]!.supplementIds.length - slots[b]!.supplementIds.length);
+    const leastIdx = candidates[0]!;
+    const leastLen = slots[leastIdx]!.supplementIds.length;
+    const tiedLeast = candidates.filter((i) => slots[i]!.supplementIds.length === leastLen);
+    return tiedLeast[Math.floor(state.rng() * tiedLeast.length)] ?? -1;
+  }
   return candidates[Math.floor(state.rng() * candidates.length)] ?? -1;
 }
 
