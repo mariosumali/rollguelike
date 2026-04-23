@@ -1,5 +1,6 @@
 import type { ProjectileArchetype } from '../../types';
 import { palHex } from '../../sprites/palette';
+import { BALANCE } from '../../config/balance';
 
 export const PROJECTILE_ARCHETYPES: Record<string, ProjectileArchetype> = {
   soldier_bullet: {
@@ -66,10 +67,10 @@ export const PROJECTILE_ARCHETYPES: Record<string, ProjectileArchetype> = {
     rotateSpeed: 10,
     tintWithElement: false,
     onSpawn: (p, _face, run) => {
-      p.damage *= 1 + Math.min(0.6, run.souls * 0.08);
+      p.damage *= 1 + Math.min(0.3, run.souls * 0.04);
     },
     onHit: (p, enemy) => {
-      if (enemy.hp < enemy.maxHp * 0.5) p.damage *= 1.25;
+      if (enemy.hp < enemy.maxHp * 0.4) p.damage *= 1.12;
     },
   },
   berserker_axe: {
@@ -87,7 +88,7 @@ export const PROJECTILE_ARCHETYPES: Record<string, ProjectileArchetype> = {
     tintWithElement: false,
     basePierce: 1,
     onHit: (_p, _enemy, run) => {
-      run.rage = Math.min(10, run.rage + 0.25);
+      run.rage = Math.min(BALANCE.berserker.rageMax, run.rage + 0.25);
     },
   },
   clockmaker_gear: {
