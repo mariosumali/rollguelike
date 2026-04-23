@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" shape-rendering="crispEdges" role="img" aria-label="ROLLguelike">
+  <title>ROLLguelike</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0a18"/>
+      <stop offset="1" stop-color="#05050c"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="160" fill="url(#bg)"/>
+
+  <!-- gold border rails -->
+  <rect x="0"   y="0"   width="640" height="4" fill="#ffd86b"/>
+  <rect x="0"   y="156" width="640" height="4" fill="#8a5a00"/>
+
+  <!-- die glyph (8px scale) -->
+  <g transform="translate(20,24) scale(1.75)">
+    <rect x="0"  y="0"  width="64" height="64" fill="#f0ecd8"/>
+    <rect x="0"  y="0"  width="64" height="4"  fill="#ffffff"/>
+    <rect x="0"  y="0"  width="4"  height="64" fill="#ffffff"/>
+    <rect x="0"  y="60" width="64" height="4"  fill="#8a5a00"/>
+    <rect x="60" y="0"  width="4"  height="64" fill="#8a5a00"/>
+    <rect x="8"  y="8"  width="10" height="10" fill="#1a1a3a"/>
+    <rect x="46" y="8"  width="10" height="10" fill="#1a1a3a"/>
+    <rect x="8"  y="46" width="10" height="10" fill="#1a1a3a"/>
+    <rect x="46" y="46" width="10" height="10" fill="#1a1a3a"/>
+    <rect x="27" y="27" width="10" height="10" fill="#e23c4c"/>
+    <rect x="29" y="29" width="3"  height="3"  fill="#ff8a9a"/>
+  </g>
+
+  <!-- Wordmark: ROLLguelike -->
+  <g transform="translate(160,42)" fill="#f0ecd8">
+    <!-- stencil-style pixel text using monospace for reliability across renderers -->
+    <text x="0" y="48"
+          font-family="'Press Start 2P', ui-monospace, 'Courier New', monospace"
+          font-size="44"
+          letter-spacing="2"
+          font-weight="700">ROLL<tspan fill="#ffd86b">guelike</tspan></text>
+    <text x="2" y="86"
+          font-family="ui-monospace, 'Courier New', monospace"
+          font-size="14"
+          letter-spacing="3"
+          fill="#9fa7bd">TAP THE DIE · BEND THE ODDS · SURVIVE</text>
+  </g>
+</svg>
