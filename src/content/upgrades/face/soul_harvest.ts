@@ -19,11 +19,11 @@ const upgrade: FaceUpgrade = {
     flavor: 'Every 3 souls instead, and wraiths pierce.',
   },
   tiers: [
-    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 1, hp: 4, duration: 3, damagePerHit: 6, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 5 } },
-    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 1, hp: 5, duration: 3.5, damagePerHit: 8, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 5 } },
-    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 2, hp: 6, duration: 4, damagePerHit: 9, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 4 } },
-    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 2, hp: 7, duration: 4.5, damagePerHit: 10, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 4 } },
-    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 3, hp: 8, duration: 5, damagePerHit: 12, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 3 }, note: 'Harvester' },
+    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 1, hp: 4, duration: 2.5, damagePerHit: 4, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 6 } },
+    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 1, hp: 5, duration: 3, damagePerHit: 5, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 6 } },
+    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 1, hp: 6, duration: 3.5, damagePerHit: 6, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 5 } },
+    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 2, hp: 7, duration: 4, damagePerHit: 7, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 5 } },
+    { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 2, hp: 8, duration: 4.5, damagePerHit: 8, trigger: 'onResolve' }], damageMul: 1.0, params: { soulsPerTrigger: 4 }, note: 'Harvester' },
   ],
 };
 

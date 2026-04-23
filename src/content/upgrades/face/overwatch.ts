@@ -5,7 +5,7 @@ const upgrade: FaceUpgrade = {
   name: 'Overwatch',
   kind: 'supplement',
   rarity: 'rare',
-  description: "Soldier only. On a roll of 6, the next two rolls fire at max volley.",
+  description: "Knight only. On a roll of 6, the next two rolls fire at max volley.",
   tags: ['supplement', 'soldier', 'multishot'],
   characterExclusive: 'soldier',
   animation: {
