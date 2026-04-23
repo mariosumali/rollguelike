@@ -36,6 +36,8 @@ interface StoreState {
     shield: number;
     souls: number;
     rage: number;
+    gold: number;
+    gambitStacks: number;
     characterId: string;
     isBossWave: boolean;
     waveProgress: number;
@@ -75,6 +77,8 @@ export const useStore = create<StoreState>()(
       shield: 0,
       souls: 0,
       rage: 0,
+      gold: 0,
+      gambitStacks: 0,
       characterId: 'soldier',
       isBossWave: false,
       waveProgress: 0,

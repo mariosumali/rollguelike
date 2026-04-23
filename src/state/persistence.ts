@@ -36,10 +36,41 @@ export function loadRun(): RunState | null {
   try {
     const raw = localStorage.getItem(KEY_RUN);
     if (!raw) return null;
-    return JSON.parse(raw) as RunState;
+    const parsed = JSON.parse(raw) as Partial<RunState>;
+    return migrateRun(parsed);
   } catch {
     return null;
   }
+}
+
+function migrateRun(parsed: Partial<RunState>): RunState {
+  return {
+    characterId: parsed.characterId ?? 'soldier',
+    wave: parsed.wave ?? 1,
+    score: parsed.score ?? 0,
+    streak: parsed.streak ?? 0,
+    streakFace: parsed.streakFace ?? null,
+    hp: parsed.hp ?? 100,
+    maxHp: parsed.maxHp ?? 100,
+    shield: parsed.shield ?? 0,
+    souls: parsed.souls ?? 0,
+    rage: parsed.rage ?? 0,
+    upgrades: parsed.upgrades ?? [],
+    dice: parsed.dice ?? [],
+    seed: parsed.seed ?? Date.now(),
+    kills: parsed.kills ?? 0,
+    waveStartedAt: parsed.waveStartedAt ?? 0,
+    rerolls: parsed.rerolls ?? 0,
+    pickCount: parsed.pickCount ?? 0,
+    lockedFaceValue: parsed.lockedFaceValue,
+    lockedFaceTimer: parsed.lockedFaceTimer,
+    momentum: parsed.momentum,
+    momentumT: parsed.momentumT,
+    gold: parsed.gold ?? 0,
+    ownedFaceUpgrades: parsed.ownedFaceUpgrades ?? {},
+    slotLayout: parsed.slotLayout ?? [],
+    gambitStacks: parsed.gambitStacks ?? 0,
+  };
 }
 
 export function saveRun(run: RunState | null): void {

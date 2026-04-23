@@ -7,9 +7,9 @@ export const BALANCE = {
   },
 
   die: {
-    baseRollDuration: 1.5,
-    rollDurationMin: 0.6,
-    postRollCooldown: 0.4,
+    baseRollDuration: 0.6,
+    rollDurationMin: 0.35,
+    postRollCooldown: 0.25,
   },
 
   enemy: {
@@ -67,5 +67,58 @@ export const BALANCE = {
 
   meta: {
     clockmakerUnlockRuns: 3,
+  },
+
+  gold: {
+    perKill: (wave: number) => (wave >= 10 ? 3 : wave >= 5 ? 2 : 1),
+    eliteKill: (wave: number) => 5 + Math.floor(wave / 2),
+    bossKill: (wave: number) => 25 + wave * 2,
+    waveClearBonus: (wave: number) => 5 + wave * 2,
+    skipHeal: (face: number) => face * 0.5,
+  },
+
+  shop: {
+    cardsPerOffer: 4,
+    rerollCost: (wave: number) => 5 + wave * 2,
+    removeDefaultCost: (wave: number) => 15 + wave * 3,
+    slotExpandCost: (wave: number) => 25 + wave * 5,
+    slotCapBase: 2,
+    slotCapMax: 4,
+    ownedT1T2WeightMul: 1.4,
+    ownedT3T4WeightMul: 1.2,
+    ownedMaxWeightMul: 0.2,
+    maxTierDuplicateRefund: 8,
+  },
+
+  faceUpgrade: {
+    tierScaling: {
+      scalePerTier: 0.2,
+      particlesPerTier: 0.25,
+      brightnessPerTier: 0.1,
+    },
+    basePrices: {
+      common: [8, 12, 18, 25, 35],
+      rare: [15, 22, 32, 45, 60],
+      epic: [30, 45, 65, 90, 120],
+      legendary: [60, 90, 130, 180, 240],
+    } as Record<Rarity, number[]>,
+  },
+
+  gambler: {
+    gambitMaxStacks: 5,
+    gambitBonusPerStack: 0.15,
+    gambitExtremes: [1, 6] as number[],
+  },
+
+  slot: {
+    slotsPerCharacter: 6,
+    replacerPerSlot: 1,
+    supplementsDefault: 2,
+    supplementsMax: 4,
+  },
+
+  waveCadence: {
+    forgeShopEvery: 2,
+    bossEvery: 5,
   },
 } as const;

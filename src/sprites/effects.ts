@@ -394,7 +394,7 @@ export function drawHealParticle(ctx: CanvasRenderingContext2D, x: number, y: nu
 export function drawNumberPopup(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, alpha: number, color: string, size = 8): void {
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.font = `${size}px 'Courier New', monospace`;
+  ctx.font = `${size}px 'Silkscreen', 'Courier New', monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = palHex('1')!;

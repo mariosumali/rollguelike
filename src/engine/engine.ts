@@ -80,6 +80,7 @@ import { getCharacter } from '../content/characters/registry';
 import { getEnemyType } from '../content/enemies/registry';
 import { listUpgrades, getUpgrade } from '../content/upgrades/registry';
 import { resolveFace, deriveProjectileColor, findNearestEnemyXY, DEFAULT_AIM } from '../systems/faceResolve';
+import { createSlotLayout } from '../systems/slots';
 import { DEFAULT_PROJECTILE_ARCHETYPE } from '../content/characters/projectiles';
 import { getReaction, elementalDotDps, reactionEffectElement } from '../systems/elemental';
 import { playSfx } from '../audio/sfx';
@@ -181,7 +182,7 @@ interface EngineState {
   announcedStageIdx: number;
   lastHud: {
     wave: number; score: number; streak: number; hp: number; maxHp: number;
-    shield: number; souls: number; rage: number; characterId: string;
+    shield: number; souls: number; rage: number; gold: number; gambitStacks: number; characterId: string;
     isBossWave: boolean; waveProgress: number;
   } | null;
 }
@@ -285,6 +286,10 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
       waveStartedAt: 0,
       rerolls: 0,
       pickCount: 0,
+      gold: 0,
+      ownedFaceUpgrades: {},
+      slotLayout: createSlotLayout(ch),
+      gambitStacks: 0,
     };
 
   state.run = run;
@@ -987,6 +992,9 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   if (e.state === 'die') return;
   e.state = 'die';
   e.dieT = 0.3;
+  e.hp = 0;
+  e.poisonT = 0;
+  e.poisonDps = 0;
   e.hitFlash = 0;
   run.kills++;
   run.score += BALANCE.scoring.perKill(run.wave);
@@ -1662,7 +1670,8 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy): void {
     ctx.fillStyle = palHex('f')!;
     ctx.fillRect(barX, barY, barW, 1);
     ctx.fillStyle = palHex('m')!;
-    ctx.fillRect(barX, barY, Math.round((e.hp / e.maxHp) * barW), 1);
+    const hpFrac = e.maxHp > 0 ? Math.max(0, Math.min(1, e.hp / e.maxHp)) : 0;
+    ctx.fillRect(barX, barY, Math.round(hpFrac * barW), 1);
   }
 }
 
@@ -1743,13 +1752,13 @@ function drawStageBanner(ctx: CanvasRenderingContext2D, stageIdx: number, remain
   ctx.globalAlpha = alpha;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `bold 12px 'Courier New', monospace`;
+  ctx.font = `bold 12px 'Press Start 2P', 'Silkscreen', 'Courier New', monospace`;
   ctx.fillStyle = palHex('0')!;
   ctx.fillText(stage.name, CANVAS_W / 2 + 1, cy + 1 + slide);
   ctx.fillStyle = stage.starColor;
   ctx.fillText(stage.name, CANVAS_W / 2, cy + slide);
 
-  ctx.font = `8px 'Courier New', monospace`;
+  ctx.font = `8px 'Silkscreen', 'Courier New', monospace`;
   ctx.globalAlpha = alpha * 0.85;
   ctx.fillStyle = palHex('c')!;
   ctx.fillText(stage.subtitle, CANVAS_W / 2, cy + 12 + slide);
@@ -1868,6 +1877,8 @@ function syncHudToStore(): void {
   const shield = run.shield;
   const souls = run.souls;
   const rage = Math.floor(run.rage);
+  const gold = run.gold;
+  const gambitStacks = run.gambitStacks;
   const characterId = run.characterId;
   const isBossWave = wave % BALANCE.waves.bossEvery === 0;
   const waveProgress = computeWaveProgress();
@@ -1882,6 +1893,8 @@ function syncHudToStore(): void {
     last.shield === shield &&
     last.souls === souls &&
     last.rage === rage &&
+    last.gold === gold &&
+    last.gambitStacks === gambitStacks &&
     last.characterId === characterId &&
     last.isBossWave === isBossWave &&
     Math.abs(last.waveProgress - waveProgress) < 0.005
@@ -1897,11 +1910,13 @@ function syncHudToStore(): void {
     shield,
     souls,
     rage,
+    gold,
+    gambitStacks,
     characterId,
     isBossWave,
     waveProgress,
   });
-  state.lastHud = { wave, score, streak, hp, maxHp, shield, souls, rage, characterId, isBossWave, waveProgress };
+  state.lastHud = { wave, score, streak, hp, maxHp, shield, souls, rage, gold, gambitStacks, characterId, isBossWave, waveProgress };
 }
 
 function computeWaveProgress(): number {
