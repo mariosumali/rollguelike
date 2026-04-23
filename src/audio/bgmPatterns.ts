@@ -52,14 +52,47 @@ export type BgmLayerPattern = {
   hihat: boolean[];
 };
 
+// --- phrase helpers ---------------------------------------------------------
+// Each seed below is a 16-step "phrase A". `expandSong()` (at the bottom of
+// this file) turns it into a 64-step song of the form  A – A' – B – A''  so
+// tracks don't repeat the same 4 bars every few seconds. See `expandSong` for
+// the exact transformations.
+
+function offsetLayer(arr: number[], semi: number): number[] {
+  return arr.map((n) => (n > 0 ? Math.max(1, n + semi) : 0));
+}
+
+function rotateArr<T>(arr: T[], n: number): T[] {
+  if (arr.length === 0) return arr;
+  const len = arr.length;
+  const k = ((n % len) + len) % len;
+  return arr.slice(k).concat(arr.slice(0, k));
+}
+
+function swapHalves<T>(arr: T[]): T[] {
+  const half = (arr.length / 2) | 0;
+  return arr.slice(half).concat(arr.slice(0, half));
+}
+
+function fillEnd(snare: boolean[]): boolean[] {
+  const out = snare.slice();
+  if (out.length >= 1) out[out.length - 1] = true;
+  if (out.length >= 2) out[out.length - 2] = true;
+  return out;
+}
+
 /**
  * ①–③ Adventure tone (field / woods / fanfare).
  * ④ Omen — D minor, half-time, grave.
  * ⑤ Stormwall — E minor, driving kit.
  * ⑥ Throne — G minor, slow & wide, coronation weight.
  * + `menu` — non-selectable title-screen theme (plays on menu/select/gameover).
+ *
+ * These are the 16-step *seed* phrases; `BGM_SETS` (exported below) expands
+ * them into full 64-step songs so the landing page and gameplay don't hammer
+ * the same 4-bar loop on repeat.
  */
-export const BGM_SETS: Record<
+const BGM_SEEDS: Record<
   BgmPatternKey,
   { normal: BgmLayerPattern; boss: BgmLayerPattern }
 > = {
@@ -845,3 +878,93 @@ export const BGM_SETS: Record<
     },
   },
 };
+
+type Phrase = Omit<BgmLayerPattern, 'bpm' | 'stepMul'>;
+
+function phraseOf(p: BgmLayerPattern): Phrase {
+  return {
+    bass: p.bass,
+    lead: p.lead,
+    counter: p.counter,
+    arp: p.arp,
+    strings: p.strings,
+    brass: p.brass,
+    kick: p.kick,
+    snare: p.snare,
+    hihat: p.hihat,
+  };
+}
+
+function concatPhrases(parts: Phrase[]): Phrase {
+  return {
+    bass: parts.flatMap((p) => p.bass),
+    lead: parts.flatMap((p) => p.lead),
+    counter: parts.flatMap((p) => p.counter),
+    arp: parts.flatMap((p) => p.arp),
+    strings: parts.flatMap((p) => p.strings),
+    brass: parts.flatMap((p) => p.brass),
+    kick: parts.flatMap((p) => p.kick),
+    snare: parts.flatMap((p) => p.snare),
+    hihat: parts.flatMap((p) => p.hihat),
+  };
+}
+
+/**
+ * Expand a 16-step seed phrase into a 64-step song so tracks have a real
+ * arrangement instead of a 3–5-second loop. Form is A – A' – B – A'':
+ *
+ *   A   – the original seed, unchanged.
+ *   A'  – lead halves swapped (call-and-response), counter + arp rotated
+ *         4 steps. Same harmony and drums; feels like an "answer" to A.
+ *   B   – all pitched layers shifted down a perfect 4th. In every key used
+ *         here that lands on the V (or bVII) chord, giving a classic
+ *         dominant-prep "bridge" before resolving back to A''. Drums stay
+ *         the same so the bridge reads as harmonic, not rhythmic.
+ *   A'' – recap of A with the arp rotated half a bar and a two-step snare
+ *         fill leading into the loop reset.
+ */
+function expandSong(seed: BgmLayerPattern): BgmLayerPattern {
+  const a = phraseOf(seed);
+  const aPrime: Phrase = {
+    ...a,
+    lead: swapHalves(seed.lead),
+    counter: rotateArr(seed.counter, 4),
+    arp: rotateArr(seed.arp, 4),
+  };
+  const b: Phrase = {
+    bass: offsetLayer(seed.bass, -5),
+    lead: offsetLayer(seed.lead, -5),
+    counter: offsetLayer(seed.counter, -5),
+    arp: offsetLayer(seed.arp, -5),
+    strings: offsetLayer(seed.strings, -5),
+    brass: offsetLayer(seed.brass, -5),
+    kick: seed.kick,
+    snare: seed.snare,
+    hihat: seed.hihat,
+  };
+  const aFinal: Phrase = {
+    ...a,
+    arp: rotateArr(seed.arp, 8),
+    snare: fillEnd(seed.snare),
+  };
+  return {
+    bpm: seed.bpm,
+    stepMul: seed.stepMul,
+    ...concatPhrases([a, aPrime, b, aFinal]),
+  };
+}
+
+export const BGM_SETS: Record<
+  BgmPatternKey,
+  { normal: BgmLayerPattern; boss: BgmLayerPattern }
+> = (() => {
+  const out = {} as Record<
+    BgmPatternKey,
+    { normal: BgmLayerPattern; boss: BgmLayerPattern }
+  >;
+  for (const key of Object.keys(BGM_SEEDS) as BgmPatternKey[]) {
+    const s = BGM_SEEDS[key];
+    out[key] = { normal: expandSong(s.normal), boss: expandSong(s.boss) };
+  }
+  return out;
+})();

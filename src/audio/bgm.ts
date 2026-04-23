@@ -74,9 +74,10 @@ function schedule(): void {
   if (nextStepTime === 0) {
     nextStepTime = now + 0.06;
   }
+  const patternLen = p.bass.length || 16;
   let safety = 0;
   while (nextStepTime < now + LOOKAHEAD_S && safety++ < 14) {
-    const i = stepIndex % 16;
+    const i = stepIndex % patternLen;
     playStep(p, i, nextStepTime, stepLen);
     nextStepTime += stepLen;
     stepIndex++;

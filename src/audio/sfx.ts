@@ -21,7 +21,17 @@ type SfxId =
   | 'upgrade_pick'
   | 'soul'
   | 'reaction'
-  | 'reflect';
+  | 'reflect'
+  | 'coin_flip'
+  | 'coin_land_heads'
+  | 'coin_land_tails'
+  | 'slot_spin'
+  | 'slot_stop'
+  | 'slot_win_small'
+  | 'slot_win_big'
+  | 'roulette_spin'
+  | 'roulette_tick'
+  | 'roulette_land';
 
 const SFX: Record<SfxId, () => void> = {
   roll_start: () => {
@@ -110,6 +120,47 @@ const SFX: Record<SfxId, () => void> = {
   },
   reflect: () => {
     playTone({ wave: 'square', freq: 880, freqEnd: 1320, duration: 0.07, volume: 0.18 });
+  },
+
+  coin_flip: () => {
+    playTone({ wave: 'triangle', freq: 520, freqEnd: 1200, duration: 0.14, volume: 0.14, attack: 0.002 });
+    playNoiseBurst(0.06, 3200, 0.06);
+  },
+  coin_land_heads: () => {
+    playChord([988, 1319, 1760], { wave: 'triangle', duration: 0.28, volume: 0.18, attack: 0.002, decay: 0.06 });
+    playTone({ wave: 'sine', freq: 2200, duration: 0.08, volume: 0.08 });
+  },
+  coin_land_tails: () => {
+    playChord([392, 523, 659], { wave: 'triangle', duration: 0.28, volume: 0.16, attack: 0.002, decay: 0.06 });
+    playNoiseBurst(0.05, 600, 0.08);
+  },
+
+  slot_spin: () => {
+    playTone({ wave: 'sawtooth', freq: 90, freqEnd: 220, duration: 0.25, volume: 0.1, vibrato: 12 });
+    playNoiseBurst(0.22, 1400, 0.07);
+  },
+  slot_stop: () => {
+    playTone({ wave: 'square', freq: 220, freqEnd: 140, duration: 0.06, volume: 0.22, attack: 0.001 });
+    playNoiseBurst(0.035, 500, 0.1);
+  },
+  slot_win_small: () => {
+    playChord([523, 659, 784], { wave: 'triangle', duration: 0.3, volume: 0.18, attack: 0.01 });
+  },
+  slot_win_big: () => {
+    playChord([523, 659, 784, 1046, 1319], { wave: 'triangle', duration: 0.55, volume: 0.22, attack: 0.02, decay: 0.08 });
+    playNoiseBurst(0.3, 3600, 0.1);
+  },
+
+  roulette_spin: () => {
+    playTone({ wave: 'sawtooth', freq: 70, freqEnd: 140, duration: 0.55, volume: 0.1, vibrato: 5 });
+    playNoiseBurst(0.5, 900, 0.05);
+  },
+  roulette_tick: () => {
+    playTone({ wave: 'square', freq: 1500, duration: 0.02, volume: 0.14, attack: 0.0005, decay: 0.005 });
+  },
+  roulette_land: () => {
+    playTone({ wave: 'triangle', freq: 660, freqEnd: 300, duration: 0.25, volume: 0.18 });
+    playNoiseBurst(0.09, 700, 0.1);
   },
 };
 
