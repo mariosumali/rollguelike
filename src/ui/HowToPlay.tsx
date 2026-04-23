@@ -15,12 +15,12 @@ export function HowToPlay({ onClose }: Props) {
             Tap the die to roll. The face that lands decides your action.
           </li>
           <li>
-            <span className="how-tag">CHAIN</span>
-            Roll the same face back-to-back to build a streak multiplier.
+            <span className="how-tag">FORGE</span>
+            Clear waves to earn gold. Spend it at the Forge Shop to upgrade each face.
           </li>
           <li>
             <span className="how-tag">WAVE</span>
-            Survive the wave. Beat a boss every 5th wave to pick an upgrade.
+            Survive the wave. Beat a boss every 5th wave for a landmark reward.
           </li>
           <li>
             <span className="how-tag">SWORD</span>
