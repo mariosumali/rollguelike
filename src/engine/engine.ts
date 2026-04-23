@@ -79,7 +79,7 @@ import { getFaceIconRows, getFaceIconCacheKey } from '../content/upgrades/faceIc
 import { getSprite, drawSprite } from '../sprites/sprite';
 import { initSprites } from '../sprites';
 import { makeAnimState, setAnim, stepAnim, type AnimState } from '../sprites/animation';
-import { getCharacter } from '../content/characters/registry';
+import { getCharacter, listCharacters } from '../content/characters/registry';
 import { getEnemyType } from '../content/enemies/registry';
 import { listUpgrades, getUpgrade } from '../content/upgrades/registry';
 import { listFaceUpgrades, getFaceUpgrade } from '../content/upgrades/faceRegistry';
@@ -99,7 +99,8 @@ import {
   getAutoRollEnabled,
 } from '../state/prefsRuntime';
 import { useStore, setRunState } from '../state/store';
-import { saveRun, incrementRunsCompleted } from '../state/persistence';
+import { saveRun, incrementRunsCompleted, saveMeta } from '../state/persistence';
+import { DIE_THEME_IDS as ALL_DIE_THEME_IDS } from '../sprites/dice';
 import { palHex } from '../sprites/palette';
 import { weighted } from './rng';
 import { generateWave } from '../content/waves/generator';
@@ -173,6 +174,16 @@ interface ReflectState {
   radius: number;
 }
 
+// Frenzy mode kicks in as a safety net whenever a wave has fully spawned but
+// no enemy has died (or reached the wall) for FRENZY_TRIGGER_DELAY seconds.
+// While active, simulation time is multiplied by FRENZY_SPEED_MUL so the
+// stalemate resolves quickly; when FRENZY_DURATION elapses any remaining
+// enemies are force-killed so the round can end. Tuned small because most
+// healthy waves never see this ring appear.
+const FRENZY_TRIGGER_DELAY = 8;
+const FRENZY_DURATION = 6;
+const FRENZY_SPEED_MUL = 2;
+
 interface EngineState {
   run: RunState | null;
   rng: () => number;
@@ -211,6 +222,9 @@ interface EngineState {
   stageBannerT: number;
   stageBannerIdx: number;
   announcedStageIdx: number;
+  lastKillTime: number;
+  frenzyActive: boolean;
+  frenzyT: number;
   lastHud: {
     wave: number; score: number; hp: number; maxHp: number;
     shield: number; souls: number; rage: number; gold: number; gambitStacks: number; characterId: string;
@@ -256,6 +270,9 @@ const state: EngineState = {
   stageBannerT: 0,
   stageBannerIdx: -1,
   announcedStageIdx: -1,
+  lastKillTime: 0,
+  frenzyActive: false,
+  frenzyT: 0,
   lastHud: null,
 };
 
@@ -300,6 +317,9 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   state.stageBannerT = 0;
   state.stageBannerIdx = -1;
   state.announcedStageIdx = -1;
+  state.lastKillTime = 0;
+  state.frenzyActive = false;
+  state.frenzyT = 0;
   state.lastHud = null;
 
   const run: RunState =
@@ -393,6 +413,9 @@ function setupWave(waveNum: number): void {
   state.spawnedForWave = false;
   state.waveClearedT = -1;
   state.tapQueued = false;
+  state.lastKillTime = state.time;
+  state.frenzyActive = false;
+  state.frenzyT = 0;
   run.waveStartedAt = state.time;
   fireOnWaveStart(envFor(run), waveNum);
 
@@ -457,6 +480,12 @@ export function update(dt: number): void {
     state.hitStopT -= dt;
     return;
   }
+
+  // Frenzy safety-net: detect stalled waves (spawns done but enemies neither
+  // dying nor reaching the wall) and accelerate time. The trigger/tick runs on
+  // real dt BEFORE we scale; simulation dt below is multiplied when active.
+  tickFrenzy(dt, run);
+  if (state.frenzyActive) dt *= FRENZY_SPEED_MUL;
 
   state.time += dt;
   state.iframeT = Math.max(0, state.iframeT - dt);
@@ -584,6 +613,17 @@ export function update(dt: number): void {
   if (run.characterId === 'berserker') updateRage(run, dt);
   if (run.characterId === 'clockmaker') applyClockmakerSlow();
   updateMomentum(run, dt);
+
+  // Safety clamp: non-boss enemies must never be shoved above their spawn
+  // line. Pull-zones, graviton projectiles, and knockback effects mutate e.y
+  // directly and could otherwise launch rushers over the HUD where bullets
+  // (which despawn at y < HUD_H) can never reach them — softlocking the wave.
+  // Bosses are exempt because they manage their own target-Y logic.
+  for (const e of state.enemies) {
+    if (!e.alive || e.isBoss) continue;
+    const minY = HUD_H - 12;
+    if (e.y < minY) e.y = minY;
+  }
 
   if (state.spawnedForWave && allEnemiesDead() && state.waveClearedT < 0) {
     state.waveClearedT = state.time;
@@ -1305,6 +1345,7 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   e.poisonT = 0;
   e.poisonDps = 0;
   e.hitFlash = 0;
+  state.lastKillTime = state.time;
   run.kills++;
   run.score += BALANCE.scoring.perKill(run.wave);
   const goldAward = e.isBoss
@@ -1600,6 +1641,10 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
     const dmg = type?.touchDamage ?? 10;
     damagePlayer(dmg, run);
     e.alive = false;
+    // Enemies that reach the wall also count as "progress" for frenzy gating;
+    // frenzy only exists to unstick softlocked waves, not punish players who
+    // are letting mobs through on purpose.
+    state.lastKillTime = state.time;
     spawnVfx({ x: e.x, y: WALL_Y - 4, life: 0.3, kind: 'explosion', color: palHex('h')!, size: 8 });
     spawnVfx({ x: e.x, y: WALL_Y - 2, life: 0.35, kind: 'ring', color: palHex('f')!, size: 6 });
     for (let i = 0; i < 4; i++) {
@@ -1680,6 +1725,50 @@ function onPlayerDied(run: RunState): void {
 function allEnemiesDead(): boolean {
   for (const e of state.enemies) if (e.alive) return false;
   return true;
+}
+
+/**
+ * Frenzy state machine. Always called with real (unscaled) dt. Activates when
+ * a wave has stalled past FRENZY_TRIGGER_DELAY; expires after FRENZY_DURATION
+ * by force-killing survivors so `allEnemiesDead` flips and the wave ends
+ * normally through the standard endWave path.
+ */
+function tickFrenzy(realDt: number, run: RunState): void {
+  const waveOngoing =
+    state.spawnedForWave && state.waveClearedT < 0 && !allEnemiesDead();
+  if (!waveOngoing) {
+    state.frenzyActive = false;
+    state.frenzyT = 0;
+    return;
+  }
+  if (!state.frenzyActive) {
+    if (state.time - state.lastKillTime > FRENZY_TRIGGER_DELAY) {
+      state.frenzyActive = true;
+      state.frenzyT = 0;
+      playSfx('boss_warn');
+      haptic(HAPTIC.bossKill);
+      addTrauma(0.18);
+    }
+    return;
+  }
+  state.frenzyT = Math.min(FRENZY_DURATION, state.frenzyT + realDt);
+  if (state.frenzyT >= FRENZY_DURATION) {
+    // Force end: instant-kill every survivor. Use the full kill pathway so
+    // score/gold/hooks/character rewards still fire for each one.
+    for (const e of state.enemies) {
+      if (!e.alive || e.state === 'die') continue;
+      e.hp = 0;
+      killEnemy(e, run);
+      spawnVfx({ x: e.x, y: e.y, life: 0.4, kind: 'explosion', color: palHex('h')!, size: 8 });
+    }
+    state.frenzyActive = false;
+    state.frenzyT = 0;
+    addTrauma(0.3);
+    if (getScreenFlashesEnabled()) {
+      state.screenFlashT = 0.25;
+      state.screenFlashColor = palHex('h')!;
+    }
+  }
 }
 
 function endWave(run: RunState): void {
@@ -2409,6 +2498,10 @@ export function render(ctx: CanvasRenderingContext2D): void {
     drawStageBanner(ctx, state.stageBannerIdx, state.stageBannerT);
   }
 
+  if (state.frenzyActive) {
+    drawFrenzyRing(ctx, state.frenzyT / FRENZY_DURATION, state.time);
+  }
+
   if (state.screenFlashT > 0) {
     ctx.globalAlpha = state.screenFlashT * 1.2;
     ctx.fillStyle = state.screenFlashColor;
@@ -2560,6 +2653,54 @@ function drawStageBanner(ctx: CanvasRenderingContext2D, stageIdx: number, remain
   ctx.globalAlpha = 1;
 }
 
+function drawFrenzyRing(ctx: CanvasRenderingContext2D, progress: number, time: number): void {
+  const remaining = Math.max(0, Math.min(1, 1 - progress));
+  const cx = CANVAS_W / 2;
+  const cy = HUD_H + 26;
+  const baseR = 18;
+  const pulse = 1 + Math.sin(time * 14) * 0.08;
+  const hot = palHex('h')!;
+  const warn = palHex('u')!;
+
+  ctx.save();
+  // Faint backing disk so the ring stands out over busy backgrounds.
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = palHex('0')!;
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR + 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Outer track (dim full circle) so the countdown arc reads clearly.
+  ctx.globalAlpha = 0.45;
+  ctx.strokeStyle = warn;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Countdown arc: starts full, unwinds counter-clockwise to empty.
+  ctx.globalAlpha = 0.95;
+  ctx.strokeStyle = hot;
+  ctx.lineWidth = 3 * pulse;
+  const start = -Math.PI / 2;
+  const end = start + remaining * Math.PI * 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR, start, end);
+  ctx.stroke();
+
+  // Label
+  ctx.globalAlpha = 0.7 + Math.sin(time * 18) * 0.3;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold 8px 'Press Start 2P', 'Silkscreen', 'Courier New', monospace`;
+  ctx.fillStyle = palHex('0')!;
+  ctx.fillText('FRENZY', cx + 1, cy - baseR - 6 + 1);
+  ctx.fillStyle = hot;
+  ctx.fillText('FRENZY', cx, cy - baseR - 6);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 function drawRing(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, alpha: number): void {
   ctx.strokeStyle = color;
   ctx.globalAlpha = alpha;
@@ -2602,7 +2743,8 @@ function resolveFaceIcons(run: RunState): DieFaceIcons {
 
 function drawDice(ctx: CanvasRenderingContext2D, run: RunState): void {
   const ds = state.dieSprites.size;
-  const faceIcons = resolveFaceIcons(run);
+  const showNumbers = useStore.getState().settings.showDiceNumbers;
+  const faceIcons = showNumbers ? undefined : resolveFaceIcons(run);
   for (const die of state.dice) {
     const cx = PLAYER_X + die.offsetX;
     const cy = DIE_Y;
@@ -2746,4 +2888,154 @@ export function getEngineState() {
 
 export function fixedDt(): number {
   return FIXED_DT;
+}
+
+// ---------------------------------------------------------------------------
+// Debug helpers (activated via the TERMINAL cheat). These are intentionally
+// side-effectful and intrusive — they mutate RunState / MetaState directly,
+// skipping normal balance checks. Not for production use.
+// ---------------------------------------------------------------------------
+
+/** Jump the active run to an arbitrary wave number. Skips upgrade/forge gating. */
+export function debugJumpToWave(waveNum: number): boolean {
+  const run = state.run;
+  if (!run) return false;
+  const target = Math.max(1, Math.floor(waveNum));
+  run.wave = target;
+  state.paused = false;
+  state.paused_upgrade = false;
+  useStore.getState().setUpgradeOffers([], 0);
+  useStore.getState().setForgeShopOffers([]);
+  useStore.getState().setForgeShopPurchased(false);
+  setupWave(target);
+  syncHudToStore();
+  return true;
+}
+
+/** Add gold to the active run. Negative values subtract (clamped to zero). */
+export function debugAddGold(amount: number): boolean {
+  const run = state.run;
+  if (!run) return false;
+  run.gold = Math.max(0, run.gold + Math.floor(amount));
+  syncHudToStore();
+  return true;
+}
+
+/** Fully restore HP, optionally increasing max HP. */
+export function debugHeal(extraMaxHp = 0): boolean {
+  const run = state.run;
+  if (!run) return false;
+  if (extraMaxHp > 0) run.maxHp += Math.floor(extraMaxHp);
+  run.hp = run.maxHp;
+  syncHudToStore();
+  return true;
+}
+
+/** Grant one free upgrade pick (opens the upgrade screen if offers are rolled). */
+export function debugGrantUpgradePick(count = 1): boolean {
+  const run = state.run;
+  if (!run) return false;
+  run.pickCount += Math.max(1, Math.floor(count));
+  const offers = generateLandmarkOffers(run);
+  useStore.getState().setUpgradeOffers(offers, run.pickCount);
+  useStore.getState().setScreen('upgrade');
+  state.paused_upgrade = true;
+  state.paused = true;
+  return true;
+}
+
+/** Directly grant a landmark upgrade (applies its onApply hook). */
+export function debugGrantLandmarkUpgrade(id: string): boolean {
+  const run = state.run;
+  if (!run) return false;
+  const u = getUpgrade(id);
+  if (!u) return false;
+  const existing = run.upgrades.find((a) => a.id === id);
+  if (existing) existing.stacks++;
+  else run.upgrades.push({ id, stacks: 1 });
+  const env = envFor(run);
+  u.hooks?.onApply?.(env.ctx);
+  syncActiveUpgradesToStore();
+  syncHudToStore();
+  return true;
+}
+
+/**
+ * Grant a face upgrade. Increments ownedFaceUpgrades tier and — when possible —
+ * auto-installs it into the first valid slot so the effect is visible in-run.
+ */
+export function debugGrantFaceUpgrade(id: string, tier = 1): boolean {
+  const run = state.run;
+  if (!run) return false;
+  const upgrade = getFaceUpgrade(id);
+  if (!upgrade) return false;
+  const clampedTier = Math.max(1, Math.min(tier, upgrade.tiers.length));
+  const currentTier = run.ownedFaceUpgrades[id] ?? 0;
+  run.ownedFaceUpgrades[id] = Math.max(currentTier, clampedTier);
+
+  const character = getCharacter(run.characterId);
+  if (!character) return true;
+
+  let installed = false;
+  if (upgrade.kind === 'replacer') {
+    for (let i = 0; i < run.slotLayout.length; i++) {
+      if (isSlotLocked(character, i)) continue;
+      const allowed = slotAllowedTags(character, i);
+      if (allowed && upgrade.tags && !upgrade.tags.some((t) => allowed.includes(t))) continue;
+      const slot = run.slotLayout[i];
+      if (!slot) continue;
+      const defaultId = character.defaultFaces?.[i]?.upgradeId ?? null;
+      if (slot.replacerId !== null && slot.replacerId !== defaultId) continue;
+      slot.replacerId = upgrade.id;
+      installed = true;
+      break;
+    }
+  } else {
+    for (let i = 0; i < run.slotLayout.length; i++) {
+      if (isSlotLocked(character, i)) continue;
+      const allowed = slotAllowedTags(character, i);
+      if (allowed && upgrade.tags && !upgrade.tags.some((t) => allowed.includes(t))) continue;
+      const slot = run.slotLayout[i];
+      if (!slot) continue;
+      if (!canPlaceSupplement(slot)) continue;
+      slot.supplementIds.push(upgrade.id);
+      installed = true;
+      break;
+    }
+  }
+  syncHudToStore();
+  return installed;
+}
+
+/** Unlocks every character, arsenal weapon, and dice theme in MetaState. */
+export function debugUnlockEverything(): void {
+  const store = useStore.getState();
+  const meta: import('../types').MetaState = { ...store.meta };
+  const chars = new Set([...(meta.unlockedCharacters ?? [])]);
+  for (const c of listCharacters()) chars.add(c.id);
+  meta.unlockedCharacters = Array.from(chars);
+
+  const arsenal = new Set(meta.unlockedArsenal ?? []);
+  for (const u of listUpgrades()) {
+    if (u.id.startsWith('ars_')) arsenal.add(u.id);
+  }
+  meta.unlockedArsenal = Array.from(arsenal);
+
+  const themes = new Set([...(meta.unlockedDiceThemes ?? [])]);
+  for (const t of ALL_DIE_THEME_IDS) themes.add(t);
+  meta.unlockedDiceThemes = Array.from(themes);
+
+  saveMeta(meta);
+  store.setMeta(meta);
+}
+
+/** Convenience list exporters for the debug UI. */
+export function debugListLandmarkUpgrades(): { id: string; name: string }[] {
+  return listUpgrades()
+    .filter((u) => !u.id.startsWith('ars_'))
+    .map((u) => ({ id: u.id, name: u.name }));
+}
+
+export function debugListFaceUpgrades(): { id: string; name: string; kind: string }[] {
+  return listFaceUpgrades().map((u) => ({ id: u.id, name: u.name, kind: u.kind }));
 }

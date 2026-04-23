@@ -25,7 +25,7 @@ export const BOSS_TYPES: EnemyType[] = [
     name: 'Face Locker',
     spriteId: 'boss_facelocker',
     color: palHex('G')!,
-    baseHp: 220,
+    baseHp: 110,
     baseSpeed: 6,
     radius: 16,
     minWave: 5,
@@ -34,7 +34,11 @@ export const BOSS_TYPES: EnemyType[] = [
     scoreValue: 300,
     isBoss: true,
     behavior: (e, dt) => {
-      approachTargetY(e, dt, HUD_H + 60);
+      const maxY = WALL_Y - 60;
+      if (e.y < maxY) {
+        e.y += 4 * dt;
+        if (e.y > maxY) e.y = maxY;
+      }
       oscillate(e, dt, 18);
     },
     bossMechanic: (e, dt) => {

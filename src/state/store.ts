@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { Screen, RunState, MetaState } from '../types';
 import { DIE_THEME_DEFAULT_UNLOCKS, DIE_THEME_IDS, type DieThemeId } from '../sprites/dice';
+import type { MenuTrackId } from '../audio/bgmPatterns';
+import type { Theme as MenuTheme } from '../ui/menu/types';
 
 interface UpgradeOffer {
   id: string;
@@ -74,6 +76,8 @@ export interface Settings {
   particleDensity: ParticleDensity;
   /** When to draw tiny HP bars above non-boss enemies. */
   enemyHpBars: EnemyHpBarMode;
+  /** When true, dice always render pips for their value instead of equipped face icons. */
+  showDiceNumbers: boolean;
   /** High-contrast UI palette toggled via a body data attribute. */
   highContrast: boolean;
   /** Larger UI text for readability. */
@@ -114,6 +118,7 @@ export const DEFAULT_SETTINGS: Settings = {
   damageNumbers: true,
   particleDensity: 'normal',
   enemyHpBars: 'damaged',
+  showDiceNumbers: false,
   highContrast: false,
   largeText: false,
   reduceMotion: false,
@@ -156,6 +161,13 @@ interface StoreState {
   settings: Settings;
   onboarded: boolean;
 
+  /** When true, exposes a floating debug UI (activated via the TERMINAL cheat). */
+  debugMode: boolean;
+  /** When non-null, forces the menu background to this theme (debug override). */
+  debugMenuTheme: MenuTheme | null;
+  /** When non-null, forces the menu BGM to this track (debug override). */
+  debugMenuTrack: MenuTrackId | null;
+
   setScreen: (screen: Screen) => void;
   setHud: (hud: Partial<StoreState['hud']>) => void;
   setUpgradeOffers: (offers: UpgradeOffer[], picksRemaining: number) => void;
@@ -167,6 +179,9 @@ interface StoreState {
   setHasRun: (v: boolean) => void;
   setSettings: (patch: Partial<Settings>) => void;
   setOnboarded: (v: boolean) => void;
+  setDebugMode: (v: boolean) => void;
+  setDebugMenuTheme: (t: MenuTheme | null) => void;
+  setDebugMenuTrack: (t: MenuTrackId | null) => void;
 }
 
 export const useStore = create<StoreState>()(
@@ -210,6 +225,9 @@ export const useStore = create<StoreState>()(
     },
     settings: { ...DEFAULT_SETTINGS },
     onboarded: false,
+    debugMode: false,
+    debugMenuTheme: null,
+    debugMenuTrack: null,
     setScreen: (screen) => set({ screen }),
     setHud: (hud) => set((s) => ({ hud: { ...s.hud, ...hud } })),
     setUpgradeOffers: (offers, picksRemaining) =>
@@ -222,6 +240,9 @@ export const useStore = create<StoreState>()(
     setHasRun: (hasRun) => set({ hasRun }),
     setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
     setOnboarded: (onboarded) => set({ onboarded }),
+    setDebugMode: (debugMode) => set({ debugMode }),
+    setDebugMenuTheme: (debugMenuTheme) => set({ debugMenuTheme }),
+    setDebugMenuTrack: (debugMenuTrack) => set({ debugMenuTrack }),
   })),
 );
 
