@@ -3,12 +3,12 @@ import { useStore } from '../state/store';
 import { resumeGame, quitRun } from '../engine/engine';
 import { playSfx } from '../audio/sfx';
 import { SettingsPanel } from './SettingsPanel';
-import { getUpgrade } from '../content/upgrades/registry';
 
 export function PauseMenu() {
-  const activeUpgrades = useStore((s) => s.activeUpgrades);
   const hud = useStore((s) => s.hud);
+  const confirmQuit = useStore((s) => s.settings.confirmQuit);
   const [showSettings, setShowSettings] = useState(false);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -55,31 +55,6 @@ export function PauseMenu() {
           <span className="tr-bracket">]</span>
         </div>
 
-        <div className="panel-section">
-          <div className="section-head">
-            <span className="sh-line" />
-            <span className="sh-label">ARSENAL · {activeUpgrades.length}</span>
-            <span className="sh-line" />
-          </div>
-          {activeUpgrades.length === 0 ? (
-            <div className="empty-v2 pixel-text">NO UPGRADES YET</div>
-          ) : (
-            <ul className="upg-chiplist">
-              {activeUpgrades.map((u) => {
-                const up = getUpgrade(u.id);
-                const rarity = up?.rarity ?? 'common';
-                const name = up?.name ?? u.id;
-                return (
-                  <li key={u.id} className={`upg-chip rarity-${rarity}`}>
-                    <span className="upg-chip-name">{name}</span>
-                    {u.stacks > 1 && <span className="upg-chip-stack">×{u.stacks}</span>}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
         <div className="pause-btns-v2">
           <button
             className="btn-pixel btn-primary-v2"
@@ -104,7 +79,11 @@ export function PauseMenu() {
           </button>
           <button
             className="btn-pixel btn-danger-v2"
-            onClick={() => { playSfx('ui_click'); quitRun(); }}
+            onClick={() => {
+              playSfx('ui_click');
+              if (confirmQuit) setShowQuitConfirm(true);
+              else quitRun();
+            }}
           >
             <span className="btn-chev">✕</span>
             <span className="btn-body">
@@ -115,6 +94,34 @@ export function PauseMenu() {
           </button>
         </div>
       </div>
+
+      {showQuitConfirm && (
+        <div
+          className="overlay confirm-overlay"
+          onClick={() => { playSfx('ui_click'); setShowQuitConfirm(false); }}
+        >
+          <div className="confirm-panel pixel-text" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-title">ABANDON RUN?</div>
+            <div className="confirm-body">
+              Your current progress will be lost. The fate of the dice resets.
+            </div>
+            <div className="confirm-actions">
+              <button
+                className="btn btn-ghost"
+                onClick={() => { playSfx('ui_click'); setShowQuitConfirm(false); }}
+              >
+                Keep playing
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={() => { playSfx('ui_click'); setShowQuitConfirm(false); quitRun(); }}
+              >
+                Quit run
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

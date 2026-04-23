@@ -8,21 +8,51 @@ import { initUpgradeContent } from './content/upgrades';
 import { initSprites } from './sprites';
 import { useStore } from './state/store';
 import { saveSettings } from './state/persistence';
-import { setMasterVolume, setSfxVolume, setMusicVolume } from './audio/synth';
-import { setHapticsEnabled } from './audio/haptics';
+import { setMasterVolume, setSfxVolume, setMusicVolume, setUiVolume } from './audio/synth';
+import { setHapticsEnabled, setHapticStrengthMultiplier } from './audio/haptics';
 import { setShakeMultiplier } from './engine/shake';
+import {
+  setScreenFlashesEnabled,
+  setDamageNumbersEnabled,
+  setEnemyHpBarMode,
+  setParticleDensity,
+  setReduceMotionEnabled,
+  setAutoRollEnabled,
+} from './state/prefsRuntime';
+import type { HapticStrength } from './state/store';
+
+function hapticStrengthToMultiplier(s: HapticStrength): number {
+  return s === 'low' ? 0.5 : s === 'high' ? 1.4 : 1;
+}
 
 initCharacterContent();
 initEnemyContent();
 initUpgradeContent();
 initSprites();
 
+function applyUiAccessibilityFlags(s: ReturnType<typeof useStore.getState>['settings']): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.dataset.highContrast = s.highContrast ? 'on' : 'off';
+  root.dataset.largeText = s.largeText ? 'on' : 'off';
+  root.dataset.reduceMotion = s.reduceMotion ? 'on' : 'off';
+}
+
 function applySettings(s: ReturnType<typeof useStore.getState>['settings']): void {
   setMasterVolume(s.masterVolume);
   setSfxVolume(s.sfxVolume);
+  setUiVolume(s.uiVolume);
   setMusicVolume(s.musicVolume);
   setHapticsEnabled(s.haptics);
-  setShakeMultiplier(s.reduceShake ? 0.35 : 1);
+  setHapticStrengthMultiplier(hapticStrengthToMultiplier(s.hapticStrength));
+  setShakeMultiplier(s.shakeIntensity);
+  setScreenFlashesEnabled(s.screenFlashes);
+  setDamageNumbersEnabled(s.damageNumbers);
+  setEnemyHpBarMode(s.enemyHpBars);
+  setParticleDensity(s.particleDensity);
+  setReduceMotionEnabled(s.reduceMotion);
+  setAutoRollEnabled(s.autoRoll);
+  applyUiAccessibilityFlags(s);
 }
 
 applySettings(useStore.getState().settings);
