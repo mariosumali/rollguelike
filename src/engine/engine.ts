@@ -1559,15 +1559,20 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
     if (state.run.lockedFaceTimer <= 0) state.run.lockedFaceValue = undefined;
   }
   if (e.poisonT > 0) {
-    const prev = e.hp;
-    e.hp -= e.poisonDps * dt;
+    const POISON_TICK = 0.25;
+    const prevTickBucket = Math.ceil(e.poisonT / POISON_TICK);
     e.poisonT -= dt;
-    if (Math.floor(prev * 0.1) !== Math.floor(e.hp * 0.1)) {
-      spawnVfx({ x: e.x + (state.rng() - 0.5) * 6, y: e.y, life: 0.4, kind: 'poison', color: palHex('z')!, size: 2 });
-    }
-    if (e.hp <= 0) {
-      killEnemy(e, run);
-      return;
+    const nextTickBucket = Math.ceil(Math.max(0, e.poisonT) / POISON_TICK);
+    const ticks = Math.max(0, prevTickBucket - nextTickBucket);
+    if (ticks > 0) {
+      const tickDmg = e.poisonDps * POISON_TICK * ticks;
+      e.hp -= tickDmg;
+      e.hitFlash = Math.max(e.hitFlash, 0.08);
+      spawnVfx({ x: e.x + (state.rng() - 0.5) * 6, y: e.y - 2, life: 0.45, kind: 'poison', color: palHex('z')!, size: 2 });
+      if (e.hp <= 0) {
+        killEnemy(e, run);
+        return;
+      }
     }
   }
   if (e.freeze > 0) {
