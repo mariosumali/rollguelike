@@ -79,8 +79,9 @@ import { makeAnimState, setAnim, stepAnim, type AnimState } from '../sprites/ani
 import { getCharacter } from '../content/characters/registry';
 import { getEnemyType } from '../content/enemies/registry';
 import { listUpgrades, getUpgrade } from '../content/upgrades/registry';
+import { listFaceUpgrades, getFaceUpgrade } from '../content/upgrades/faceRegistry';
 import { resolveFace, deriveProjectileColor, findNearestEnemyXY, DEFAULT_AIM } from '../systems/faceResolve';
-import { createSlotLayout } from '../systems/slots';
+import { createSlotLayout, canPlaceSupplement, expandSlot, slotAllowedTags, isSlotLocked } from '../systems/slots';
 import { DEFAULT_PROJECTILE_ARCHETYPE } from '../content/characters/projectiles';
 import { getReaction, elementalDotDps, reactionEffectElement } from '../systems/elemental';
 import { playSfx } from '../audio/sfx';
@@ -998,6 +999,10 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   e.hitFlash = 0;
   run.kills++;
   run.score += BALANCE.scoring.perKill(run.wave);
+  const goldAward = e.isBoss
+    ? BALANCE.gold.bossKill(run.wave)
+    : BALANCE.gold.perKill(run.wave);
+  run.gold += goldAward;
   addTrauma(0.08);
   spawnVfx({ x: e.x, y: e.y, life: 0.35, kind: 'ring', color: '#fff', size: 4 });
   for (let i = 0; i < 6; i++) {
@@ -1334,10 +1339,24 @@ function allEnemiesDead(): boolean {
 function endWave(run: RunState): void {
   run.score += BALANCE.scoring.waveClearBonus(run.wave);
   const isBoss = run.wave % BALANCE.waves.bossEvery === 0;
+  run.gold += BALANCE.gold.waveClearBonus(run.wave);
   fireOnWaveEnd(envFor(run), run.wave);
   playSfx('wave_clear');
   state.paused_upgrade = true;
   state.paused = true;
+
+  const forgeCadence = BALANCE.waveCadence?.forgeShopEvery ?? 2;
+  const isForgeShopWave = !isBoss && run.wave % forgeCadence === 0;
+
+  if (isForgeShopWave) {
+    const offers = generateForgeShopOffers(run);
+    useStore.getState().setForgeShopOffers(offers);
+    useStore.getState().setScreen('forge');
+    syncActiveUpgradesToStore();
+    saveRun(run);
+    return;
+  }
+
   run.pickCount = isBoss ? BALANCE.upgrade.picksOnBoss : BALANCE.upgrade.picksPerWave;
   const offers = generateUpgradeOffers(run);
   useStore.getState().setUpgradeOffers(offers, run.pickCount);
@@ -1393,6 +1412,165 @@ export function rerollUpgradeOffers(): void {
   const offers = generateUpgradeOffers(run);
   useStore.getState().setUpgradeOffers(offers, run.pickCount);
   playSfx('ui_reroll');
+}
+
+function nextTierFor(run: RunState, upgradeId: string): number {
+  const owned = run.ownedFaceUpgrades[upgradeId] ?? 0;
+  return Math.min(owned + 1, 5);
+}
+
+function priceFor(upgrade: ReturnType<typeof getFaceUpgrade>, tier: number): number {
+  if (!upgrade) return 0;
+  const t = Math.max(1, Math.min(5, tier));
+  const custom = upgrade.basePrice?.[upgrade.rarity]?.[t - 1];
+  if (typeof custom === 'number') return custom;
+  const fallback = BALANCE.faceUpgrade.basePrices[upgrade.rarity]?.[t - 1];
+  return fallback ?? 10;
+}
+
+function pickBestSlotFor(
+  run: RunState,
+  upgrade: ReturnType<typeof getFaceUpgrade>,
+): number {
+  if (!upgrade) return -1;
+  const ch = getCharacter(run.characterId);
+  if (!ch) return -1;
+  const slots = run.slotLayout;
+  const bindsTo = upgrade.bindsTo;
+  const tagSet = new Set(upgrade.tags ?? []);
+
+  const candidates: number[] = [];
+  for (let i = 0; i < slots.length; i++) {
+    if (isSlotLocked(ch, i)) continue;
+    if (bindsTo && bindsTo.length > 0 && !bindsTo.includes(i + 1)) continue;
+    const allowed = slotAllowedTags(ch, i);
+    if (allowed && allowed.length > 0 && ![...allowed].some((t) => tagSet.has(t))) continue;
+    if (upgrade.kind === 'supplement' && !canPlaceSupplement(slots[i]!)) continue;
+    candidates.push(i);
+  }
+  if (candidates.length === 0) return -1;
+  return candidates[Math.floor(state.rng() * candidates.length)] ?? -1;
+}
+
+export function generateForgeShopOffers(run: RunState): { id: string; slotIndex: number; nextTier: number; price: number }[] {
+  const count = BALANCE.shop.cardsPerOffer;
+  const all = listFaceUpgrades().filter((u) => {
+    if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
+    const owned = run.ownedFaceUpgrades[u.id] ?? 0;
+    return owned < 5;
+  });
+  if (all.length === 0) return [];
+
+  const weights: { id: string; w: number }[] = all.map((u) => {
+    const owned = run.ownedFaceUpgrades[u.id] ?? 0;
+    let w = 1;
+    if (owned === 0) w *= 1;
+    else if (owned <= 2) w *= BALANCE.shop.ownedT1T2WeightMul;
+    else if (owned <= 4) w *= BALANCE.shop.ownedT3T4WeightMul;
+    else w *= BALANCE.shop.ownedMaxWeightMul;
+    if (u.rarity === 'common') w *= 1.0;
+    else if (u.rarity === 'rare') w *= 0.7;
+    else if (u.rarity === 'epic') w *= 0.4;
+    else if (u.rarity === 'legendary') w *= 0.2;
+    return { id: u.id, w };
+  });
+
+  const offers: { id: string; slotIndex: number; nextTier: number; price: number }[] = [];
+  const chosen = new Set<string>();
+  const totalW = () => weights.filter((x) => !chosen.has(x.id)).reduce((a, b) => a + b.w, 0);
+  for (let i = 0; i < count; i++) {
+    const pool = weights.filter((x) => !chosen.has(x.id));
+    if (pool.length === 0) break;
+    let roll = state.rng() * totalW();
+    let picked = pool[0]!.id;
+    for (const p of pool) {
+      roll -= p.w;
+      if (roll <= 0) {
+        picked = p.id;
+        break;
+      }
+    }
+    chosen.add(picked);
+    const upgrade = getFaceUpgrade(picked);
+    const nextTier = nextTierFor(run, picked);
+    const slotIndex = pickBestSlotFor(run, upgrade);
+    const price = priceFor(upgrade, nextTier);
+    offers.push({ id: picked, slotIndex, nextTier, price });
+  }
+  return offers;
+}
+
+export function rerollForgeShopOffers(): void {
+  const run = state.run;
+  if (!run) return;
+  const cost = BALANCE.shop.rerollCost(run.wave);
+  if (run.gold < cost) return;
+  run.gold -= cost;
+  const offers = generateForgeShopOffers(run);
+  useStore.getState().setForgeShopOffers(offers);
+  useStore.getState().setHud({ gold: run.gold });
+  playSfx('ui_reroll');
+}
+
+export function buyForgeShopOffer(offerIndex: number): void {
+  const run = state.run;
+  if (!run) return;
+  const offers = useStore.getState().forgeShopOffers;
+  const offer = offers[offerIndex];
+  if (!offer) return;
+  if (offer.slotIndex < 0) return;
+  if (run.gold < offer.price) return;
+  const upgrade = getFaceUpgrade(offer.id);
+  if (!upgrade) return;
+  const slot = run.slotLayout[offer.slotIndex];
+  if (!slot) return;
+
+  if (upgrade.kind === 'replacer') {
+    slot.replacerId = upgrade.id;
+  } else {
+    if (!canPlaceSupplement(slot)) return;
+    slot.supplementIds.push(upgrade.id);
+  }
+  run.ownedFaceUpgrades[upgrade.id] = offer.nextTier;
+  run.gold -= offer.price;
+
+  const remaining = offers.filter((_, i) => i !== offerIndex);
+  useStore.getState().setForgeShopOffers(remaining);
+  useStore.getState().setHud({ gold: run.gold });
+  playSfx('upgrade_pick');
+  haptic(HAPTIC.upgrade);
+  saveRun(run);
+}
+
+export function expandSlotCap(slotIndex: number): void {
+  const run = state.run;
+  if (!run) return;
+  const cost = BALANCE.shop.slotExpandCost(run.wave);
+  if (run.gold < cost) return;
+  const slot = run.slotLayout[slotIndex];
+  if (!slot) return;
+  if (!expandSlot(slot)) return;
+  run.gold -= cost;
+  useStore.getState().setHud({ gold: run.gold });
+  playSfx('upgrade_pick');
+  saveRun(run);
+}
+
+export function forgeShopDone(): void {
+  const run = state.run;
+  if (!run) return;
+  useStore.getState().setForgeShopOffers([]);
+  proceedToNextWave();
+}
+
+export function forgeShopSkipForHeal(): void {
+  const run = state.run;
+  if (!run) return;
+  const faceTotal = run.slotLayout.reduce((acc, s) => acc + (s.replacerId ? 1 : 0), 0) + 6;
+  const heal = Math.floor(BALANCE.gold.skipHeal(faceTotal));
+  run.hp = Math.min(run.maxHp, run.hp + heal);
+  useStore.getState().setHud({ hp: run.hp });
+  forgeShopDone();
 }
 
 export function pickUpgrade(id: string): void {

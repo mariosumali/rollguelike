@@ -14,6 +14,10 @@ const KNOWN_VERBS = new Set<Effect['verb']>([
   'pull',
   'column',
   'modifyProjectile',
+  'orbit',
+  'beam',
+  'summonMinion',
+  'reflect',
 ]);
 
 const reg = new Map<string, FaceUpgrade>();

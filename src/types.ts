@@ -1,4 +1,4 @@
-export type Screen = 'menu' | 'select' | 'game' | 'upgrade' | 'boss-warn' | 'pause' | 'gameover';
+export type Screen = 'menu' | 'select' | 'game' | 'upgrade' | 'forge' | 'boss-warn' | 'pause' | 'gameover';
 
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type UpgradeCategory = 'dice' | 'projectile' | 'passive' | 'aoe' | 'landmark';
