@@ -4,6 +4,7 @@ import { palHex } from '../sprites/palette';
 import { drawTorch } from './menu/primitives';
 import { THEME_FACTORIES } from './menu/themes';
 import { ALL_THEMES, type MenuEngine, type Theme } from './menu/types';
+import { useStore } from '../state/store';
 
 const W = 180;
 const H = 280;
@@ -38,6 +39,7 @@ interface ShootingStar {
 
 export function MenuScene() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const debugMenuTheme = useStore((s) => s.debugMenuTheme);
 
   useEffect(() => {
     initSprites();
@@ -48,7 +50,8 @@ export function MenuScene() {
     const ctx: CanvasRenderingContext2D = rawCtx;
     ctx.imageSmoothingEnabled = false;
 
-    const theme: Theme = ALL_THEMES[Math.floor(Math.random() * ALL_THEMES.length)]!;
+    const theme: Theme =
+      debugMenuTheme ?? ALL_THEMES[Math.floor(Math.random() * ALL_THEMES.length)]!;
 
     // ── Shared scene state ────────────────────────────────────────────────
 
@@ -234,7 +237,7 @@ export function MenuScene() {
       mounted = false;
       cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [debugMenuTheme]);
 
   return <canvas ref={canvasRef} width={W} height={H} className="menu-scene-canvas" aria-hidden />;
 }
