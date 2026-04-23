@@ -1,185 +1,98 @@
 # ROLLguelike
 
-A mobile-first browser roguelite. Tap a die fixed at the bottom of the screen; each face triggers a different attack that auto-fires at the nearest enemy descending toward you. Between waves, pick an upgrade. Die once — the run ends.
+**Tap the die. Survive the waves. Stack ridiculous upgrades.**
 
-Built with Vite + React + TypeScript, HTML5 Canvas for the arena and React for menus/HUD. State via Zustand. Deploys to Vercel as a static SPA.
+ROLLguelike is a **mobile-first browser roguelite**: enemies fall from the top, you stay anchored at the bottom, and every roll fires an auto-aimed attack based on the face you land on. Clear a wave, pick an upgrade (rerolls are free), repeat until the wall breaks or you do.
 
-## Screenshots
+Pixel UI, crunchy SFX, and endless scaling difficulty — built to play in a phone browser without installing anything.
 
-Portrait layout, pixel UI, and the core loop: shrine → chalice (character) → arena.
+---
 
-| Main menu | Choose your chalice | Wave 1 — tap to roll |
+## See it in action
+
+Portrait layout: **shrine → choose your chalice → arena.**
+
+| Shrine | Chalice hall | The arena |
 |:---:|:---:|:---:|
-| ![Title screen with die altar and enter button](docs/screenshots/menu.png) | ![Character grid and dossier for Soldier](docs/screenshots/character-select.png) | ![Combat arena with HUD, wall, and enemies](docs/screenshots/gameplay.png) |
-| Enter the shrine, pick **New run**, and check your meta stats. | Six heroes (one unlockable); each chalice has its own die and playstyle. | Auto-attacks from rolled faces; protect the wall and your HP. |
+| ![Main menu — die altar and enter flow](docs/screenshots/menu.png) | ![Character grid and hero dossier](docs/screenshots/character-select.png) | ![Combat — HUD, wall, enemies, projectiles](docs/screenshots/gameplay.png) |
+| Meta stats, **New run**, and the glowing die inviting you in. | Six heroes (one unlock); each has their own die identity and playstyle. | Wave counter, score, streak — tap to roll and let attacks find their targets. |
 
-To refresh these images after UI changes, run a dev server on **`http://127.0.0.1:5173`** (default Vite port), then:
+**UI highlights**
 
-```bash
-npx playwright install chromium   # first time only
-npm run screenshot:readme
-```
+- **Die altar** on the title — live pixel die, shrine lighting, torch embers.
+- **Character select** — grid of chalices, readable dossier, color-coded identity per hero.
+- **In-run HUD** — minimal top strip; arena stays readable during chaos.
+- **Upgrade picker** — card layout with rarity, stacking rules, and instant reroll (no tax on curiosity).
+- **Boss cadence** — every 5th wave is a boss; beat it for **two** upgrade picks.
 
-Or set `README_SHOT_URL` if your dev server uses another origin (e.g. `README_SHOT_URL=http://127.0.0.1:5174 npm run screenshot:readme`).
+---
 
-## Run locally
+## The loop (one thumb)
+
+1. **Roll** — Tap the die (or hold, for Clockmaker). Faces are attacks: bolts, smashes, heals, shields, elements, souls — depending on who you picked.
+2. **Clear** — Auto-targeting keeps focus on play; you’re managing cadence and risk, not a virtual joystick.
+3. **Choose** — After each wave, draft an upgrade. Build toward multishot, reactions, extra dice, turrets, or pure survivability.
+4. **Scale** — Difficulty and variety climb; reactions and arsenal shots reward elemental planning.
+
+---
+
+## Heroes (chalices)
+
+Each run is built around **one** character — same core loop, very different dice math.
+
+| Hero | Unlock | What it feels like |
+|------|--------|--------------------|
+| **Soldier** | Starter | Reliable d6 all-rounder. |
+| **Gambler** | Starter | Blank faces swing huge; blanks can shield you. |
+| **Alchemist** | Starter | Every face carries **element** tags — combine for big **reaction** bursts. |
+| **Necromancer** | Starter | Kills feed **souls**; soul faces cash in for heavy hits. |
+| **Berserker** | Starter | Faster rolls, **rage** on kills, faces that scale with momentum. |
+| **Clockmaker** | Finish **3 runs** | **Hold to charge** rolls; enemies slow near your wall. |
+
+---
+
+## Upgrades — build variety
+
+Drafts pull from a wide pool: you’re not just “+damage” — you’re assembling **synergies**.
+
+| Track | What you’re signing up for | Examples |
+|--------|----------------------------|----------|
+| **Dice** | More dice, biased rolls, face rewrites | *Second Die*, *Third Die*, *Loaded: Six*, *Wild Face*, *Cascade* |
+| **Projectile** | On-hit behavior and scaling | *Piercing*, *Ricochet*, *Chain*, *Homing*, *Split Shot*, *Executioner* |
+| **Passive** | Sustain and mitigation | *Vitality*, *Regeneration*, *Iron Skin*, *Bloodlust*, *Resolve* |
+| **AoE** | Screen-wide rhythm and payoff | *Death Nova*, *Shockwave Hit*, *Orbital Strike*, *Finale* |
+| **Landmark** | Map furniture that fights or heals | *Side Turret*, *Healing Beacon*, *Reflective Wall*, *Time Keeper* |
+| **Arsenal** | Element-flavored **alternate shots** | *Firebolt [Thermal]*, *Frost Shard [Cryo]*, *Void Bolt [Void]*, *Prismatic Beam [Prism]* — mix with Alchemist for fireworks |
+
+Rarities gate power spikes; stacks and `maxStack` keep things from exploding — until you find the combo that does it on purpose.
+
+---
+
+## Sound & feel
+
+**Procedural chiptune-style BGM**, **jsfxr-style SFX**, and light **haptics** on supported devices — tuned so the game reads as “arcade cabinet in your pocket,” not a muted web demo.
+
+---
+
+## Play locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the printed URL on desktop or a phone on the same network. The app is mobile-first and portrait-locked; on landscape phones it shows a rotate prompt.
-
-## Build
+Open the URL Vite prints. The game expects **portrait**; landscape on phones shows a rotate hint.
 
 ```bash
-npm run build   # typecheck + vite build -> dist/
-npm run preview # serve dist/ locally
+npm run build && npm run preview   # production-shaped build
 ```
 
-## Type check
+---
 
-```bash
-npm run typecheck
-```
+## For developers
 
-## Deploy (Vercel)
-
-The repo is preconfigured:
-
-- `vercel.json` sets `framework: vite`, SPA rewrites, and immutable cache headers for `/assets/*`.
-- `npm run build` outputs `dist/`.
-
-Deploy with the Vercel CLI or by importing the repo in the dashboard.
-
-```bash
-npx vercel            # preview
-npx vercel --prod     # production
-```
-
-## Controls
-
-- **Tap the screen (anywhere inside the arena)** to roll all dice. Each face triggers a different attack.
-- **Hold (Clockmaker only)** to charge a roll for a faster, harder hit.
-- Boss waves every 5 waves; you get 2 upgrade picks after clearing them.
-
-## Characters
-
-| Id | Name | Unlock | Identity |
-|---|---|---|---|
-| `soldier` | Soldier | starter | Balanced d6 |
-| `gambler` | Gambler | starter | Two blank faces, big-swing hits, shields on blanks |
-| `alchemist` | Alchemist | starter | All faces have elements; mixing them triggers reactions |
-| `necromancer` | Necromancer | starter | Kills drop souls; soul faces consume souls for big hits |
-| `berserker` | Berserker | starter | Faster rolls, rage stacks on kill, scaling smash faces |
-| `clockmaker` | Clockmaker | 3 runs completed | Hold-to-charge rolls; enemies slow near your wall |
-
-## Architecture overview
-
-```
-src/
-  main.tsx, App.tsx
-  config/           # balance.ts (all tunables) + constants.ts
-  state/            # zustand store + localStorage persistence
-  engine/           # game loop, engine.ts, RNG, pools, shake, hooks dispatcher, input
-  systems/          # faceResolve, elemental
-  sprites/          # palette + sprite pipeline + hand-authored character/enemy/boss pixel art + procedural dice/effects/environment
-  content/
-    characters/     # character definitions
-    enemies/        # enemy/boss definitions + behaviors
-    upgrades/       # dice/projectile/passive/aoe/landmark upgrade catalogues
-    waves/          # data-driven wave generator
-  audio/            # jsfxr-style one-shot synth, SFX registry, procedural chiptune BGM
-  ui/               # React screens: MainMenu, CharacterSelect, HUD, UpgradeSelect, PauseMenu, GameOver, GameCanvas, BossWarning
-```
-
-Two render layers:
-
-- A `<canvas>` drawn at a logical 180×360 resolution and integer-scaled with `image-rendering: pixelated`.
-- React UI overlays (HUD, menus, upgrade cards) driven by a Zustand store. The engine mutates a shared `runStateRef` for speed and pushes a derived HUD snapshot into Zustand every tick.
-
-Fixed-timestep game loop (60 Hz logic, rAF render, accumulator). Entity pools for projectiles / enemies / vfx / popups / souls to keep GC quiet on mobile.
-
-## How to add content
-
-All content lives in `src/content/`. Each category is a registry — you add an entry, it shows up in game. No engine changes required.
-
-### Add an enemy
-
-Edit `src/content/enemies/types.ts` (or `bosses.ts`) and add an `EnemyType`:
-
-```ts
-{
-  id: 'my_enemy',
-  name: 'My Enemy',
-  spriteId: 'enemy_my',          // must match a sprite registered in src/sprites/enemies.ts
-  color: '#ff99aa',
-  baseHp: 25,
-  baseSpeed: 22,
-  radius: 7,
-  minWave: 4,
-  weight: (w) => 1 + w * 0.1,
-  touchDamage: 10,
-  scoreValue: 15,
-  behavior: rusherBehavior,
-  onDeath: (e) => { /* optional death effect */ },
-}
-```
-
-Then draw a sprite in `src/sprites/enemies.ts` using the palette in `src/sprites/palette.ts` and register it with `defineEnemySprites()`.
-
-### Add an upgrade
-
-Pick a category file in `src/content/upgrades/` (or create a new one and include it in `index.ts`). Add an `Upgrade` entry:
-
-```ts
-{
-  id: 'my_upgrade',
-  name: 'My Upgrade',
-  desc: 'What it does.',
-  rarity: 'rare',
-  category: 'projectile',
-  maxStack: 3,
-  hooks: {
-    onProjectileSpawn: ({ projectile }) => {
-      projectile.damage *= 1.1;
-    },
-  },
-}
-```
-
-Hook names available: `onApply`, `onRoll`, `onProjectileSpawn`, `onProjectileHit`, `onKill`, `onDamaged`, `onWaveStart`, `onWaveEnd`, `onTick`. See `src/engine/hooks.ts` for the dispatcher and `src/types.ts` for signatures.
-
-### Add a character
-
-Add an entry in `src/content/characters/index.ts`:
-
-```ts
-{
-  id: 'my_char',
-  name: 'My Character',
-  tagline: '…',
-  description: '…',
-  color: '#abcdef',
-  spriteId: 'char_my',
-  startingDice: [{ id: 'my_d6', rollDuration: 0.42, faces: [/* 6 faces */] }],
-  exclusiveUpgrades: [],
-  passive: { /* optional hooks */ },
-}
-```
-
-Then add the character's pixel art in `src/sprites/characters.ts` and include it in `defineCharacterSprites()`.
-
-### Tune balance
-
-All numeric tunables live in `src/config/balance.ts`: player HP, enemy HP/speed/spawn curves, combat damage tables, rarity weights, scoring. No magic numbers elsewhere.
-
-### Add a face kind
-
-1. Extend `FaceKind` in `src/types.ts`.
-2. Add a `case` to the switch in `src/systems/faceResolve.ts`.
-3. Use it on any `DieConfig`.
+Implementation details, folder layout, hook system, content authoring, and screenshot automation: **[TECH.md](./TECH.md)**  
+Product scope and pillars: **[rollguelike-prd.md](./rollguelike-prd.md)**
 
 ## License
 
