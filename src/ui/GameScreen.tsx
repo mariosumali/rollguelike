@@ -6,6 +6,7 @@ import { UpgradeSelect } from './UpgradeSelect';
 import { ForgeShop } from './ForgeShop';
 import { BossWarning } from './BossWarning';
 import { GameCanvas } from './GameCanvas';
+import { FaceBar } from './FaceBar';
 import { Onboarding } from './Onboarding';
 import { pause } from '../engine/engine';
 import { playSfx } from '../audio/sfx';
@@ -29,6 +30,7 @@ export function GameScreen() {
     <div className="screen game">
       <GameCanvas />
       <HUD onPause={handlePause} />
+      <FaceBar />
       {screen === 'upgrade' && <UpgradeSelect />}
       {screen === 'forge' && <ForgeShop />}
       {screen === 'pause' && <PauseMenu />}
