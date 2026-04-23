@@ -20,6 +20,12 @@ await page.goto(base, { waitUntil: 'networkidle' });
 await page.waitForTimeout(400);
 await page.screenshot({ path: out('menu.png') });
 
+await page.locator('button.dice-look-btn').click();
+await page.waitForTimeout(400);
+await page.screenshot({ path: out('dice-look.png') });
+await page.getByRole('button', { name: 'close' }).click();
+await page.waitForTimeout(300);
+
 const enter = page.getByRole('button', { name: /ENTER THE SHRINE|NEW RUN/ });
 await enter.click();
 await page.waitForTimeout(500);
@@ -35,4 +41,4 @@ if (await skipOnboarding.isVisible().catch(() => false)) {
 await page.screenshot({ path: out('gameplay.png') });
 
 await browser.close();
-console.log('Wrote docs/screenshots/{menu,character-select,gameplay}.png');
+console.log('Wrote docs/screenshots/{menu,dice-look,character-select,gameplay}.png');
