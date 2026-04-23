@@ -16,11 +16,13 @@ import {
 } from '../engine/engine';
 import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
 import { getFaceName } from '../content/upgrades/faceNames';
+import { getFaceIconRows, getFaceIconCacheKey } from '../content/upgrades/faceIcons';
 import { getCharacter } from '../content/characters/registry';
+import { buildFaceIconCanvas } from '../sprites/dice';
 import { playSfx } from '../audio/sfx';
 import { BALANCE } from '../config/balance';
 import type { Rarity, RunState } from '../types';
-import type { FaceUpgrade } from '../content/upgrades/types';
+import type { FaceUpgrade, SlotState } from '../content/upgrades/types';
 import type { ForgeShopOffer } from '../state/store';
 
 const RARITY_COLORS: Record<Rarity, string> = {
@@ -73,6 +75,52 @@ const KIND_GLYPH: Record<'replacer' | 'supplement' | 'default', string> = {
   default: '◇',
 };
 
+function FaceIcon({
+  upgradeId,
+  characterId,
+  size = 36,
+}: {
+  upgradeId: string | null;
+  characterId: string | null;
+  size?: number;
+}) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (!upgradeId) return;
+    const up = getFaceUpgrade(upgradeId);
+    const rows = getFaceIconRows(upgradeId, up?.icon, characterId);
+    if (!rows) return;
+    const src = buildFaceIconCanvas(rows, getFaceIconCacheKey(upgradeId, characterId));
+    if (!src) return;
+    const scale = Math.max(
+      1,
+      Math.floor(Math.min(c.width / src.width, c.height / src.height)),
+    );
+    const drawW = src.width * scale;
+    const drawH = src.height * scale;
+    const dx = Math.round((c.width - drawW) / 2);
+    const dy = Math.round((c.height - drawH) / 2);
+    ctx.drawImage(src, 0, 0, src.width, src.height, dx, dy, drawW, drawH);
+  }, [upgradeId, characterId]);
+
+  return (
+    <canvas
+      ref={ref}
+      width={size}
+      height={size}
+      className="forge-face-icon"
+      aria-hidden
+    />
+  );
+}
+
 export function ForgeShop() {
   const offers = useStore((s) => s.forgeShopOffers);
   const hud = useStore((s) => s.hud);
@@ -104,6 +152,30 @@ export function ForgeShop() {
 
   const [sellConfirm, setSellConfirm] = useState<SellConfirm | null>(null);
   const [details, setDetails] = useState<DetailsView | null>(null);
+  const [selectedFace, setSelectedFace] = useState<number | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const warningTimeoutRef = useRef<number | null>(null);
+  const suppressClickUntilRef = useRef<number>(0);
+
+  const showWarning = useCallback((msg: string) => {
+    playSfx('ui_click');
+    setWarning(msg);
+    if (warningTimeoutRef.current !== null) {
+      window.clearTimeout(warningTimeoutRef.current);
+    }
+    warningTimeoutRef.current = window.setTimeout(() => {
+      setWarning(null);
+      warningTimeoutRef.current = null;
+    }, 2200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (warningTimeoutRef.current !== null) {
+        window.clearTimeout(warningTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const openDetails = useCallback((view: DetailsView) => {
     playSfx('ui_click');
@@ -148,27 +220,6 @@ export function ForgeShop() {
     playSfx('ui_click');
     expandSlotCap(slotIndex);
   };
-
-  const offerTapShortcut = useCallback(
-    (index: number) => {
-      const offer = offers[index];
-      if (!offer || !run) return;
-      // Try the pre-computed preferred slot first; fall back to the first valid slot.
-      const prefer = offer.slotIndex;
-      const candidates: number[] = [];
-      if (prefer >= 0) candidates.push(prefer);
-      for (let i = 0; i < run.slotLayout.length; i++) {
-        if (!candidates.includes(i)) candidates.push(i);
-      }
-      for (const i of candidates) {
-        if (hud.gold < offer.price) return;
-        if (canPlaceOfferInSlot(run, offer, i)) {
-          if (placeForgeOfferInSlot(index, i)) return;
-        }
-      }
-    },
-    [offers, run, hud.gold],
-  );
 
   const findDropTarget = (x: number, y: number): string | null => {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
@@ -216,11 +267,10 @@ export function ForgeShop() {
       const current = dragRef.current;
 
       if (pending && !current && ev.pointerId === pending.pointerId) {
-        // No drag movement: treat as tap.
-        if (pending.init.source.kind === 'offer') {
-          playSfx('ui_click');
-          offerTapShortcut(pending.init.source.offerIndex);
-        }
+        // Tap without drag is a no-op for shop items — placement requires an
+        // intentional drag onto a specific face (the old auto-place path had
+        // a bug where it could silently replace an existing replacer in
+        // whichever slot it fell back to).
         pendingDragRef.current = null;
         return;
       }
@@ -230,7 +280,10 @@ export function ForgeShop() {
       const hoverKey = findDropTarget(ev.clientX, ev.clientY);
       const source = current.source;
 
-      // Clear drag state first.
+      // Clear drag state first, and suppress the trailing click on whichever
+      // element the drop landed on (prevents face-tile selection from toggling
+      // as a side effect of a drop).
+      suppressClickUntilRef.current = Date.now() + 200;
       setDrag(null);
       dragRef.current = null;
       pendingDragRef.current = null;
@@ -245,31 +298,49 @@ export function ForgeShop() {
 
         if (source.kind === 'offer') {
           if (hud.gold < source.offer.price) {
-            playSfx('ui_click');
+            showWarning(`NEED ${source.offer.price}G`);
+            return;
+          }
+          const up = getFaceUpgrade(source.offer.id);
+          const targetSlot = run2.slotLayout[slotIndex];
+          if (up?.kind === 'supplement' && targetSlot &&
+              targetSlot.supplementIds.length >= targetSlot.supplementCap) {
+            showWarning(
+              `FACE ${slotIndex + 1} IS FULL · ${targetSlot.supplementIds.length}/${targetSlot.supplementCap}`,
+            );
             return;
           }
           if (!canPlaceOfferInSlot(run2, source.offer, slotIndex)) {
-            playSfx('ui_click');
+            showWarning(`FACE ${slotIndex + 1} CAN'T HOST THIS`);
             return;
           }
           placeForgeOfferInSlot(source.offerIndex, slotIndex);
+          setSelectedFace(slotIndex);
           return;
         }
 
         if (source.kind === 'slot-replacer') {
           if (source.slotIndex === slotIndex) return;
           if (!canMoveReplacer(run2, source.slotIndex, slotIndex)) {
-            playSfx('ui_click');
+            showWarning(`CAN'T MOVE TO FACE ${slotIndex + 1}`);
             return;
           }
           moveOrSwapReplacer(source.slotIndex, slotIndex);
+          setSelectedFace(slotIndex);
           return;
         }
 
         if (source.kind === 'slot-supplement') {
           if (source.slotIndex === slotIndex) return;
           if (!canMoveSupplement(run2, source.slotIndex, source.pos, slotIndex)) {
-            playSfx('ui_click');
+            const targetSlot = run2.slotLayout[slotIndex];
+            if (targetSlot && targetSlot.supplementIds.length >= targetSlot.supplementCap) {
+              showWarning(
+                `FACE ${slotIndex + 1} IS FULL · ${targetSlot.supplementIds.length}/${targetSlot.supplementCap}`,
+              );
+            } else {
+              showWarning(`CAN'T MOVE TO FACE ${slotIndex + 1}`);
+            }
             return;
           }
           moveOrSwapSupplement(source.slotIndex, source.pos, slotIndex);
@@ -299,7 +370,7 @@ export function ForgeShop() {
         });
       }
     },
-    [hud.gold, offerTapShortcut],
+    [hud.gold, showWarning],
   );
 
   useEffect(() => {
@@ -480,19 +551,23 @@ export function ForgeShop() {
                       </span>
                       <span className="forge-offer-tier">{tierLabel}</span>
                     </div>
+                    {up.kind === 'replacer' && (
+                      <div className="forge-offer-icon" aria-hidden>
+                        <FaceIcon
+                          upgradeId={up.id}
+                          characterId={character?.id ?? null}
+                          size={44}
+                        />
+                      </div>
+                    )}
                     <div className="upg-card-name">{displayName}</div>
                     <div className="forge-offer-row-bot" aria-hidden>
                       <span className="forge-offer-price">
                         <span className="gold-amount">{o.price}</span>G
                       </span>
-                      {o.slotIndex >= 0 && (
-                        <span
-                          className="forge-offer-slot-hint"
-                          title={`Tap to place in face ${o.slotIndex + 1}`}
-                        >
-                          →{o.slotIndex + 1}
-                        </span>
-                      )}
+                      <span className="forge-offer-drag-hint" title="Drag onto a face">
+                        ⇢
+                      </span>
                     </div>
                   </div>
                 );
@@ -502,16 +577,21 @@ export function ForgeShop() {
 
           {run && character && (
             <div className="forge-body-col">
-              <div className="forge-section-label">DICE</div>
-              <div className="forge-slots-grid">
+              <div className="forge-section-label">DICE · TAP A FACE</div>
+              <div className="forge-dice-grid">
                 {run.slotLayout.map((slot) => {
                   let canDrop = false;
+                  let dropFull = false;
                   if (drag) {
                     const src = drag.source;
                     if (src.kind === 'offer') {
                       canDrop =
                         canPlaceOfferInSlot(run, src.offer, slot.index) &&
                         hud.gold >= src.offer.price;
+                      const up = getFaceUpgrade(src.offer.id);
+                      dropFull =
+                        up?.kind === 'supplement' &&
+                        slot.supplementIds.length >= slot.supplementCap;
                     } else if (src.kind === 'slot-replacer') {
                       canDrop = canMoveReplacer(run, src.slotIndex, slot.index);
                     } else if (src.kind === 'slot-supplement') {
@@ -521,24 +601,45 @@ export function ForgeShop() {
                         src.pos,
                         slot.index,
                       );
+                      dropFull =
+                        !canDrop &&
+                        slot.supplementIds.length >= slot.supplementCap &&
+                        src.slotIndex !== slot.index;
                     }
                   }
                   return (
-                    <SlotTile
+                    <FaceTile
                       key={slot.index}
-                      run={run}
                       slot={slot}
                       drag={drag}
                       dragCanDropHere={canDrop}
-                      beginDrag={beginDrag}
-                      expandCost={slotExpandCost}
-                      gold={hud.gold}
-                      onExpand={onExpand}
-                      onOpenDetails={openDetails}
+                      dragRejectedFull={dropFull}
+                      isSelected={selectedFace === slot.index}
+                      onSelect={() => {
+                        if (Date.now() < suppressClickUntilRef.current) return;
+                        setSelectedFace((prev) =>
+                          prev === slot.index ? null : slot.index,
+                        );
+                      }}
+                      characterId={character.id}
                     />
                   );
                 })}
               </div>
+
+              {selectedFace !== null && run.slotLayout[selectedFace] && (
+                <FaceDetailsPanel
+                  run={run}
+                  slot={run.slotLayout[selectedFace]!}
+                  drag={drag}
+                  beginDrag={beginDrag}
+                  expandCost={slotExpandCost}
+                  gold={hud.gold}
+                  onExpand={onExpand}
+                  onOpenDetails={openDetails}
+                  onClose={() => setSelectedFace(null)}
+                />
+              )}
 
               <SellZone
                 active={
@@ -686,12 +787,23 @@ export function ForgeShop() {
 
             <div className="fdp-hint">
               {details.isOffer
-                ? 'TAP CARD TO BUY · DRAG TO PLACE'
+                ? 'DRAG CARD ONTO A FACE TO BUY'
                 : details.isDefault
                   ? 'DEFAULT FACE — CANNOT BE SOLD'
                   : 'DRAG TO MOVE · DROP ON ✕ TO SELL'}
             </div>
           </div>
+        </div>
+      )}
+
+      {warning && (
+        <div
+          className="forge-warning pixel-text"
+          role="alert"
+          aria-live="polite"
+        >
+          <span className="forge-warning-icon" aria-hidden>✕</span>
+          <span>{warning}</span>
         </div>
       )}
 
@@ -727,39 +839,27 @@ export function ForgeShop() {
   );
 }
 
-interface SlotTileProps {
-  run: RunState;
-  slot: import('../content/upgrades/types').SlotState;
+interface FaceTileProps {
+  slot: SlotState;
   drag: DragState | null;
   dragCanDropHere: boolean;
-  beginDrag: (
-    e: React.PointerEvent<HTMLElement>,
-    source: DragSource,
-    label: string,
-    rarity: Rarity,
-  ) => void;
-  expandCost: number;
-  gold: number;
-  onExpand: (slotIndex: number) => void;
-  onOpenDetails: (view: DetailsView) => void;
+  dragRejectedFull: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+  characterId: string | null;
 }
 
-function SlotTile({
-  run,
+function FaceTile({
   slot,
   drag,
   dragCanDropHere,
-  beginDrag,
-  expandCost,
-  gold,
-  onExpand,
-  onOpenDetails,
-}: SlotTileProps) {
-  const character = getCharacter(run.characterId);
-  const defaults = character?.defaultFaces ?? [];
-  const defaultId = defaults[slot.index]?.upgradeId ?? null;
-  const replacerUp = slot.replacerId ? getFaceUpgrade(slot.replacerId) : null;
-  const isDefaultReplacer = slot.replacerId !== null && slot.replacerId === defaultId;
+  dragRejectedFull,
+  isSelected,
+  onSelect,
+  characterId,
+}: FaceTileProps) {
+  const replacerId = slot.replacerId;
+  const replacerUp = replacerId ? getFaceUpgrade(replacerId) : null;
   const isHovered = drag?.hoverDrop === `slot-${slot.index}`;
   const isSourceSlot =
     (drag?.source.kind === 'slot-replacer' &&
@@ -779,25 +879,131 @@ function SlotTile({
           : ''
     : '';
 
+  const rarity = replacerUp?.rarity;
+  const accent = rarity ? RARITY_COLORS[rarity] : 'var(--fg-dim)';
+  const displayName = replacerUp
+    ? getFaceName(replacerUp.id, characterId, replacerUp.name)
+    : null;
+  const usedSup = slot.supplementIds.length;
+  const capSup = slot.supplementCap;
+  const showFullBadge = dragRejectedFull && isHovered;
+
+  return (
+    <button
+      type="button"
+      role="button"
+      aria-label={
+        replacerUp
+          ? `Face ${slot.index + 1} · ${displayName} · ${usedSup} of ${capSup} supplements${
+              isSelected ? ' · selected' : ''
+            }`
+          : `Face ${slot.index + 1} · empty${isSelected ? ' · selected' : ''}`
+      }
+      aria-pressed={isSelected}
+      className={`forge-face-tile ${dropClass} ${isSelected ? 'is-selected' : ''} ${
+        replacerUp ? '' : 'is-empty'
+      }`}
+      style={{ ['--card-accent' as string]: accent }}
+      data-drop={`slot-${slot.index}`}
+      onClick={(e) => {
+        // Guard: ignore click fired as the tail of a drag release.
+        if (drag) {
+          e.preventDefault();
+          return;
+        }
+        onSelect();
+      }}
+      title={
+        replacerUp
+          ? `${displayName} · ${usedSup}/${capSup} supplements · tap to view`
+          : `Face ${slot.index + 1} · empty · tap to view`
+      }
+    >
+      <span className="forge-face-num" aria-hidden>
+        {slot.index + 1}
+      </span>
+      <span className="forge-face-art" aria-hidden>
+        {replacerId ? (
+          <FaceIcon upgradeId={replacerId} characterId={characterId} size={40} />
+        ) : (
+          <span className="forge-face-empty-glyph">◇</span>
+        )}
+      </span>
+      <span
+        className="forge-face-pips"
+        aria-hidden
+        title={`Supplements ${usedSup}/${capSup}`}
+      >
+        {Array.from({ length: capSup }).map((_, i) => (
+          <span
+            key={i}
+            className={`forge-pip ${i < usedSup ? 'is-filled' : ''}`}
+          />
+        ))}
+      </span>
+      {showFullBadge && (
+        <span className="forge-face-badge">FULL</span>
+      )}
+      {isSelected && (
+        <span className="forge-face-caret" aria-hidden>▾</span>
+      )}
+    </button>
+  );
+}
+
+interface FaceDetailsPanelProps {
+  run: RunState;
+  slot: SlotState;
+  drag: DragState | null;
+  beginDrag: (
+    e: React.PointerEvent<HTMLElement>,
+    source: DragSource,
+    label: string,
+    rarity: Rarity,
+  ) => void;
+  expandCost: number;
+  gold: number;
+  onExpand: (slotIndex: number) => void;
+  onOpenDetails: (view: DetailsView) => void;
+  onClose: () => void;
+}
+
+function FaceDetailsPanel({
+  run,
+  slot,
+  drag,
+  beginDrag,
+  expandCost,
+  gold,
+  onExpand,
+  onOpenDetails,
+  onClose,
+}: FaceDetailsPanelProps) {
+  const character = getCharacter(run.characterId);
+  const defaults = character?.defaultFaces ?? [];
+  const defaultId = defaults[slot.index]?.upgradeId ?? null;
+  const replacerUp = slot.replacerId ? getFaceUpgrade(slot.replacerId) : null;
+  const isDefaultReplacer = slot.replacerId !== null && slot.replacerId === defaultId;
+
   const supplementCap = slot.supplementCap;
   const isMax = supplementCap >= BALANCE.slot.supplementsMax;
   const canExpand = !isMax && gold >= expandCost;
-
   const usedSup = slot.supplementIds.length;
 
   return (
     <div
+      className="forge-face-details pixel-text"
       role="region"
-      aria-label={`FACE ${slot.index + 1}`}
-      className={`forge-slot ${dropClass}`}
-      data-drop={`slot-${slot.index}`}
+      aria-label={`Face ${slot.index + 1} details`}
     >
-      <div className="forge-slot-head">
-        <span className="forge-slot-face">{slot.index + 1}</span>
+      <div className="forge-face-details-head">
+        <span className="forge-face-details-title">
+          FACE {slot.index + 1}
+        </span>
         <span
-          className="forge-slot-pips"
-          aria-label={`${usedSup} of ${supplementCap} supplements used`}
+          className="forge-face-details-pips"
           title={`Supplements ${usedSup}/${supplementCap}`}
+          aria-label={`${usedSup} of ${supplementCap} supplements used`}
         >
           {Array.from({ length: supplementCap }).map((_, i) => (
             <span
@@ -807,6 +1013,15 @@ function SlotTile({
             />
           ))}
         </span>
+        <button
+          type="button"
+          className="forge-face-details-close"
+          onClick={onClose}
+          aria-label="Close face details"
+          title="Close"
+        >
+          ✕
+        </button>
       </div>
 
       <div className="forge-slot-replacer">
