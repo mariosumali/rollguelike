@@ -23,20 +23,23 @@ export const BALANCE = {
   },
 
   combat: {
-    baseFaceDamage: [0, 6, 11, 16, 23, 31, 42],
-    streakMulPerStack: 0.12,
-    streakMulMax: 4.0,
+    baseFaceDamage: [0, 4, 7, 11, 15, 20, 27],
     projectileSpeed: 260,
     projectileLife: 2.4,
     shotSequenceDelay: 0.05,
     pulseRadius: 52,
-    pulseDamage: (val: number) => 6 * val,
+    pulseDamage: (val: number) => 4 * val,
     shieldAmount: (val: number) => 1 + Math.floor(val / 2),
     shieldMax: 10,
-    healAmount: (val: number) => 4 + val * 2,
+    healAmount: (val: number) => 3 + val,
     lightningChainDamageMul: 0.3,
     lightningStunT: 0.2,
-    streakTierThresholds: [3, 5, 8, 12, 20],
+    /**
+     * Global multiplier applied to every hit the player (or their summons,
+     * orbits, beams, pulses, pull zones, landmarks, etc.) deal to enemies.
+     * Does NOT affect damage the player TAKES. Lower = harder game.
+     */
+    globalDamageMul: 0.5,
   },
 
   scoring: {
@@ -66,7 +69,14 @@ export const BALANCE = {
   },
 
   meta: {
-    clockmakerUnlockRuns: 3,
+    // Challenge thresholds to unlock each character. Tuned to demand sustained
+    // play — see src/content/characters/index.ts for how each is applied.
+    // Clockmaker is intentionally left off here — its unlock is hard-gated
+    // (always false) until a future mechanic ("Go back in time") is added.
+    gamblerUnlockGoldSpent: 500,
+    alchemistUnlockWave: 40,
+    necromancerUnlockKills: 2000,
+    berserkerUnlockRunKills: 500,
   },
 
   gold: {
@@ -79,15 +89,39 @@ export const BALANCE = {
 
   shop: {
     cardsPerOffer: 4,
-    rerollCost: (wave: number) => 5 + wave * 2,
-    removeDefaultCost: (wave: number) => 15 + wave * 3,
-    slotExpandCost: (wave: number) => 25 + wave * 5,
+    rerollCost: (wave: number) => 10 + wave * 3,
+    skipHealCost: (wave: number) => 10 + wave * 3,
+    removeDefaultCost: (wave: number) => 25 + wave * 5,
+    slotExpandCost: (wave: number) => 50 + wave * 8,
     slotCapBase: 2,
     slotCapMax: 4,
     ownedT1T2WeightMul: 1.4,
     ownedT3T4WeightMul: 1.2,
     ownedMaxWeightMul: 0.2,
     maxTierDuplicateRefund: 8,
+    // Forge unlocks higher-rarity upgrades as the run progresses. Offers of a
+    // given rarity are hard-gated until the listed wave; below that wave they
+    // cannot appear in the forge at all.
+    rarityMinWave: {
+      common: 1,
+      rare: 9,
+      epic: 18,
+      legendary: 30,
+    } as Record<Rarity, number>,
+    // Even after a rarity unlocks, its selection weight ramps up with the wave
+    // so early forges lean hard on commons and only gradually broaden out.
+    rarityWeight: (rarity: Rarity, wave: number): number => {
+      switch (rarity) {
+        case 'common':
+          return Math.max(1.2 - wave * 0.01, 0.4);
+        case 'rare':
+          return Math.min(0.2 + Math.max(0, wave - 8) * 0.027, 1.0);
+        case 'epic':
+          return Math.min(0.05 + Math.max(0, wave - 17) * 0.023, 0.8);
+        case 'legendary':
+          return Math.min(0.02 + Math.max(0, wave - 29) * 0.017, 0.5);
+      }
+    },
   },
 
   faceUpgrade: {
@@ -97,10 +131,10 @@ export const BALANCE = {
       brightnessPerTier: 0.1,
     },
     basePrices: {
-      common: [8, 12, 18, 25, 35],
-      rare: [15, 22, 32, 45, 60],
-      epic: [30, 45, 65, 90, 120],
-      legendary: [60, 90, 130, 180, 240],
+      common: [12, 22, 38, 60, 90],
+      rare: [24, 42, 72, 115, 175],
+      epic: [48, 88, 150, 240, 360],
+      legendary: [95, 180, 310, 490, 740],
     } as Record<Rarity, number[]>,
   },
 
@@ -108,6 +142,19 @@ export const BALANCE = {
     gambitMaxStacks: 5,
     gambitBonusPerStack: 0.15,
     gambitExtremes: [1, 6] as number[],
+  },
+
+  necromancer: {
+    // Hard cap on banked souls. Prevents hoarding an ever-larger reservoir
+    // that permanently amplifies bone-shard damage and fuels back-to-back
+    // SOUL_DRAIN pulses. Still generous enough for two big face-6 drains.
+    soulsMax: 12,
+  },
+
+  berserker: {
+    // Rage already had an inline cap; codified here so damage scaling from
+    // rage-gated upgrades can't be pushed beyond the intended ceiling.
+    rageMax: 10,
   },
 
   slot: {
