@@ -1,7 +1,24 @@
 import type { MetaState, RunState } from '../types';
-import { useStore, setRunState, DEFAULT_SETTINGS } from './store';
-import type { Settings } from './store';
+import {
+  useStore,
+  setRunState,
+  DEFAULT_SETTINGS,
+  BGM_TRACK_IDS,
+  PARTICLE_DENSITY_VALUES,
+  ENEMY_HP_BAR_VALUES,
+  HAPTIC_STRENGTH_VALUES,
+  DIE_THEME_IDS,
+} from './store';
+import type {
+  Settings,
+  BgmTrackId,
+  ParticleDensity,
+  EnemyHpBarMode,
+  HapticStrength,
+  DieThemeId,
+} from './store';
 import { listUpgrades } from '../content/upgrades/registry';
+import { DIE_THEME_DEFAULT_UNLOCKS, DIE_THEME_UNLOCKS } from '../sprites/dice';
 
 const KEY_META = 'rollguelike.meta.v1';
 const KEY_RUN = 'rollguelike.run.v1';
@@ -20,6 +37,18 @@ export function loadMeta(): MetaState {
     for (const id of starter) existing.add(id);
     merged.unlockedArsenal = Array.from(existing);
     merged.pendingArsenalUnlocks = merged.pendingArsenalUnlocks ?? [];
+    // Dice themes: always grant defaults; retroactively re-check challenges so
+    // new themes light up for returning players who already met the criteria.
+    const diceStarter = new Set(base.unlockedDiceThemes);
+    const diceExisting = new Set(merged.unlockedDiceThemes ?? []);
+    for (const id of diceStarter) diceExisting.add(id);
+    merged.unlockedDiceThemes = Array.from(diceExisting);
+    merged.pendingDiceThemeUnlocks = merged.pendingDiceThemeUnlocks ?? [];
+    const retroactive = checkDiceThemeUnlocks(merged);
+    if (retroactive.length > 0) {
+      merged.unlockedDiceThemes = [...merged.unlockedDiceThemes, ...retroactive];
+      merged.pendingDiceThemeUnlocks = [...merged.pendingDiceThemeUnlocks, ...retroactive];
+    }
     return merged;
   } catch {
     return defaultMeta();
@@ -48,8 +77,6 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     characterId: parsed.characterId ?? 'soldier',
     wave: parsed.wave ?? 1,
     score: parsed.score ?? 0,
-    streak: parsed.streak ?? 0,
-    streakFace: parsed.streakFace ?? null,
     hp: parsed.hp ?? 100,
     maxHp: parsed.maxHp ?? 100,
     shield: parsed.shield ?? 0,
@@ -70,6 +97,7 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     ownedFaceUpgrades: parsed.ownedFaceUpgrades ?? {},
     slotLayout: parsed.slotLayout ?? [],
     gambitStacks: parsed.gambitStacks ?? 0,
+    goldSpent: parsed.goldSpent ?? 0,
   };
 }
 
@@ -80,12 +108,60 @@ export function saveRun(run: RunState | null): void {
   } catch {}
 }
 
+function isBgmTrackId(v: unknown): v is BgmTrackId {
+  return typeof v === 'string' && (BGM_TRACK_IDS as readonly string[]).includes(v);
+}
+
+function isParticleDensity(v: unknown): v is ParticleDensity {
+  return typeof v === 'string' && (PARTICLE_DENSITY_VALUES as readonly string[]).includes(v);
+}
+
+function isEnemyHpBarMode(v: unknown): v is EnemyHpBarMode {
+  return typeof v === 'string' && (ENEMY_HP_BAR_VALUES as readonly string[]).includes(v);
+}
+
+function isHapticStrength(v: unknown): v is HapticStrength {
+  return typeof v === 'string' && (HAPTIC_STRENGTH_VALUES as readonly string[]).includes(v);
+}
+
+function isDieThemeId(v: unknown): v is DieThemeId {
+  return typeof v === 'string' && (DIE_THEME_IDS as readonly string[]).includes(v);
+}
+
+function clamp01(v: unknown, fallback: number): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return fallback;
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}
+
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY_SETTINGS);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const merged: Settings = { ...DEFAULT_SETTINGS, ...parsed };
+
+    merged.masterVolume = clamp01(parsed.masterVolume, DEFAULT_SETTINGS.masterVolume);
+    merged.sfxVolume = clamp01(parsed.sfxVolume, DEFAULT_SETTINGS.sfxVolume);
+    merged.musicVolume = clamp01(parsed.musicVolume, DEFAULT_SETTINGS.musicVolume);
+    merged.uiVolume = clamp01(parsed.uiVolume, DEFAULT_SETTINGS.uiVolume);
+
+    if (!isBgmTrackId(merged.bgmTrack)) merged.bgmTrack = DEFAULT_SETTINGS.bgmTrack;
+    if (!isParticleDensity(merged.particleDensity)) merged.particleDensity = DEFAULT_SETTINGS.particleDensity;
+    if (!isEnemyHpBarMode(merged.enemyHpBars)) merged.enemyHpBars = DEFAULT_SETTINGS.enemyHpBars;
+    if (!isHapticStrength(merged.hapticStrength)) merged.hapticStrength = DEFAULT_SETTINGS.hapticStrength;
+    if (!isDieThemeId(merged.dieTheme)) merged.dieTheme = DEFAULT_SETTINGS.dieTheme;
+
+    // Legacy `reduceShake` toggle → new `shakeIntensity` slider.
+    if (parsed.shakeIntensity == null && parsed.reduceShake === true) {
+      merged.shakeIntensity = 0.35;
+    } else {
+      merged.shakeIntensity = clamp01(parsed.shakeIntensity, DEFAULT_SETTINGS.shakeIntensity);
+    }
+    delete merged.reduceShake;
+
+    return merged;
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
@@ -124,30 +200,44 @@ export function hydrate(): void {
   }
 }
 
-export function incrementRunsCompleted(
-  wavesCleared: number,
-  finalScore: number,
-  characterId: string,
-  kills = 0,
-): MetaState {
+export interface RunSummary {
+  wavesCleared: number;
+  finalScore: number;
+  characterId: string;
+  kills?: number;
+  goldSpent?: number;
+}
+
+export function incrementRunsCompleted(summary: RunSummary): MetaState {
+  const {
+    wavesCleared,
+    finalScore,
+    characterId,
+    kills = 0,
+    goldSpent = 0,
+  } = summary;
   const meta = { ...useStore.getState().meta };
   meta.totalRunsCompleted += 1;
   meta.totalWavesCleared += wavesCleared;
   meta.totalKills = (meta.totalKills ?? 0) + kills;
   meta.maxWaveReached = Math.max(meta.maxWaveReached ?? 0, wavesCleared);
+  meta.maxGoldSpentInRun = Math.max(
+    meta.maxGoldSpentInRun ?? 0,
+    Math.max(0, goldSpent),
+  );
+  meta.bestSingleRunKills = Math.max(meta.bestSingleRunKills ?? 0, kills);
   meta.highScores = { ...meta.highScores };
   const prev = meta.highScores[characterId] ?? 0;
   if (finalScore > prev) meta.highScores[characterId] = finalScore;
-  if (
-    meta.totalRunsCompleted >= 3 &&
-    !meta.unlockedCharacters.includes('clockmaker')
-  ) {
-    meta.unlockedCharacters = [...meta.unlockedCharacters, 'clockmaker'];
-  }
   const newUnlocks = checkArsenalUnlocks(meta);
   if (newUnlocks.length > 0) {
     meta.unlockedArsenal = [...meta.unlockedArsenal, ...newUnlocks];
     meta.pendingArsenalUnlocks = [...meta.pendingArsenalUnlocks, ...newUnlocks];
+  }
+  const freshDice = checkDiceThemeUnlocks(meta);
+  if (freshDice.length > 0) {
+    meta.unlockedDiceThemes = [...meta.unlockedDiceThemes, ...freshDice];
+    meta.pendingDiceThemeUnlocks = [...meta.pendingDiceThemeUnlocks, ...freshDice];
   }
   saveMeta(meta);
   useStore.getState().setMeta(meta);
@@ -166,6 +256,29 @@ export function checkArsenalUnlocks(meta: MetaState): string[] {
   return fresh;
 }
 
+export function checkDiceThemeUnlocks(meta: MetaState): string[] {
+  const unlocked = new Set(meta.unlockedDiceThemes ?? []);
+  const fresh: string[] = [];
+  // Fixed-point loop: some themes (e.g. rainbow) gate on the current count of
+  // unlocked themes, so a cascade of unlocks from a single run-end should
+  // propagate until no new themes come in.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const view = { ...meta, unlockedDiceThemes: Array.from(unlocked) };
+    for (const [id, rule] of Object.entries(DIE_THEME_UNLOCKS)) {
+      if (!rule) continue;
+      if (unlocked.has(id)) continue;
+      if (rule.check(view)) {
+        unlocked.add(id);
+        fresh.push(id);
+        changed = true;
+      }
+    }
+  }
+  return fresh;
+}
+
 export function consumePendingArsenalUnlocks(): string[] {
   const meta = { ...useStore.getState().meta };
   const pending = meta.pendingArsenalUnlocks ?? [];
@@ -176,15 +289,31 @@ export function consumePendingArsenalUnlocks(): string[] {
   return pending;
 }
 
+export function consumePendingDiceThemeUnlocks(): string[] {
+  const meta = { ...useStore.getState().meta };
+  const pending = meta.pendingDiceThemeUnlocks ?? [];
+  if (pending.length === 0) return [];
+  meta.pendingDiceThemeUnlocks = [];
+  saveMeta(meta);
+  useStore.getState().setMeta(meta);
+  return pending;
+}
+
 function defaultMeta(): MetaState {
   return {
     highScores: {},
-    unlockedCharacters: ['soldier', 'gambler', 'alchemist', 'necromancer', 'berserker'],
+    // Only the Knight ships unlocked. The rest must be earned via challenges
+    // defined on each character's `unlockCondition` (see src/content/characters/index.ts).
+    unlockedCharacters: ['soldier'],
     totalRunsCompleted: 0,
     totalWavesCleared: 0,
     unlockedArsenal: ['ars_firebolt', 'ars_arc_bolt', 'ars_frost_shard', 'ars_pulse_shot', 'ars_aqua_bolt'],
     totalKills: 0,
     maxWaveReached: 0,
     pendingArsenalUnlocks: [],
+    maxGoldSpentInRun: 0,
+    bestSingleRunKills: 0,
+    unlockedDiceThemes: [...DIE_THEME_DEFAULT_UNLOCKS],
+    pendingDiceThemeUnlocks: [],
   };
 }
