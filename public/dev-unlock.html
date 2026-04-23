@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>dev unlock</title></head>
+<body>
+<script>
+const ids = ['ivory','crimson','obsidian','bone','brass','emerald','ember','frost','arcane','gold','eclipse','dragon','celestial','infernal','runic','champion','takeout','checker','marble','neon','galaxy','rainbow'];
+const key = 'rollguelike.meta.v1';
+const raw = localStorage.getItem(key);
+const meta = raw ? JSON.parse(raw) : {};
+meta.unlockedDiceThemes = ids;
+localStorage.setItem(key, JSON.stringify(meta));
+document.body.textContent = 'unlocked. go to / to test.';
+</script>
+</body>
+</html>
