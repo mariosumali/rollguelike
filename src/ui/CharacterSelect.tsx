@@ -7,6 +7,162 @@ import { initEnemyContent } from '../content/enemies';
 import { initUpgradeContent } from '../content/upgrades';
 import { playSfx } from '../audio/sfx';
 import { CharacterPortrait } from './CharacterPortrait';
+import type { Character, Element, Face, FaceKind, Rarity } from '../types';
+import { BALANCE } from '../config/balance';
+import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
+import { getFaceName } from '../content/upgrades/faceNames';
+
+const FACE_LABEL: Record<FaceKind, string> = {
+  SHOT: 'SHOT',
+  BURST: 'BURST',
+  PULSE: 'PULSE',
+  SHIELD: 'SHIELD',
+  HEAL: 'HEAL',
+  BLANK: 'DUD',
+  WILD: 'WILD',
+  SOUL_DRAIN: 'DRAIN',
+  RAGE_SMASH: 'SMASH',
+  CHARGED_BOLT: 'BOLT',
+  BOMB: 'BOMB',
+};
+
+const FACE_COLOR: Record<FaceKind, string> = {
+  SHOT: '#e3eaff',
+  BURST: '#ffc66b',
+  PULSE: '#b490ff',
+  SHIELD: '#8aa7ff',
+  HEAL: '#7ef28c',
+  BLANK: '#5a5f78',
+  WILD: '#ff9bd8',
+  SOUL_DRAIN: '#c99cff',
+  RAGE_SMASH: '#ff5c5c',
+  CHARGED_BOLT: '#9adcff',
+  BOMB: '#ff8c4a',
+};
+
+const RARITY_COLORS: Record<Rarity, string> = {
+  common: 'var(--common)',
+  rare: 'var(--rare)',
+  epic: 'var(--epic)',
+  legendary: 'var(--legendary)',
+};
+
+function fmtMul(m?: number): string {
+  if (m === undefined || m === 1) return '';
+  const s = m.toFixed(2).replace(/\.?0+$/, '');
+  return ` ×${s}`;
+}
+
+function describeFace(face: Face, characterId: string): string {
+  const v = face.value;
+  const count = face.projectileCount ?? v;
+  const mul = fmtMul(face.damageMul);
+  switch (face.kind) {
+    case 'SHOT':
+      return `${count} shot${count === 1 ? '' : 's'}${mul}`;
+    case 'CHARGED_BOLT':
+      return `${count} charged bolt${count === 1 ? '' : 's'}${mul}`;
+    case 'BURST': {
+      const n = Math.max(4, count + 2);
+      return `${n}-shot spread${mul}`;
+    }
+    case 'PULSE': {
+      const dmg = BALANCE.combat.pulseDamage(v);
+      return `AoE pulse · ${dmg} dmg${mul}`;
+    }
+    case 'SHIELD': {
+      const n = BALANCE.combat.shieldAmount(v);
+      return `+${n} shield`;
+    }
+    case 'HEAL': {
+      const n = BALANCE.combat.healAmount(v);
+      return `+${n} HP`;
+    }
+    case 'WILD':
+      return `Repeat last face${mul}`;
+    case 'SOUL_DRAIN':
+      return `Spend ${v} souls → blast${mul}`;
+    case 'RAGE_SMASH':
+      return `Smash, scales with Rage${mul}`;
+    case 'BOMB':
+      return `Lob ${v} bombs${mul}`;
+    case 'BLANK':
+      if (characterId === 'gambler') return 'Dud · +1 shield';
+      return 'Nothing';
+    default:
+      return '';
+  }
+}
+
+interface DossierFaceRow {
+  value: number;
+  label: string;
+  color: string;
+  element: Element;
+  desc: string;
+  gambit: boolean;
+}
+
+/**
+ * Builds the faces shown on the character select dossier.
+ *
+ * Runtime truth is `character.defaultFaces` (populates `slotLayout[i].replacerId`
+ * at run start; `resolveFace` executes the replacer upgrade, not `face.kind`).
+ * So prefer that when available, and fall back to `startingDice.faces` for
+ * any character without defaults, which still rolls the legacy face-kind path.
+ */
+function buildDossierFaces(character: Character): DossierFaceRow[] {
+  const dice = character.startingDice[0];
+  const defaults = character.defaultFaces;
+  const gambitExtremes = BALANCE.gambler.gambitExtremes as readonly number[];
+
+  return Array.from({ length: 6 }, (_, i) => {
+    const face = dice?.faces[i];
+    const df = defaults?.[i];
+    const value = face?.value ?? i + 1;
+    const gambit = character.id === 'gambler' && gambitExtremes.includes(value);
+
+    if (df && df.upgradeId) {
+      const up = getFaceUpgrade(df.upgradeId);
+      const label = getFaceName(df.upgradeId, character.id, up?.name).toUpperCase();
+      const color = up
+        ? RARITY_COLORS[up.rarity]
+        : face
+          ? FACE_COLOR[face.kind]
+          : 'var(--fg-dim)';
+      const element = df.element ?? face?.element ?? 'none';
+
+      let desc = up?.description ?? '';
+      // Gambler's BLANK faces give +1 shield via the passive even though the
+      // replacer upgrade still fires. Surface that side-effect here.
+      if (character.id === 'gambler' && face?.kind === 'BLANK') {
+        desc = desc ? `${desc} · +1 shield on roll` : '+1 shield on roll';
+      }
+
+      return { value, label, color, element, desc, gambit };
+    }
+
+    if (!face) {
+      return {
+        value,
+        label: '—',
+        color: 'var(--fg-dim)',
+        element: 'none',
+        desc: '',
+        gambit,
+      };
+    }
+
+    return {
+      value,
+      label: FACE_LABEL[face.kind],
+      color: FACE_COLOR[face.kind],
+      element: face.element,
+      desc: describeFace(face, character.id),
+      gambit,
+    };
+  });
+}
 
 export function CharacterSelect() {
   const setScreen = useStore((s) => s.setScreen);
@@ -31,6 +187,7 @@ export function CharacterSelect() {
   const chars = listCharacters();
 
   const isUnlocked = (id: string) => {
+    if (meta.unlockedCharacters?.includes(id)) return true;
     const ch = chars.find((c) => c.id === id);
     if (!ch?.unlockCondition) return true;
     return ch.unlockCondition(meta);
@@ -38,7 +195,6 @@ export function CharacterSelect() {
 
   const selChar = chars.find((c) => c.id === selected);
   const selUnlocked = selChar ? isUnlocked(selChar.id) : false;
-  const selIndex = chars.findIndex((c) => c.id === selected);
   const selAccent = selChar?.color ?? 'var(--accent)';
 
   const onPlay = () => {
@@ -61,15 +217,6 @@ export function CharacterSelect() {
     >
       <div className="menu-vignette" aria-hidden />
       <div className="menu-scanlines" aria-hidden />
-
-      <div className="menu-corner menu-corner-tl" aria-hidden>
-        <span className="corner-glyph">◈</span>
-        <span className="corner-text">SEL·{String(selIndex + 1).padStart(2, '0')}</span>
-      </div>
-      <div className="menu-corner menu-corner-tr" aria-hidden>
-        <span className="corner-text">CHALICE</span>
-        <span className="corner-glyph">◈</span>
-      </div>
 
       <div className="select-inner pixel-text">
         <div className="select-top">
@@ -123,7 +270,7 @@ export function CharacterSelect() {
                 <span className="tile-corner tc-br" aria-hidden />
 
                 <div className="char-portrait-wrap">
-                  <CharacterPortrait characterId={c.id} size={56} />
+                  <CharacterPortrait characterId={c.id} size={72} />
                 </div>
 
                 <div className="char-tile-name">
@@ -174,6 +321,45 @@ export function CharacterSelect() {
                   ? selChar.description
                   : 'Complete more runs to unlock this chalice.'}
               </div>
+
+              {selUnlocked && selChar.startingDice[0] && (
+                <div className="dossier-die">
+                  <div className="dossier-die-head">
+                    <span className="sh-line" />
+                    <span className="sh-label">STARTING DIE</span>
+                    <span className="sh-line" />
+                  </div>
+                  <div className="die-faces">
+                    {buildDossierFaces(selChar).map((row) => (
+                      <div className="die-face-row" key={row.value}>
+                        <span
+                          className="die-pip"
+                          style={{ color: row.color }}
+                          aria-hidden
+                        >
+                          {row.value}
+                        </span>
+                        <span
+                          className="die-kind"
+                          style={{ color: row.color }}
+                          title={row.label}
+                        >
+                          {row.label}
+                        </span>
+                        {row.element !== 'none' && (
+                          <span className={`die-elem elem-${row.element}`}>
+                            {row.element.toUpperCase()}
+                          </span>
+                        )}
+                        {row.gambit && (
+                          <span className="die-elem die-gambit">GAMBIT</span>
+                        )}
+                        <span className="die-desc">{row.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
