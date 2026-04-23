@@ -81,7 +81,7 @@ import { getEnemyType } from '../content/enemies/registry';
 import { listUpgrades, getUpgrade } from '../content/upgrades/registry';
 import { resolveFace, deriveProjectileColor, findNearestEnemyXY, DEFAULT_AIM } from '../systems/faceResolve';
 import { DEFAULT_PROJECTILE_ARCHETYPE } from '../content/characters/projectiles';
-import { getReaction, elementalDotDps } from '../systems/elemental';
+import { getReaction, elementalDotDps, reactionEffectElement } from '../systems/elemental';
 import { playSfx } from '../audio/sfx';
 import { haptic, HAPTIC } from '../audio/haptics';
 import { useStore, setRunState } from '../state/store';
@@ -1065,7 +1065,8 @@ function doPulseAt(cx: number, cy: number, radius: number, damage: number, eleme
 function triggerReaction(reaction: ReturnType<typeof getReaction>, run: RunState): void {
   if (!reaction) return;
   addTrauma(0.15);
-  doPulseAt(PLAYER_X, PLAYER_Y - 20, reaction.radius, reaction.damage, 'none', run);
+  const element = reactionEffectElement(reaction.effect);
+  doPulseAt(PLAYER_X, PLAYER_Y - 20, reaction.radius, reaction.damage, element, run);
   spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 20, life: 0.55, kind: 'reaction', color: reaction.color, size: reaction.radius });
   spawnPopup(PLAYER_X, PLAYER_Y - 40, reaction.name.toUpperCase(), reaction.color, 10);
   playSfx('reaction');
