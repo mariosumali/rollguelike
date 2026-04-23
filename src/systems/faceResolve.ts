@@ -2,6 +2,7 @@ import type { Face, RollResult, Projectile, RunState } from '../types';
 import { BALANCE } from '../config/balance';
 import { PLAYER_X, DIE_Y, PROJECTILE_SPAWN_Y } from '../config/constants';
 import { ELEMENT_COLORS } from '../sprites/effects';
+import { executeUpgrade } from '../engine/effectExecutor';
 
 export interface FaceOps {
   spawnProjectile: (x: number, y: number, dx: number, dy: number, damage: number, face: Face) => Projectile;
@@ -39,6 +40,25 @@ export function findNearestEnemyXY(enemies: { x: number; y: number; alive: boole
 }
 
 export function resolveFace(face: Face, baseDmg: number, roll: RollResult, run: RunState, ops: FaceOps): void {
+  const slotIndex = Math.max(0, Math.min(5, face.value - 1));
+  const slot = run.slotLayout?.[slotIndex];
+  if (slot && (slot.replacerId || slot.supplementIds.length > 0)) {
+    if (slot.replacerId) {
+      const tier = run.ownedFaceUpgrades[slot.replacerId] ?? 1;
+      executeUpgrade(slot.replacerId, tier, face, baseDmg * roll.streakMul, run, ops);
+    } else {
+      resolveLegacyFace(face, baseDmg, roll, run, ops);
+    }
+    for (const suppId of slot.supplementIds) {
+      const tier = run.ownedFaceUpgrades[suppId] ?? 1;
+      executeUpgrade(suppId, tier, face, baseDmg * roll.streakMul, run, ops);
+    }
+    return;
+  }
+  resolveLegacyFace(face, baseDmg, roll, run, ops);
+}
+
+function resolveLegacyFace(face: Face, baseDmg: number, roll: RollResult, run: RunState, ops: FaceOps): void {
   switch (face.kind) {
     case 'SHOT':
     case 'CHARGED_BOLT': {

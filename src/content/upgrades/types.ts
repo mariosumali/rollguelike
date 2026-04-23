@@ -59,6 +59,40 @@ export type Effect =
       crit?: number;
       burnDps?: number;
       burnDur?: number;
+    }
+  | {
+      verb: 'orbit';
+      count: number;
+      radius: number;
+      rpm: number;
+      damageMul: number;
+      duration: number;
+      pierce?: number;
+      element?: Element;
+    }
+  | {
+      verb: 'beam';
+      width: number;
+      dps: number;
+      duration: number;
+      pierce?: number;
+      element?: Element;
+      lifesteal?: number;
+    }
+  | {
+      verb: 'summonMinion';
+      kind: 'bone' | 'wraith' | 'spirit' | 'ember';
+      count: number;
+      hp: number;
+      duration: number;
+      damagePerHit: number;
+      trigger?: 'onResolve' | 'onKill' | 'onProjectileExpire';
+    }
+  | {
+      verb: 'reflect';
+      duration: number;
+      multiplier: number;
+      radius?: number;
     };
 
 export interface AnimationBinding {
@@ -91,6 +125,7 @@ export interface FaceUpgrade {
   description: string;
   bindsTo?: number[];
   tags?: string[];
+  characterExclusive?: string;
   evolution?: FaceUpgradeEvolution;
   animation: AnimationBinding;
   tiers: [FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier];

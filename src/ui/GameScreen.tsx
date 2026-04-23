@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { HUD } from './HUD';
 import { PauseMenu } from './PauseMenu';
 import { UpgradeSelect } from './UpgradeSelect';
+import { ForgeShop } from './ForgeShop';
 import { BossWarning } from './BossWarning';
 import { GameCanvas } from './GameCanvas';
 import { Onboarding } from './Onboarding';
@@ -29,6 +30,7 @@ export function GameScreen() {
       <GameCanvas />
       <HUD onPause={handlePause} />
       {screen === 'upgrade' && <UpgradeSelect />}
+      {screen === 'forge' && <ForgeShop />}
       {screen === 'pause' && <PauseMenu />}
       {screen === 'boss-warn' && <BossWarning />}
       <Onboarding />

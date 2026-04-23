@@ -73,10 +73,15 @@ export function HUD({ onPause }: Props) {
         </div>
 
         <div className="hud-indicators pixel-text">
-          {hud.streak > 1 && (
-            <div className="hud-chip streak-chip">
-              <span className="chip-key">×</span>
-              <span className="chip-val">{hud.streak}</span>
+          <div className="hud-chip gold-chip" aria-label={`gold ${hud.gold}`}>
+            <span className="chip-key">◈</span>
+            <span className="chip-val">{hud.gold}</span>
+          </div>
+          {hud.characterId === 'gambler' && hud.gambitStacks > 0 && (
+            <div className="hud-chip gambit-chip" aria-label={`gambit stacks ${hud.gambitStacks}`}>
+              {Array.from({ length: hud.gambitStacks }).map((_, i) => (
+                <span key={i} className="gambit-pip">◆</span>
+              ))}
             </div>
           )}
           {hud.characterId === 'necromancer' && (

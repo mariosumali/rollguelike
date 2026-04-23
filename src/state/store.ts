@@ -7,6 +7,13 @@ interface UpgradeOffer {
   rarity: import('../types').Rarity;
 }
 
+export interface ForgeShopOffer {
+  id: string;
+  slotIndex: number;
+  nextTier: number;
+  price: number;
+}
+
 export interface Settings {
   masterVolume: number;
   sfxVolume: number;
@@ -47,6 +54,8 @@ interface StoreState {
   upgradePicksRemaining: number;
   activeUpgrades: { id: string; stacks: number }[];
 
+  forgeShopOffers: ForgeShopOffer[];
+
   bossWarnTypeId: string | null;
 
   meta: MetaState;
@@ -56,6 +65,7 @@ interface StoreState {
   setScreen: (screen: Screen) => void;
   setHud: (hud: Partial<StoreState['hud']>) => void;
   setUpgradeOffers: (offers: UpgradeOffer[], picksRemaining: number) => void;
+  setForgeShopOffers: (offers: ForgeShopOffer[]) => void;
   setActiveUpgrades: (u: { id: string; stacks: number }[]) => void;
   setBossWarn: (id: string | null) => void;
   setMeta: (meta: MetaState) => void;
@@ -86,6 +96,7 @@ export const useStore = create<StoreState>()(
     upgradeOffers: [],
     upgradePicksRemaining: 0,
     activeUpgrades: [],
+    forgeShopOffers: [],
     bossWarnTypeId: null,
     meta: {
       highScores: {},
@@ -103,6 +114,7 @@ export const useStore = create<StoreState>()(
     setHud: (hud) => set((s) => ({ hud: { ...s.hud, ...hud } })),
     setUpgradeOffers: (offers, picksRemaining) =>
       set({ upgradeOffers: offers, upgradePicksRemaining: picksRemaining }),
+    setForgeShopOffers: (offers) => set({ forgeShopOffers: offers }),
     setActiveUpgrades: (activeUpgrades) => set({ activeUpgrades }),
     setBossWarn: (id) => set({ bossWarnTypeId: id }),
     setMeta: (meta) => set({ meta }),

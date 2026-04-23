@@ -110,6 +110,18 @@ function executeEffect(effect: Effect, ctx: EffectContext): void {
       break;
     case 'modifyProjectile':
       break;
+    case 'orbit':
+      verbOrbit(effect, ctx);
+      break;
+    case 'beam':
+      verbBeam(effect, ctx);
+      break;
+    case 'summonMinion':
+      verbSummonMinion(effect, ctx);
+      break;
+    case 'reflect':
+      verbReflect(effect, ctx);
+      break;
   }
 }
 
@@ -183,6 +195,25 @@ function verbColumn(effect: Extract<Effect, { verb: 'column' }>, ctx: EffectCont
   for (let i = 0; i < count; i++) {
     ctx.ops.queueShot(i * effect.delay, PLAYER_X, PROJECTILE_SPAWN_Y, ctx.baseDamage * effect.damageMul, ctx.face);
   }
+}
+
+function verbOrbit(_effect: Extract<Effect, { verb: 'orbit' }>, _ctx: EffectContext): void {
+  // TODO(orbit): requires Orbiter pool in engine; no-op scaffold.
+}
+
+function verbBeam(_effect: Extract<Effect, { verb: 'beam' }>, _ctx: EffectContext): void {
+  // TODO(beam): requires continuous beam segment runtime; no-op scaffold.
+}
+
+function verbSummonMinion(
+  _effect: Extract<Effect, { verb: 'summonMinion' }>,
+  _ctx: EffectContext,
+): void {
+  // TODO(summonMinion): requires Minion pool + autonomous FSM; no-op scaffold.
+}
+
+function verbReflect(_effect: Extract<Effect, { verb: 'reflect' }>, _ctx: EffectContext): void {
+  // TODO(reflect): requires projectile reflection bit on collision filter; no-op scaffold.
 }
 
 export function getTieredAnimationIds(
