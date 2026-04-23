@@ -2,12 +2,13 @@ import type { Character } from '../types';
 import type { SlotState } from '../content/upgrades/types';
 import { BALANCE } from '../config/balance';
 
-export function createSlotLayout(_character: Character): SlotState[] {
+export function createSlotLayout(character: Character): SlotState[] {
   const count = BALANCE.slot.slotsPerCharacter;
   const cap = BALANCE.slot.supplementsDefault;
+  const defaults = character.defaultFaces ?? [];
   return Array.from({ length: count }, (_, i) => ({
     index: i,
-    replacerId: null,
+    replacerId: defaults[i]?.upgradeId ?? null,
     supplementIds: [],
     supplementCap: cap,
   }));

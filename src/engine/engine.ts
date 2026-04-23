@@ -11,6 +11,7 @@ import type {
   WaveScript,
   SpawnEvent,
   RollResult,
+  Element,
 } from '../types';
 import { BALANCE } from '../config/balance';
 import {
@@ -23,6 +24,7 @@ import {
   PLAYER_X,
   PLAYER_Y,
   DIE_Y,
+  PROJECTILE_SPAWN_Y,
   FIXED_DT,
 } from '../config/constants';
 import { mulberry32 } from './rng';
@@ -72,7 +74,8 @@ import {
   drawFreezeCrystal,
   ELEMENT_COLORS,
 } from '../sprites/effects';
-import { buildDieSpriteSet, drawDie, DIE_THEMES, type DieSpriteSet } from '../sprites/dice';
+import { buildDieSpriteSet, drawDie, getDieTheme, buildFaceIconCanvas, type DieSpriteSet, type DieFaceIcons } from '../sprites/dice';
+import { getFaceIconRows, getFaceIconCacheKey } from '../content/upgrades/faceIcons';
 import { getSprite, drawSprite } from '../sprites/sprite';
 import { initSprites } from '../sprites';
 import { makeAnimState, setAnim, stepAnim, type AnimState } from '../sprites/animation';
@@ -82,10 +85,19 @@ import { listUpgrades, getUpgrade } from '../content/upgrades/registry';
 import { listFaceUpgrades, getFaceUpgrade } from '../content/upgrades/faceRegistry';
 import { resolveFace, deriveProjectileColor, findNearestEnemyXY, DEFAULT_AIM } from '../systems/faceResolve';
 import { createSlotLayout, canPlaceSupplement, expandSlot, slotAllowedTags, isSlotLocked } from '../systems/slots';
+import { getAnimationSpec } from '../content/animations/registry';
+import type { TierIntensity } from '../content/animations/types';
 import { DEFAULT_PROJECTILE_ARCHETYPE } from '../content/characters/projectiles';
 import { getReaction, elementalDotDps, reactionEffectElement } from '../systems/elemental';
 import { playSfx } from '../audio/sfx';
 import { haptic, HAPTIC } from '../audio/haptics';
+import {
+  getScreenFlashesEnabled,
+  getDamageNumbersEnabled,
+  getEnemyHpBarMode,
+  getParticleMultiplier,
+  getAutoRollEnabled,
+} from '../state/prefsRuntime';
 import { useStore, setRunState } from '../state/store';
 import { saveRun, incrementRunsCompleted } from '../state/persistence';
 import { palHex } from '../sprites/palette';
@@ -111,8 +123,6 @@ interface PendingAttack {
   dieId: string;
   t: number;
   delay: number;
-  streak: number;
-  streakMul: number;
 }
 
 interface PendingShot {
@@ -145,6 +155,24 @@ interface PlayerPose {
   dur: number;
 }
 
+interface PullZone {
+  x: number;
+  y: number;
+  radius: number;
+  strength: number;
+  dps: number;
+  t: number;
+  duration: number;
+  element: string;
+}
+
+interface ReflectState {
+  t: number;
+  duration: number;
+  multiplier: number;
+  radius: number;
+}
+
 interface EngineState {
   run: RunState | null;
   rng: () => number;
@@ -167,6 +195,8 @@ interface EngineState {
   playerPose: PlayerPose;
   pendingAttacks: PendingAttack[];
   pendingShots: PendingShot[];
+  pullZones: PullZone[];
+  reflect: ReflectState | null;
   lastRolled: Face | null;
   spawnedForWave: boolean;
   screenFlashT: number;
@@ -182,7 +212,7 @@ interface EngineState {
   stageBannerIdx: number;
   announcedStageIdx: number;
   lastHud: {
-    wave: number; score: number; streak: number; hp: number; maxHp: number;
+    wave: number; score: number; hp: number; maxHp: number;
     shield: number; souls: number; rage: number; gold: number; gambitStacks: number; characterId: string;
     isBossWave: boolean; waveProgress: number;
   } | null;
@@ -210,6 +240,8 @@ const state: EngineState = {
   playerPose: { kind: 'none', t: 0, dur: 0 },
   pendingAttacks: [],
   pendingShots: [],
+  pullZones: [],
+  reflect: null,
   lastRolled: null,
   spawnedForWave: false,
   screenFlashT: 0,
@@ -229,7 +261,8 @@ const state: EngineState = {
 
 export function initEngine(): void {
   initSprites();
-  state.dieSprites = buildDieSpriteSet(DIE_THEMES.ivory);
+  const themeId = useStore.getState().settings.dieTheme;
+  state.dieSprites = buildDieSpriteSet(getDieTheme(themeId));
 }
 
 export function startRun(characterId: string, resumeRun?: RunState): void {
@@ -247,6 +280,8 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   state.souls.forEach((s) => (s.alive = false));
   state.pendingAttacks = [];
   state.pendingShots = [];
+  state.pullZones = [];
+  state.reflect = null;
   state.lastRolled = null;
   state.waveClearedT = -1;
   state.spawnedForWave = false;
@@ -273,8 +308,6 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
       characterId,
       wave: 1,
       score: 0,
-      streak: 0,
-      streakFace: null,
       hp: BALANCE.player.startingHp,
       maxHp: BALANCE.player.startingHp,
       shield: 0,
@@ -291,7 +324,15 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
       ownedFaceUpgrades: {},
       slotLayout: createSlotLayout(ch),
       gambitStacks: 0,
+      goldSpent: 0,
     };
+
+  for (const df of ch.defaultFaces ?? []) {
+    if (!df.upgradeId) continue;
+    if (!run.ownedFaceUpgrades[df.upgradeId]) {
+      run.ownedFaceUpgrades[df.upgradeId] = 1;
+    }
+  }
 
   state.run = run;
   setRunState(run);
@@ -446,13 +487,21 @@ export function update(dt: number): void {
   ) {
     state.tapQueued = false;
     tap();
+  } else if (
+    getAutoRollEnabled() &&
+    !state.dice.some((d) => d.rolling) &&
+    !state.dice.some((d) => d.charging) &&
+    !state.paused_upgrade &&
+    diceReadyToRoll()
+  ) {
+    tap();
   }
 
   for (let i = state.pendingAttacks.length - 1; i >= 0; i--) {
     const pa = state.pendingAttacks[i]!;
     pa.t += dt;
     if (pa.t >= pa.delay) {
-      executeFace(pa.face, pa.dieId, pa.streak, pa.streakMul, run);
+      executeFace(pa.face, pa.dieId, run);
       state.pendingAttacks.splice(i, 1);
     }
   }
@@ -481,6 +530,12 @@ export function update(dt: number): void {
       } else break;
     }
     if (state.nextSpawnIdx >= state.wave.events.length) state.spawnedForWave = true;
+  }
+
+  tickPullZones(dt, run);
+  if (state.reflect) {
+    state.reflect.t += dt;
+    if (state.reflect.t >= state.reflect.duration) state.reflect = null;
   }
 
   for (const e of state.enemies) {
@@ -579,36 +634,13 @@ function pickFace(die: DieInstance, run: RunState): Face {
 
 function resolveRoll(die: DieInstance, face: Face, run: RunState): void {
   state.rollCount++;
-  const prevStreak = run.streak;
-  let streak = prevStreak;
-  if (run.streakFace === face.value) streak++;
-  else streak = 1;
-  run.streak = streak;
-  run.streakFace = face.value;
-  if (streak > prevStreak) {
-    for (const t of BALANCE.combat.streakTierThresholds) {
-      if (streak === t) {
-        spawnPopup(PLAYER_X, DIE_Y - 22, `STREAK x${t}`, palHex('y')!, 10);
-        spawnVfx({ x: PLAYER_X, y: DIE_Y - 4, life: 0.5, kind: 'ring', color: palHex('y')!, size: 14 });
-        addTrauma(0.08);
-        haptic(HAPTIC.shield);
-        break;
-      }
-    }
-  }
-  const streakMul = Math.min(
-    BALANCE.combat.streakMulMax,
-    1 + BALANCE.combat.streakMulPerStack * (streak - 1),
-  );
-  fireOnRoll(envFor(run), face, streak, die.config.id);
-  emitEvent('roll-land', { face, streak });
+  fireOnRoll(envFor(run), face, die.config.id);
+  emitEvent('roll-land', { face });
   state.pendingAttacks.push({
     face,
     dieId: die.config.id,
     t: 0,
     delay: 0.04,
-    streak,
-    streakMul,
   });
 
   if (run.characterId === 'alchemist' && state.lastRolled && state.lastRolled.element !== face.element) {
@@ -616,6 +648,12 @@ function resolveRoll(die: DieInstance, face: Face, run: RunState): void {
     if (reaction) triggerReaction(reaction, run);
   }
   state.lastRolled = face;
+}
+
+function gambitDamageMul(run: RunState): number {
+  if (run.characterId !== 'gambler') return 1;
+  const stacks = Math.min(BALANCE.gambler.gambitMaxStacks, run.gambitStacks);
+  return 1 + stacks * BALANCE.gambler.gambitBonusPerStack;
 }
 
 const FACE_POSE: Record<string, { kind: PoseKind; dur: number }> = {
@@ -710,11 +748,28 @@ function announceFace(face: Face): void {
   }
 }
 
-function executeFace(face: Face, dieId: string, streak: number, streakMul: number, run: RunState): void {
-  const baseDmg = (BALANCE.combat.baseFaceDamage[face.value] ?? 10) * streakMul * (face.damageMul ?? 1);
-  const roll: RollResult = { face, streak, streakMul, dieId };
-  triggerPoseForFace(face);
-  announceFace(face);
+function executeFace(face: Face, dieId: string, run: RunState): void {
+  const slotIndex = Math.max(0, Math.min(5, face.value - 1));
+  const slot = face.value >= 1 ? run.slotLayout?.[slotIndex] : undefined;
+  const slotActive = !!(slot && (slot.replacerId || slot.supplementIds.length > 0));
+  // The die renders the slot replacer icon based on face.value, so for BLANK
+  // faces where a replacer is installed we must play the active pose and let
+  // the upgrade's cast animation speak for itself instead of the BLANK popup.
+  if (face.kind === 'BLANK' && slotActive) {
+    state.playerPose = { kind: 'none', t: 0, dur: 0 };
+  } else {
+    triggerPoseForFace(face);
+    announceFace(face);
+  }
+  if ((face.kind === 'BLANK' || face.value < 1) && !slotActive) {
+    state.lastRolled = face;
+    return;
+  }
+  const baseDmg =
+    (BALANCE.combat.baseFaceDamage[face.value] ?? 10) *
+    gambitDamageMul(run) *
+    (face.damageMul ?? 1);
+  const roll: RollResult = { face, dieId };
   resolveFace(face, baseDmg, roll, run, {
     spawnProjectile,
     queueShot: (delay, x, y, damage, f, postSpawn) => {
@@ -742,7 +797,7 @@ function executeFace(face: Face, dieId: string, streak: number, streakMul: numbe
     },
     repeatPrev: () => {
       if (state.lastRolled && state.lastRolled.kind !== 'WILD' && state.lastRolled.kind !== 'BLANK') {
-        executeFace(state.lastRolled, dieId, streak, streakMul, run);
+        executeFace(state.lastRolled, dieId, run);
       }
     },
     applyStatusNearest: (status, power, duration) => {
@@ -769,7 +824,199 @@ function executeFace(face: Face, dieId: string, streak: number, streakMul: numbe
     addGold: (amount) => {
       run.gold += Math.max(0, Math.floor(amount));
     },
+    startOrbit: (params) => {
+      spawnOrbiters(params);
+    },
+    startBeam: (params) => {
+      doBeam(params, run);
+    },
+    startPull: (params) => {
+      state.pullZones.push({
+        x: PLAYER_X,
+        y: PLAYER_Y - 8,
+        radius: params.radius,
+        strength: params.strength,
+        dps: params.dps,
+        duration: params.duration,
+        t: 0,
+        element: params.element,
+      });
+      spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 8, life: 0.35, kind: 'ring', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: params.radius });
+    },
+    summonMinion: (params) => {
+      spawnMinions(params);
+    },
+    startReflect: (params) => {
+      state.reflect = { t: 0, duration: params.duration, multiplier: params.multiplier, radius: params.radius };
+      spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 6, life: 0.4, kind: 'shield', color: palHex('q')!, size: 14 });
+    },
+    playAnim: (animId, x, y, intens) => {
+      playAnimationSpec(animId, x, y, intens);
+    },
   });
+}
+
+function playAnimationSpec(animId: string | undefined, x: number, y: number, intens: TierIntensity): void {
+  if (!animId) return;
+  const spec = getAnimationSpec(animId);
+  if (!spec) return;
+  const color = spec.color;
+  const sz = spec.size * intens.scale;
+  const life = spec.duration;
+  const kinds = spec.kind;
+  if (kinds === 'burst') {
+    spawnVfx({ x, y, life, kind: 'explosion', color, size: sz });
+    const n = Math.max(1, Math.floor(spec.particles * intens.particles));
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + state.rng() * 0.4;
+      const sp = 40 + state.rng() * 40;
+      spawnVfx({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: life * 0.9, kind: 'spark', color: spec.secondaryColor ?? color, size: Math.max(1, sz * 0.3) });
+    }
+  } else if (kinds === 'pulse') {
+    spawnVfx({ x, y, life, kind: 'ring', color, size: sz });
+    if (spec.secondaryColor) spawnVfx({ x, y, life: life * 0.8, kind: 'ring', color: spec.secondaryColor, size: sz * 0.7 });
+  } else if (kinds === 'aura' || kinds === 'glow') {
+    spawnVfx({ x, y, life, kind: 'ring', color, size: sz });
+    const n = Math.max(1, Math.floor(spec.particles * intens.particles * 0.5));
+    for (let i = 0; i < n; i++) {
+      const ang = state.rng() * Math.PI * 2;
+      spawnVfx({ x, y, vx: Math.cos(ang) * 20, vy: Math.sin(ang) * 20, life: life * 0.7, kind: 'spark', color: spec.secondaryColor ?? color, size: 2 });
+    }
+  } else if (kinds === 'beam') {
+    // handled by doBeam; fallback fires a short spark
+    spawnVfx({ x, y, life, kind: 'spark', color, size: sz });
+  } else if (kinds === 'trail') {
+    spawnVfx({ x, y, life, kind: 'trail', color, size: Math.max(1, sz * 0.5) });
+  } else if (kinds === 'columns') {
+    for (let i = 0; i < 3; i++) {
+      const ox = (i - 1) * 18;
+      spawnVfx({ x: x + ox, y, life, kind: 'explosion', color, size: sz });
+    }
+  } else {
+    spawnVfx({ x, y, life, kind: 'spark', color, size: sz });
+  }
+  if (spec.shake) addTrauma(spec.shake * intens.brightness);
+}
+
+function spawnOrbiters(params: { count: number; radius: number; rpm: number; damage: number; duration: number; pierce: number; element: Element; face: Face }): void {
+  const cx = PLAYER_X;
+  const cy = PLAYER_Y - 4;
+  const omega = (params.rpm / 60) * Math.PI * 2;
+  const ch = getCharacter(state.run!.characterId);
+  const archetype = ch?.baseProjectile ?? DEFAULT_PROJECTILE_ARCHETYPE;
+  for (let i = 0; i < params.count; i++) {
+    const p = acquire(state.projectiles, makeProjectile);
+    resetProjectile(p);
+    const angle = (i / params.count) * Math.PI * 2;
+    p.x = cx + Math.cos(angle) * params.radius;
+    p.y = cy + Math.sin(angle) * params.radius;
+    p.vx = 0;
+    p.vy = 0;
+    p.radius = archetype.radius;
+    p.damage = params.damage;
+    p.maxAge = params.duration;
+    p.element = params.element;
+    p.color = ELEMENT_COLORS[params.element as 'none'] ?? archetype.baseColor;
+    p.sourceFaceValue = params.face.value;
+    p.archetype = archetype;
+    p.pierce = 9999;
+    p.rotation = angle;
+    p.orbit = {
+      angle,
+      radius: params.radius,
+      omega,
+      cx,
+      cy,
+      ttl: params.duration,
+      reHitTimers: new Map<number, number>(),
+    };
+  }
+}
+
+function doBeam(params: { width: number; dps: number; duration: number; pierce: number; element: Element; lifesteal: number; face: Face; baseDamage: number }, run: RunState): void {
+  const total = params.dps * params.duration + params.baseDamage;
+  let pierced = 0;
+  let farthestY = 0;
+  const sortedEnemies = state.enemies
+    .filter((e) => e.alive && e.state !== 'die' && Math.abs(e.x - PLAYER_X) <= params.width / 2 + e.radius)
+    .sort((a, b) => b.y - a.y);
+  for (const e of sortedEnemies) {
+    if (pierced > params.pierce) break;
+    hitEnemy(e, total, params.element, run);
+    if (params.lifesteal > 0) run.hp = Math.min(run.maxHp, run.hp + params.lifesteal);
+    farthestY = Math.min(farthestY === 0 ? e.y : farthestY, e.y);
+    pierced++;
+  }
+  const endY = farthestY !== 0 ? farthestY : HUD_H + 4;
+  for (let yy = PROJECTILE_SPAWN_Y; yy > endY; yy -= 12) {
+    spawnVfx({ x: PLAYER_X, y: yy, life: params.duration * 0.8, kind: 'spark', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: Math.max(2, params.width / 4) });
+  }
+  spawnVfx({ x: PLAYER_X, y: (PROJECTILE_SPAWN_Y + endY) / 2, life: params.duration, kind: 'lightning', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: 0, data: encodePos(PLAYER_X, Math.max(0, endY)) });
+  addTrauma(0.1);
+  playSfx('pulse');
+}
+
+function tickPullZones(dt: number, run: RunState): void {
+  for (let i = state.pullZones.length - 1; i >= 0; i--) {
+    const pz = state.pullZones[i]!;
+    pz.t += dt;
+    if (pz.t >= pz.duration) {
+      state.pullZones.splice(i, 1);
+      continue;
+    }
+    const r2 = pz.radius * pz.radius;
+    for (const e of state.enemies) {
+      if (!e.alive || e.state === 'die') continue;
+      const dx = pz.x - e.x;
+      const dy = pz.y - e.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r2) continue;
+      const d = Math.sqrt(d2) || 1;
+      const falloff = 1 - Math.min(1, d / pz.radius);
+      const pull = pz.strength * falloff * dt;
+      e.x += (dx / d) * pull;
+      e.y += (dy / d) * pull;
+      if (pz.dps > 0) {
+        hitEnemy(e, pz.dps * dt, pz.element, run);
+      }
+    }
+    if (Math.floor(pz.t * 8) !== Math.floor((pz.t - dt) * 8)) {
+      spawnVfx({ x: pz.x, y: pz.y, life: 0.2, kind: 'ring', color: ELEMENT_COLORS[pz.element as 'none'] ?? '#fff', size: pz.radius * (0.6 + state.rng() * 0.4) });
+    }
+  }
+}
+
+function spawnMinions(params: { kind: 'bone' | 'wraith' | 'spirit' | 'ember'; count: number; hp: number; duration: number; damagePerHit: number; face: Face; baseDamage: number; trigger: 'onResolve' | 'onKill' | 'onProjectileExpire' }): void {
+  const ch = getCharacter(state.run!.characterId);
+  const archetype = ch?.baseProjectile ?? DEFAULT_PROJECTILE_ARCHETYPE;
+  const minionColors: Record<typeof params.kind, string> = {
+    bone: palHex('d')!,
+    wraith: palHex('H')!,
+    spirit: palHex('q')!,
+    ember: palHex('u')!,
+  };
+  const color = minionColors[params.kind] ?? palHex('c')!;
+  for (let i = 0; i < params.count; i++) {
+    const p = acquire(state.projectiles, makeProjectile);
+    resetProjectile(p);
+    const ang = -Math.PI / 2 + (i - (params.count - 1) / 2) * 0.3 + (state.rng() - 0.5) * 0.2;
+    const speed = BALANCE.combat.projectileSpeed * 0.55;
+    p.x = PLAYER_X + (state.rng() - 0.5) * 8;
+    p.y = PROJECTILE_SPAWN_Y;
+    p.vx = Math.cos(ang) * speed;
+    p.vy = Math.sin(ang) * speed;
+    p.radius = archetype.radius + 0.5;
+    p.damage = params.damagePerHit + params.baseDamage * 0.35;
+    p.maxAge = params.duration;
+    p.element = params.face.element;
+    p.color = color;
+    p.sourceFaceValue = params.face.value;
+    p.archetype = archetype;
+    p.pierce = Math.max(1, Math.floor(params.hp / 20));
+    p.homing = true;
+    p.minion = true;
+    p.rotation = ang;
+  }
 }
 
 function spawnProjectile(x: number, y: number, dx: number, dy: number, damage: number, face: Face): Projectile {
@@ -819,6 +1066,37 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
     p.alive = false;
     return;
   }
+  if (p.orbit) {
+    const ob = p.orbit;
+    ob.angle += ob.omega * dt;
+    p.x = ob.cx + Math.cos(ob.angle) * ob.radius;
+    p.y = ob.cy + Math.sin(ob.angle) * ob.radius;
+    p.rotation = ob.angle + Math.PI / 2;
+    p.trail.push({ x: p.x, y: p.y, a: 1 });
+    if (p.trail.length > 6) p.trail.shift();
+    for (let i = 0; i < p.trail.length; i++) {
+      p.trail[i]!.a = (i + 1) / p.trail.length;
+    }
+    if (ob.reHitTimers) {
+      for (const [eid, t] of ob.reHitTimers) {
+        const nt = t - dt;
+        if (nt <= 0) ob.reHitTimers.delete(eid);
+        else ob.reHitTimers.set(eid, nt);
+      }
+    }
+    for (const e of state.enemies) {
+      if (!e.alive || e.state === 'die') continue;
+      if (ob.reHitTimers?.has(e.id)) continue;
+      const dx = e.x - p.x;
+      const dy = e.y - p.y;
+      const r = e.radius + p.radius;
+      if (dx * dx + dy * dy <= r * r) {
+        hitEnemy(e, p.damage, p.element, run, p);
+        ob.reHitTimers?.set(e.id, 0.35);
+      }
+    }
+    return;
+  }
   if (p.homing) {
     const target = findNearestEnemy(p.x, p.y, p.hitIds);
     if (target) {
@@ -839,6 +1117,13 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
   }
   p.x += p.vx * dt;
   p.y += p.vy * dt;
+
+  if (p.animTrailId) {
+    const spec = getAnimationSpec(p.animTrailId);
+    if (spec && state.rng() < Math.min(1, (spec.particles ?? 2) * dt * 8)) {
+      spawnVfx({ x: p.x, y: p.y, life: (spec.duration ?? 0.2) * 0.6, kind: 'trail', color: spec.color, size: Math.max(1, spec.size * 0.25) });
+    }
+  }
 
   if (p.tags.size > 0) tickProjectileTags(p, dt, run);
 
@@ -899,8 +1184,7 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
       p.hitIds.add(e.id);
       const type = getEnemyType(e.typeId);
       if (type?.damageFilter) {
-        const streak = run.streak;
-        const ok = type.damageFilter({ face: { value: p.sourceFaceValue, kind: 'SHOT', element: p.element }, streak, streakMul: 1, dieId: '' });
+        const ok = type.damageFilter({ face: { value: p.sourceFaceValue, kind: 'SHOT', element: p.element }, dieId: '' });
         if (!ok) {
           spawnPopup(e.x, e.y - 6, 'IMM', '#9fa7bd', 8);
           spawnVfx({ x: e.x, y: e.y, life: 0.2, kind: 'spark', color: '#9fa7bd', size: 1 });
@@ -959,7 +1243,7 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
 }
 
 function hitEnemy(e: Enemy, damage: number, element: string, run: RunState, p?: Projectile): void {
-  let dmg = damage;
+  let dmg = damage * BALANCE.combat.globalDamageMul;
   const mom = run.momentum ?? 0;
   if (mom > 0) dmg *= 1 + Math.min(0.6, mom * 0.04);
   if (e.corrode > 0) dmg *= 1 + Math.min(0.75, e.corrode * 0.12);
@@ -1003,7 +1287,7 @@ function hitEnemy(e: Enemy, damage: number, element: string, run: RunState, p?: 
     spawnVfx({ x: e.x, y: e.y, life: 0.4, kind: 'freeze', color: palHex('q')!, size: 8 });
   }
   if (e.radiance >= 5 && e.hp > 0) {
-    const exec = e.maxHp * 0.22;
+    const exec = e.maxHp * 0.22 * BALANCE.combat.globalDamageMul;
     e.hp -= exec;
     spawnPopup(e.x, e.y - 22, `RADIANT -${exec | 0}`, palHex('y')!, 10);
     spawnVfx({ x: e.x, y: e.y, life: 0.45, kind: 'ring', color: palHex('y')!, size: 14 });
@@ -1048,7 +1332,7 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   fireOnKill(envFor(run), e);
   if (run.characterId === 'necromancer') spawnSoul(e.x, e.y);
   if (run.characterId === 'berserker') {
-    run.rage = Math.min(10, run.rage + 1);
+    run.rage = Math.min(BALANCE.berserker.rageMax, run.rage + 1);
   }
   playSfx(e.isBoss ? 'boss_kill' : 'kill');
   if (e.isBoss) {
@@ -1180,7 +1464,7 @@ function updateSoul(s: SoulPickup, dt: number, run: RunState): void {
         s.vy = (dy / d) * sp;
       }
       if (d < 6) {
-        run.souls += 1;
+        run.souls = Math.min(BALANCE.necromancer.soulsMax, run.souls + 1);
         s.alive = false;
         spawnVfx({ x: PLAYER_X, y: DIE_Y, life: 0.3, kind: 'soul', color: palHex('H')!, size: 3 });
         playSfx('soul');
@@ -1193,6 +1477,15 @@ function updateSoul(s: SoulPickup, dt: number, run: RunState): void {
 
 type VfxInit = { x: number; y: number; life: number; kind: VfxParticle['kind']; color: string; size: number; vx?: number; vy?: number; angle?: number; rot?: number; data?: number };
 function spawnVfx(v: VfxInit): void {
+  // Small "filler" particles honor the Visuals > Particle Density pref so
+  // players on Low machines or who prefer calmer VFX see fewer stray sparks.
+  // Structural effects (rings, explosions, muzzle, beams, reactions) always
+  // play so readability is preserved.
+  if (v.kind === 'spark' || v.kind === 'trail') {
+    const mul = getParticleMultiplier();
+    if (mul <= 0) return;
+    if (mul < 1 && Math.random() >= mul) return;
+  }
   const p = acquire(state.vfx, makeVfx);
   p.alive = true;
   p.age = 0;
@@ -1209,7 +1502,15 @@ function spawnVfx(v: VfxInit): void {
   p.data = v.data;
 }
 
+// Purely numeric popups are "damage numbers" and get suppressed by the
+// Visuals > Damage Numbers pref. Labelled popups (BLANK, VOID +12, etc.)
+// carry information so they always show.
+function isPureNumericPopup(text: string): boolean {
+  return /^\d+$/.test(text);
+}
+
 function spawnPopup(x: number, y: number, text: string, color: string, size: number): void {
+  if (isPureNumericPopup(text) && !getDamageNumbersEnabled()) return;
   const p = acquire(state.popups, makePopup);
   p.alive = true;
   p.age = 0;
@@ -1316,6 +1617,14 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
 
 function damagePlayer(raw: number, run: RunState): void {
   if (state.iframeT > 0) return;
+  if (state.reflect) {
+    const reflectDmg = raw * state.reflect.multiplier;
+    doPulseAt(PLAYER_X, PLAYER_Y - 6, state.reflect.radius, reflectDmg, 'none', run);
+    spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 6, life: 0.3, kind: 'ring', color: palHex('q')!, size: state.reflect.radius });
+    playSfx('reflect');
+    state.iframeT = 0.2;
+    return;
+  }
   if (run.shield > 0) {
     run.shield--;
     spawnShieldVfx();
@@ -1328,8 +1637,10 @@ function damagePlayer(raw: number, run: RunState): void {
   if (amt <= 0) return;
   run.hp -= amt;
   state.iframeT = BALANCE.player.iframeDuration;
-  state.screenFlashT = 0.2;
-  state.screenFlashColor = palHex('h')!;
+  if (getScreenFlashesEnabled()) {
+    state.screenFlashT = 0.2;
+    state.screenFlashColor = palHex('h')!;
+  }
   addTrauma(0.25);
   setAnim(state.playerAnim, 'hit');
   state.hitAnimT = 0.2;
@@ -1351,7 +1662,13 @@ function onPlayerDied(run: RunState): void {
   haptic(HAPTIC.gameOver);
   addTrauma(0.5);
   saveRun(null);
-  incrementRunsCompleted(run.wave - 1, run.score, run.characterId, run.kills);
+  incrementRunsCompleted({
+    wavesCleared: run.wave - 1,
+    finalScore: run.score,
+    characterId: run.characterId,
+    kills: run.kills,
+    goldSpent: run.goldSpent,
+  });
   state.deathT = 1.4;
 }
 
@@ -1369,40 +1686,42 @@ function endWave(run: RunState): void {
   state.paused_upgrade = true;
   state.paused = true;
 
-  const forgeCadence = BALANCE.waveCadence?.forgeShopEvery ?? 2;
-  const isForgeShopWave = !isBoss && run.wave % forgeCadence === 0;
-
-  if (isForgeShopWave) {
-    const offers = generateForgeShopOffers(run);
-    useStore.getState().setForgeShopOffers(offers);
-    useStore.getState().setScreen('forge');
-    syncActiveUpgradesToStore();
-    saveRun(run);
-    return;
+  if (isBoss) {
+    const offers = generateLandmarkOffers(run);
+    if (offers.length > 0) {
+      run.pickCount = BALANCE.upgrade.picksOnBoss;
+      useStore.getState().setUpgradeOffers(offers, run.pickCount);
+      useStore.getState().setScreen('upgrade');
+      syncActiveUpgradesToStore();
+      saveRun(run);
+      return;
+    }
+    // Fallback: no landmark pool available → forge shop with bonus gold.
+    run.gold += BALANCE.gold.bossKill(run.wave);
   }
 
-  run.pickCount = isBoss ? BALANCE.upgrade.picksOnBoss : BALANCE.upgrade.picksPerWave;
-  const offers = generateUpgradeOffers(run);
-  useStore.getState().setUpgradeOffers(offers, run.pickCount);
-  useStore.getState().setScreen('upgrade');
+  const offers = generateForgeShopOffers(run);
+  useStore.getState().setForgeShopOffers(offers);
+  useStore.getState().setForgeShopPurchased(false);
+  useStore.getState().setScreen('forge');
   syncActiveUpgradesToStore();
   saveRun(run);
 }
 
-function generateUpgradeOffers(run: RunState) {
+function generateLandmarkOffers(run: RunState) {
   const wave = run.wave;
   const weights = BALANCE.upgrade.rarityWeights(wave);
   const meta = useStore.getState().meta;
-  const unlockedArsenal = new Set(meta.unlockedArsenal ?? []);
   const all = listUpgrades().filter((u) => {
+    if (u.category !== 'landmark') return false;
     if (u.minWave && u.minWave > wave) return false;
     if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
     const ap = run.upgrades.find((a) => a.id === u.id);
     if (ap && ap.stacks >= u.maxStack) return false;
-    if (u.id.startsWith('ars_') && !unlockedArsenal.has(u.id)) return false;
     if (u.unlockCondition && !u.unlockCondition(meta)) return false;
     return true;
   });
+  if (all.length === 0) return [];
   const byRarity: Record<string, typeof all> = { common: [], rare: [], epic: [], legendary: [] };
   for (const u of all) byRarity[u.rarity]!.push(u);
   const offers: { id: string; rarity: (typeof all)[0]['rarity'] }[] = [];
@@ -1433,7 +1752,7 @@ function generateUpgradeOffers(run: RunState) {
 export function rerollUpgradeOffers(): void {
   const run = state.run;
   if (!run) return;
-  const offers = generateUpgradeOffers(run);
+  const offers = generateLandmarkOffers(run);
   useStore.getState().setUpgradeOffers(offers, run.pickCount);
   playSfx('ui_reroll');
 }
@@ -1462,6 +1781,7 @@ function pickBestSlotFor(
   const slots = run.slotLayout;
   const bindsTo = upgrade.bindsTo;
   const tagSet = new Set(upgrade.tags ?? []);
+  const defaults = ch.defaultFaces ?? [];
 
   const candidates: number[] = [];
   for (let i = 0; i < slots.length; i++) {
@@ -1469,12 +1789,17 @@ function pickBestSlotFor(
     if (bindsTo && bindsTo.length > 0 && !bindsTo.includes(i + 1)) continue;
     const allowed = slotAllowedTags(ch, i);
     if (allowed && allowed.length > 0 && ![...allowed].some((t) => tagSet.has(t))) continue;
+    if (upgrade.kind === 'replacer' && defaults[i]?.restrictedReplacement) continue;
     if (upgrade.kind === 'supplement' && !canPlaceSupplement(slots[i]!)) continue;
     candidates.push(i);
   }
   if (candidates.length === 0) return -1;
   if (upgrade.kind === 'replacer') {
-    const empty = candidates.filter((i) => slots[i]!.replacerId === null);
+    const empty = candidates.filter((i) => {
+      const slot = slots[i]!;
+      const defaultId = defaults[i]?.upgradeId ?? null;
+      return slot.replacerId === null || slot.replacerId === defaultId;
+    });
     if (empty.length > 0) {
       return empty[Math.floor(state.rng() * empty.length)] ?? -1;
     }
@@ -1490,11 +1815,30 @@ function pickBestSlotFor(
 
 export function generateForgeShopOffers(run: RunState): { id: string; slotIndex: number; nextTier: number; price: number }[] {
   const count = BALANCE.shop.cardsPerOffer;
-  const all = listFaceUpgrades().filter((u) => {
+  const wave = run.wave;
+  const rarityMinWave = BALANCE.shop.rarityMinWave;
+  // Pre-filter: must be eligible (character, max tier, has at least one valid
+  // slot) AND the rarity must have unlocked by the current wave.
+  let all = listFaceUpgrades().filter((u) => {
     if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
     const owned = run.ownedFaceUpgrades[u.id] ?? 0;
-    return owned < 5;
+    if (owned >= 5) return false;
+    if (wave < (rarityMinWave[u.rarity] ?? 1)) return false;
+    if (pickBestSlotFor(run, u) < 0) return false;
+    return true;
   });
+  // Safety net: if rarity gates filter everything out (e.g. a character with no
+  // common face upgrades at wave 1), fall back to ignoring the gate so the
+  // forge is never empty.
+  if (all.length === 0) {
+    all = listFaceUpgrades().filter((u) => {
+      if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
+      const owned = run.ownedFaceUpgrades[u.id] ?? 0;
+      if (owned >= 5) return false;
+      if (pickBestSlotFor(run, u) < 0) return false;
+      return true;
+    });
+  }
   if (all.length === 0) return [];
 
   const weights: { id: string; w: number }[] = all.map((u) => {
@@ -1504,20 +1848,17 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
     else if (owned <= 2) w *= BALANCE.shop.ownedT1T2WeightMul;
     else if (owned <= 4) w *= BALANCE.shop.ownedT3T4WeightMul;
     else w *= BALANCE.shop.ownedMaxWeightMul;
-    if (u.rarity === 'common') w *= 1.0;
-    else if (u.rarity === 'rare') w *= 0.7;
-    else if (u.rarity === 'epic') w *= 0.4;
-    else if (u.rarity === 'legendary') w *= 0.2;
+    w *= BALANCE.shop.rarityWeight(u.rarity, wave);
     return { id: u.id, w };
   });
 
   const offers: { id: string; slotIndex: number; nextTier: number; price: number }[] = [];
   const chosen = new Set<string>();
-  const totalW = () => weights.filter((x) => !chosen.has(x.id)).reduce((a, b) => a + b.w, 0);
   for (let i = 0; i < count; i++) {
     const pool = weights.filter((x) => !chosen.has(x.id));
     if (pool.length === 0) break;
-    let roll = state.rng() * totalW();
+    const totalW = pool.reduce((a, b) => a + b.w, 0);
+    let roll = state.rng() * totalW;
     let picked = pool[0]!.id;
     for (const p of pool) {
       roll -= p.w;
@@ -1530,6 +1871,7 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
     const upgrade = getFaceUpgrade(picked);
     const nextTier = nextTierFor(run, picked);
     const slotIndex = pickBestSlotFor(run, upgrade);
+    if (slotIndex < 0) continue; // safety: eligibility recheck
     const price = priceFor(upgrade, nextTier);
     offers.push({ id: picked, slotIndex, nextTier, price });
   }
@@ -1542,6 +1884,7 @@ export function rerollForgeShopOffers(): void {
   const cost = BALANCE.shop.rerollCost(run.wave);
   if (run.gold < cost) return;
   run.gold -= cost;
+  run.goldSpent += cost;
   const offers = generateForgeShopOffers(run);
   useStore.getState().setForgeShopOffers(offers);
   useStore.getState().setHud({ gold: run.gold });
@@ -1555,27 +1898,244 @@ export function buyForgeShopOffer(offerIndex: number): void {
   const offer = offers[offerIndex];
   if (!offer) return;
   if (offer.slotIndex < 0) return;
-  if (run.gold < offer.price) return;
+  placeForgeOfferInSlot(offerIndex, offer.slotIndex);
+}
+
+/** Whether a slot can host a given upgrade at all, independent of capacity. */
+function canHostUpgrade(
+  run: RunState,
+  upgrade: ReturnType<typeof getFaceUpgrade>,
+  slotIndex: number,
+  opts?: { ignoreSupplementCap?: boolean },
+): boolean {
+  if (!upgrade) return false;
+  const ch = getCharacter(run.characterId);
+  if (!ch) return false;
+  if (slotIndex < 0 || slotIndex >= run.slotLayout.length) return false;
+  if (isSlotLocked(ch, slotIndex)) return false;
+  if (upgrade.bindsTo && upgrade.bindsTo.length > 0 && !upgrade.bindsTo.includes(slotIndex + 1)) return false;
+  const allowed = slotAllowedTags(ch, slotIndex);
+  const tagSet = new Set(upgrade.tags ?? []);
+  if (allowed && allowed.length > 0 && ![...allowed].some((t) => tagSet.has(t))) return false;
+  const defaults = ch.defaultFaces ?? [];
+  if (upgrade.kind === 'replacer' && defaults[slotIndex]?.restrictedReplacement) return false;
+  const slot = run.slotLayout[slotIndex];
+  if (!slot) return false;
+  if (upgrade.kind === 'supplement' && !opts?.ignoreSupplementCap && !canPlaceSupplement(slot)) return false;
+  return true;
+}
+
+/** Whether an offer can legally be placed into a specific slot for this run. */
+export function canPlaceOfferInSlot(
+  run: RunState,
+  offer: { id: string; nextTier: number; price: number },
+  slotIndex: number,
+): boolean {
   const upgrade = getFaceUpgrade(offer.id);
-  if (!upgrade) return;
-  const slot = run.slotLayout[offer.slotIndex];
-  if (!slot) return;
+  return canHostUpgrade(run, upgrade, slotIndex);
+}
+
+/** Whether a replacer in `fromSlot` can be moved (or swapped) into `toSlot`. */
+export function canMoveReplacer(
+  run: RunState,
+  fromSlot: number,
+  toSlot: number,
+): boolean {
+  if (fromSlot === toSlot) return false;
+  const a = run.slotLayout[fromSlot];
+  const b = run.slotLayout[toSlot];
+  if (!a || !b) return false;
+  const ch = getCharacter(run.characterId);
+  if (!ch) return false;
+  const aDefault = ch.defaultFaces?.[fromSlot]?.upgradeId ?? null;
+  const bDefault = ch.defaultFaces?.[toSlot]?.upgradeId ?? null;
+  const aId = a.replacerId;
+  if (!aId || aId === aDefault) return false;
+  const aUp = getFaceUpgrade(aId);
+  if (!aUp) return false;
+  if (!canHostUpgrade(run, aUp, toSlot)) return false;
+  const bId = b.replacerId;
+  if (bId && bId !== bDefault) {
+    const bUp = getFaceUpgrade(bId);
+    if (!bUp) return false;
+    if (!canHostUpgrade(run, bUp, fromSlot)) return false;
+  }
+  return true;
+}
+
+/** Whether a supplement at (fromSlot, fromPos) can be moved (or swapped) into `toSlot`. */
+export function canMoveSupplement(
+  run: RunState,
+  fromSlot: number,
+  fromPos: number,
+  toSlot: number,
+): boolean {
+  if (fromSlot === toSlot) return false;
+  const a = run.slotLayout[fromSlot];
+  const b = run.slotLayout[toSlot];
+  if (!a || !b) return false;
+  const aId = a.supplementIds[fromPos];
+  if (!aId) return false;
+  const aUp = getFaceUpgrade(aId);
+  if (!aUp) return false;
+  const hasSpace = b.supplementIds.length < b.supplementCap;
+  if (hasSpace) {
+    return canHostUpgrade(run, aUp, toSlot);
+  }
+  // Swap path: both directions must accept the other supplement, capacity is preserved.
+  if (!canHostUpgrade(run, aUp, toSlot, { ignoreSupplementCap: true })) return false;
+  const bId = b.supplementIds[b.supplementIds.length - 1];
+  if (!bId) return false;
+  const bUp = getFaceUpgrade(bId);
+  if (!bUp) return false;
+  return canHostUpgrade(run, bUp, fromSlot, { ignoreSupplementCap: true });
+}
+
+/** Move a slot's replacer to another slot. Swaps with the target's replacer if it's non-default. */
+export function moveOrSwapReplacer(fromSlot: number, toSlot: number): boolean {
+  const run = state.run;
+  if (!run) return false;
+  if (!canMoveReplacer(run, fromSlot, toSlot)) return false;
+  const a = run.slotLayout[fromSlot]!;
+  const b = run.slotLayout[toSlot]!;
+  const ch = getCharacter(run.characterId)!;
+  const aDefault = ch.defaultFaces?.[fromSlot]?.upgradeId ?? null;
+  const bDefault = ch.defaultFaces?.[toSlot]?.upgradeId ?? null;
+  const aId = a.replacerId;
+  const bId = b.replacerId;
+  if (bId && bId !== bDefault) {
+    a.replacerId = bId;
+    b.replacerId = aId;
+  } else {
+    a.replacerId = aDefault;
+    b.replacerId = aId;
+  }
+  playSfx('upgrade_pick');
+  haptic(HAPTIC.upgrade);
+  saveRun(run);
+  return true;
+}
+
+/** Move a supplement to another slot. Swaps with target's last supplement if target is at cap. */
+export function moveOrSwapSupplement(
+  fromSlot: number,
+  fromPos: number,
+  toSlot: number,
+): boolean {
+  const run = state.run;
+  if (!run) return false;
+  if (!canMoveSupplement(run, fromSlot, fromPos, toSlot)) return false;
+  const a = run.slotLayout[fromSlot]!;
+  const b = run.slotLayout[toSlot]!;
+  const aId = a.supplementIds[fromPos]!;
+  if (b.supplementIds.length < b.supplementCap) {
+    a.supplementIds.splice(fromPos, 1);
+    b.supplementIds.push(aId);
+  } else {
+    const bPos = b.supplementIds.length - 1;
+    const bId = b.supplementIds[bPos]!;
+    a.supplementIds[fromPos] = bId;
+    b.supplementIds[bPos] = aId;
+  }
+  playSfx('upgrade_pick');
+  haptic(HAPTIC.upgrade);
+  saveRun(run);
+  return true;
+}
+
+/** Attempt to install a forge offer into a chosen slot. Returns true on success. */
+export function placeForgeOfferInSlot(offerIndex: number, slotIndex: number): boolean {
+  const run = state.run;
+  if (!run) return false;
+  const offers = useStore.getState().forgeShopOffers;
+  const offer = offers[offerIndex];
+  if (!offer) return false;
+  if (run.gold < offer.price) return false;
+  if (!canPlaceOfferInSlot(run, offer, slotIndex)) return false;
+  const upgrade = getFaceUpgrade(offer.id);
+  if (!upgrade) return false;
+  const slot = run.slotLayout[slotIndex];
+  if (!slot) return false;
 
   if (upgrade.kind === 'replacer') {
     slot.replacerId = upgrade.id;
   } else {
-    if (!canPlaceSupplement(slot)) return;
     slot.supplementIds.push(upgrade.id);
   }
   run.ownedFaceUpgrades[upgrade.id] = offer.nextTier;
   run.gold -= offer.price;
+  run.goldSpent += offer.price;
 
   const remaining = offers.filter((_, i) => i !== offerIndex);
   useStore.getState().setForgeShopOffers(remaining);
   useStore.getState().setHud({ gold: run.gold });
+  useStore.getState().setForgeShopPurchased(true);
   playSfx('upgrade_pick');
   haptic(HAPTIC.upgrade);
   saveRun(run);
+  return true;
+}
+
+/** Gold refund for selling an installed upgrade from a slot. Returns 0 if not sellable. */
+export function forgeSellValue(run: RunState, slotIndex: number, kind: 'replacer' | 'supplement', supplementPos = 0): number {
+  const slot = run.slotLayout[slotIndex];
+  if (!slot) return 0;
+  let id: string | null = null;
+  if (kind === 'replacer') {
+    id = slot.replacerId;
+    // Never refund a character default replacer that is restricted.
+    const ch = getCharacter(run.characterId);
+    const defaultId = ch?.defaultFaces?.[slotIndex]?.upgradeId ?? null;
+    if (id === null) return 0;
+    if (id === defaultId) return 0;
+  } else {
+    id = slot.supplementIds[supplementPos] ?? null;
+    if (!id) return 0;
+  }
+  const upgrade = getFaceUpgrade(id);
+  if (!upgrade) return 0;
+  const tier = run.ownedFaceUpgrades[id] ?? 1;
+  const price = priceFor(upgrade, tier);
+  return Math.max(1, Math.floor(price * 0.5));
+}
+
+/** Remove an installed upgrade from a slot and refund gold. Returns refunded amount (0 if no-op). */
+export function sellFromSlot(
+  slotIndex: number,
+  kind: 'replacer' | 'supplement',
+  supplementPos = 0,
+): number {
+  const run = state.run;
+  if (!run) return 0;
+  const slot = run.slotLayout[slotIndex];
+  if (!slot) return 0;
+  const refund = forgeSellValue(run, slotIndex, kind, supplementPos);
+  if (refund <= 0) return 0;
+
+  let removedId: string | null = null;
+  if (kind === 'replacer') {
+    removedId = slot.replacerId;
+    const ch = getCharacter(run.characterId);
+    const defaultId = ch?.defaultFaces?.[slotIndex]?.upgradeId ?? null;
+    slot.replacerId = defaultId;
+  } else {
+    removedId = slot.supplementIds[supplementPos] ?? null;
+    if (!removedId) return 0;
+    slot.supplementIds.splice(supplementPos, 1);
+  }
+
+  if (removedId) {
+    const cur = run.ownedFaceUpgrades[removedId] ?? 0;
+    if (cur <= 1) delete run.ownedFaceUpgrades[removedId];
+    else run.ownedFaceUpgrades[removedId] = cur - 1;
+  }
+
+  run.gold += refund;
+  useStore.getState().setHud({ gold: run.gold });
+  playSfx('ui_click');
+  haptic(HAPTIC.upgrade);
+  saveRun(run);
+  return refund;
 }
 
 export function expandSlotCap(slotIndex: number): void {
@@ -1587,7 +2147,9 @@ export function expandSlotCap(slotIndex: number): void {
   if (!slot) return;
   if (!expandSlot(slot)) return;
   run.gold -= cost;
+  run.goldSpent += cost;
   useStore.getState().setHud({ gold: run.gold });
+  useStore.getState().setForgeShopPurchased(true);
   playSfx('upgrade_pick');
   saveRun(run);
 }
@@ -1602,10 +2164,15 @@ export function forgeShopDone(): void {
 export function forgeShopSkipForHeal(): void {
   const run = state.run;
   if (!run) return;
+  if (useStore.getState().forgeShopPurchased) return;
+  const cost = BALANCE.shop.skipHealCost(run.wave);
+  if (run.gold < cost) return;
+  run.gold -= cost;
+  run.goldSpent += cost;
   const faceTotal = run.slotLayout.reduce((acc, s) => acc + (s.replacerId ? 1 : 0), 0) + 6;
   const heal = Math.floor(BALANCE.gold.skipHeal(faceTotal));
   run.hp = Math.min(run.maxHp, run.hp + heal);
-  useStore.getState().setHud({ hp: run.hp });
+  useStore.getState().setHud({ hp: run.hp, gold: run.gold });
   forgeShopDone();
 }
 
@@ -1623,7 +2190,7 @@ export function pickUpgrade(id: string): void {
   playSfx('upgrade_pick');
   haptic(HAPTIC.upgrade);
   if (run.pickCount > 0) {
-    const offers = generateUpgradeOffers(run);
+    const offers = generateLandmarkOffers(run);
     useStore.getState().setUpgradeOffers(offers, run.pickCount);
   } else {
     useStore.getState().setUpgradeOffers([], 0);
@@ -1824,7 +2391,7 @@ export function render(ctx: CanvasRenderingContext2D): void {
   drawWall(ctx, WALL_Y, ARENA_W, theme);
   drawGroundBelow(ctx, WALL_Y + 2, ARENA_W, CANVAS_H - WALL_Y - 2, theme);
 
-  if (run) drawPlayer(ctx, run);
+  // if (run) drawPlayer(ctx, run);
   if (run) drawDice(ctx, run);
 
   for (const p of state.popups) {
@@ -1844,7 +2411,7 @@ export function render(ctx: CanvasRenderingContext2D): void {
     ctx.globalAlpha = 1;
   }
 
-  if (state.iframeT > 0 && Math.floor(state.time * 20) % 2 === 0) {
+  if (getScreenFlashesEnabled() && state.iframeT > 0 && Math.floor(state.time * 20) % 2 === 0) {
     ctx.globalAlpha = 0.3;
     ctx.fillStyle = palHex('h')!;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
@@ -1875,7 +2442,15 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy): void {
     drawPoisonCloud(ctx, e.x, e.y, e.radius * 0.8, e.age, 0.4);
   }
 
-  if (e.isBoss || e.hp < e.maxHp) {
+  // Bosses always show a bar; regular enemies follow the user pref
+  // (off / only when damaged / always).
+  let showBar = e.isBoss;
+  if (!showBar) {
+    const mode = getEnemyHpBarMode();
+    if (mode === 'always') showBar = true;
+    else if (mode === 'damaged') showBar = e.hp < e.maxHp;
+  }
+  if (showBar) {
     const barW = Math.min(type?.isBoss ? 48 : 16, e.radius * 2);
     const barX = Math.round(e.x - barW / 2);
     const barY = Math.round(e.y - e.radius - 6);
@@ -2046,13 +2621,41 @@ function resolvePoseVisual(pose: PlayerPose): { tint?: string; tintAlpha: number
   }
 }
 
+const FACE_ICON_SLOTS: (HTMLCanvasElement | null)[] = [null, null, null, null, null, null];
+let lastIconSignature = '';
+
+function resolveFaceIcons(run: RunState): DieFaceIcons {
+  const charId = run.characterId ?? '';
+  let sig = charId + '||';
+  for (let i = 0; i < 6; i++) {
+    sig += (run.slotLayout[i]?.replacerId ?? '') + '|';
+  }
+  if (sig === lastIconSignature) return FACE_ICON_SLOTS;
+  lastIconSignature = sig;
+  for (let i = 0; i < 6; i++) {
+    const id = run.slotLayout[i]?.replacerId ?? null;
+    if (!id) {
+      FACE_ICON_SLOTS[i] = null;
+      continue;
+    }
+    const upgrade = getFaceUpgrade(id);
+    const rows = getFaceIconRows(id, upgrade?.icon, charId);
+    FACE_ICON_SLOTS[i] = rows
+      ? buildFaceIconCanvas(rows, getFaceIconCacheKey(id, charId))
+      : null;
+  }
+  return FACE_ICON_SLOTS;
+}
+
 function drawDice(ctx: CanvasRenderingContext2D, run: RunState): void {
+  const ds = state.dieSprites.size;
+  const faceIcons = resolveFaceIcons(run);
   for (const die of state.dice) {
     const cx = PLAYER_X + die.offsetX;
     const cy = DIE_Y;
     const charging = die.charging && run.characterId === 'clockmaker';
     if (charging) {
-      const r = 10 + die.chargeT * 6;
+      const r = ds * 0.45 + die.chargeT * 6;
       ctx.strokeStyle = palHex('y')!;
       ctx.globalAlpha = 0.5 + Math.sin(state.time * 16) * 0.3;
       ctx.lineWidth = 1;
@@ -2061,20 +2664,22 @@ function drawDice(ctx: CanvasRenderingContext2D, run: RunState): void {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
-    drawDie(ctx, state.dieSprites, die.value, cx, cy, die.rolling, Math.floor(die.shakeFrame), die.rollT);
+    drawDie(ctx, state.dieSprites, die.value, cx, cy, die.rolling, Math.floor(die.shakeFrame), die.rollT, faceIcons);
     if (charging) {
       const pulse = Math.min(0.45, die.chargeT * 0.2);
       const flicker = 0.6 + Math.sin(state.time * 18) * 0.4;
+      const pad = Math.round(ds * 0.41);
       ctx.globalAlpha = pulse * flicker;
       ctx.fillStyle = palHex('y')!;
-      ctx.fillRect(cx - 9, cy - 9, 18, 18);
+      ctx.fillRect(cx - pad, cy - pad, pad * 2, pad * 2);
       ctx.globalAlpha = 1;
     }
     if (!die.rolling && die.landedAt > 0 && state.time - die.landedAt < 0.12) {
       const t = (state.time - die.landedAt) / 0.12;
+      const flash = Math.round(ds * 0.45);
       ctx.globalAlpha = 0.45 * (1 - t);
       ctx.fillStyle = '#fff';
-      ctx.fillRect(cx - 10, cy - 10, 20, 20);
+      ctx.fillRect(cx - flash, cy - flash, flash * 2, flash * 2);
       ctx.globalAlpha = 1;
     }
   }
@@ -2085,7 +2690,6 @@ function syncHudToStore(): void {
   if (!run) return;
   const wave = run.wave;
   const score = run.score;
-  const streak = run.streak;
   const hp = Math.max(0, Math.floor(run.hp));
   const maxHp = run.maxHp;
   const shield = run.shield;
@@ -2101,7 +2705,6 @@ function syncHudToStore(): void {
     last &&
     last.wave === wave &&
     last.score === score &&
-    last.streak === streak &&
     last.hp === hp &&
     last.maxHp === maxHp &&
     last.shield === shield &&
@@ -2118,7 +2721,6 @@ function syncHudToStore(): void {
   useStore.getState().setHud({
     wave,
     score,
-    streak,
     hp,
     maxHp,
     shield,
@@ -2130,7 +2732,7 @@ function syncHudToStore(): void {
     isBossWave,
     waveProgress,
   });
-  state.lastHud = { wave, score, streak, hp, maxHp, shield, souls, rage, gold, gambitStacks, characterId, isBossWave, waveProgress };
+  state.lastHud = { wave, score, hp, maxHp, shield, souls, rage, gold, gambitStacks, characterId, isBossWave, waveProgress };
 }
 
 function computeWaveProgress(): number {

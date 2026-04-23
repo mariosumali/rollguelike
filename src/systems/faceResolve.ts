@@ -1,8 +1,10 @@
-import type { Face, RollResult, Projectile, RunState } from '../types';
+import type { Face, RollResult, Projectile, RunState, Element } from '../types';
+import type { PendingMods } from '../engine/effectExecutor';
 import { BALANCE } from '../config/balance';
 import { PLAYER_X, DIE_Y, PROJECTILE_SPAWN_Y } from '../config/constants';
 import { ELEMENT_COLORS } from '../sprites/effects';
 import { executeUpgrade } from '../engine/effectExecutor';
+import type { TierIntensity } from '../content/animations/types';
 
 export interface FaceOps {
   spawnProjectile: (x: number, y: number, dx: number, dy: number, damage: number, face: Face) => Projectile;
@@ -21,7 +23,15 @@ export interface FaceOps {
   repeatPrev: () => void;
   applyStatusNearest?: (status: 'burn' | 'poison' | 'slow' | 'freeze' | 'stun' | 'mark', power: number, duration: number) => void;
   addGold?: (amount: number) => void;
+  startOrbit?: (params: { count: number; radius: number; rpm: number; damage: number; duration: number; pierce: number; element: Element; face: Face }) => void;
+  startBeam?: (params: { width: number; dps: number; duration: number; pierce: number; element: Element; lifesteal: number; face: Face; baseDamage: number }) => void;
+  startPull?: (params: { radius: number; strength: number; dps: number; duration: number; destroyProjectiles: boolean; element: Element }) => void;
+  summonMinion?: (params: { kind: 'bone' | 'wraith' | 'spirit' | 'ember'; count: number; hp: number; duration: number; damagePerHit: number; face: Face; baseDamage: number; trigger: 'onResolve' | 'onKill' | 'onProjectileExpire' }) => void;
+  startReflect?: (params: { duration: number; multiplier: number; radius: number }) => void;
+  playAnim?: (animId: string | undefined, x: number, y: number, intensity: TierIntensity) => void;
 }
+
+export type { PendingMods };
 
 const DEFAULT_AIM = -Math.PI / 2;
 
@@ -42,25 +52,30 @@ export function findNearestEnemyXY(enemies: { x: number; y: number; alive: boole
 }
 
 export function resolveFace(face: Face, baseDmg: number, roll: RollResult, run: RunState, ops: FaceOps): void {
+  // Slot layout wins: the renderer keys face icons off face.value, so the
+  // resolved action must follow the same slot regardless of the native kind.
+  // Previously we short-circuited BLANK here, which desynced a BLANK-kind face
+  // (e.g. Gambler values 1 and 5) from the replacer icon drawn on the die.
   const slotIndex = Math.max(0, Math.min(5, face.value - 1));
-  const slot = run.slotLayout?.[slotIndex];
+  const slot = face.value >= 1 ? run.slotLayout?.[slotIndex] : undefined;
   if (slot && (slot.replacerId || slot.supplementIds.length > 0)) {
+    const shared: PendingMods = {};
     if (slot.replacerId) {
       const tier = run.ownedFaceUpgrades[slot.replacerId] ?? 1;
-      executeUpgrade(slot.replacerId, tier, face, baseDmg * roll.streakMul, run, ops);
+      executeUpgrade(slot.replacerId, tier, face, baseDmg, run, ops, shared);
     } else {
       resolveLegacyFace(face, baseDmg, roll, run, ops);
     }
     for (const suppId of slot.supplementIds) {
       const tier = run.ownedFaceUpgrades[suppId] ?? 1;
-      executeUpgrade(suppId, tier, face, baseDmg * roll.streakMul, run, ops);
+      executeUpgrade(suppId, tier, face, baseDmg, run, ops, shared);
     }
     return;
   }
   resolveLegacyFace(face, baseDmg, roll, run, ops);
 }
 
-function resolveLegacyFace(face: Face, baseDmg: number, roll: RollResult, run: RunState, ops: FaceOps): void {
+function resolveLegacyFace(face: Face, baseDmg: number, _roll: RollResult, run: RunState, ops: FaceOps): void {
   switch (face.kind) {
     case 'SHOT':
     case 'CHARGED_BOLT': {
@@ -75,7 +90,7 @@ function resolveLegacyFace(face: Face, baseDmg: number, roll: RollResult, run: R
     }
     case 'PULSE': {
       const r = BALANCE.combat.pulseRadius + face.value * 3;
-      ops.pulse(r, BALANCE.combat.pulseDamage(face.value) * roll.streakMul, face.element);
+      ops.pulse(r, BALANCE.combat.pulseDamage(face.value), face.element);
       break;
     }
     case 'SHIELD': {
@@ -98,11 +113,11 @@ function resolveLegacyFace(face: Face, baseDmg: number, roll: RollResult, run: R
     }
     case 'SOUL_DRAIN': {
       if (ops.consumeSouls(face.value)) {
-        const pulseDmg = baseDmg * 3;
+        const pulseDmg = baseDmg * 1.8;
         ops.pulse(BALANCE.combat.pulseRadius + 20, pulseDmg, 'arcane');
       } else {
         const count = Math.max(1, Math.floor(face.value / 2));
-        fireShotSpread(count, baseDmg * 0.4, face, ops);
+        fireShotSpread(count, baseDmg * 0.35, face, ops);
       }
       break;
     }

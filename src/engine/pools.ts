@@ -34,6 +34,8 @@ export function makeProjectile(): Projectile {
   };
 }
 
+
+
 export function acquire<T extends { alive: boolean }>(pool: T[], make: () => T): T {
   for (let i = 0; i < pool.length; i++) {
     const p = pool[i]!;
@@ -61,6 +63,9 @@ export function resetProjectile(p: Projectile): void {
   p.rotation = 0;
   p.tags.clear();
   p.tagT = 0;
+  p.orbit = undefined;
+  p.minion = undefined;
+  p.animTrailId = undefined;
 }
 
 export function createEnemyPool(size: number): Enemy[] {
