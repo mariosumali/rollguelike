@@ -1,7 +1,10 @@
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let sfxGain: GainNode | null = null;
+let uiGain: GainNode | null = null;
 let musicGain: GainNode | null = null;
+
+export type SfxBus = 'sfx' | 'ui';
 
 export interface SfxParams {
   wave?: 'sine' | 'square' | 'triangle' | 'sawtooth' | 'noise';
@@ -31,6 +34,9 @@ export function initAudio(): void {
   sfxGain = audioCtx.createGain();
   sfxGain.gain.value = 0.7;
   sfxGain.connect(masterGain);
+  uiGain = audioCtx.createGain();
+  uiGain.gain.value = 0.7;
+  uiGain.connect(masterGain);
   musicGain = audioCtx.createGain();
   musicGain.gain.value = 0.3;
   musicGain.connect(masterGain);
@@ -44,6 +50,10 @@ export function getSfxGain(): GainNode | null {
   return sfxGain;
 }
 
+export function getUiGain(): GainNode | null {
+  return uiGain;
+}
+
 export function getMusicGain(): GainNode | null {
   return musicGain;
 }
@@ -53,7 +63,17 @@ export function setMasterVolume(v: number): void {
 }
 
 export function setSfxVolume(v: number): void {
-  if (sfxGain) sfxGain.gain.value = clamp01(v) * 0.7;
+  const c = clamp01(v) * 0.7;
+  if (sfxGain) sfxGain.gain.value = c;
+  // UI sfx inherits the base SFX level so turning SFX off also silences clicks.
+  // The per-bus UI multiplier is applied by setUiVolume below.
+  if (uiGain) uiGain.gain.value = c * uiLevel;
+}
+
+let uiLevel = 1;
+export function setUiVolume(v: number): void {
+  uiLevel = clamp01(v);
+  if (uiGain && sfxGain) uiGain.gain.value = sfxGain.gain.value * uiLevel;
 }
 
 export function setMusicVolume(v: number): void {
@@ -67,8 +87,10 @@ function clamp01(v: number): number {
   return v;
 }
 
-export function playTone(params: SfxParams): void {
-  if (!audioCtx || !sfxGain) return;
+export function playTone(params: SfxParams, bus: SfxBus = 'sfx'): void {
+  if (!audioCtx) return;
+  const dest = bus === 'ui' ? uiGain : sfxGain;
+  if (!dest) return;
   const {
     wave = 'square',
     freq = 440,
@@ -126,13 +148,13 @@ export function playTone(params: SfxParams): void {
     node = filter;
   }
   node.connect(gain);
-  gain.connect(sfxGain);
+  gain.connect(dest);
 }
 
-export function playNoiseBurst(duration: number, lowpass: number, volume: number): void {
-  playTone({ wave: 'noise', duration, lowpass, volume, attack: 0.001, decay: 0.01, sustain: 0.2, release: 0.1 });
+export function playNoiseBurst(duration: number, lowpass: number, volume: number, bus: SfxBus = 'sfx'): void {
+  playTone({ wave: 'noise', duration, lowpass, volume, attack: 0.001, decay: 0.01, sustain: 0.2, release: 0.1 }, bus);
 }
 
-export function playChord(freqs: number[], params: SfxParams): void {
-  for (const f of freqs) playTone({ ...params, freq: f });
+export function playChord(freqs: number[], params: SfxParams, bus: SfxBus = 'sfx'): void {
+  for (const f of freqs) playTone({ ...params, freq: f }, bus);
 }
