@@ -51,6 +51,20 @@ export function hasSprite(id: string): boolean {
   return registry.has(id);
 }
 
+/**
+ * Rasterize a palette-row icon into a standalone canvas.
+ * Useful for producing die-face overlays without going through the full sprite registry.
+ */
+export function buildPaletteCanvas(rows: string[]): HTMLCanvasElement {
+  if (rows.length === 0) {
+    const empty = document.createElement('canvas');
+    empty.width = 1;
+    empty.height = 1;
+    return empty;
+  }
+  return buildFrame(rows, 'center').canvas;
+}
+
 function buildFrame(rows: string[], anchor: 'center' | 'bottom' | 'top'): SpriteFrame {
   const h = rows.length;
   const w = Math.max(...rows.map((r) => r.length));
