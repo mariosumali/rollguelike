@@ -15,6 +15,7 @@ interface Ember {
   life: number;
   maxLife: number;
   color: string;
+  size: number;
 }
 
 interface Star {
@@ -61,11 +62,12 @@ export function MenuScene() {
       embers.push({
         x: tx + (Math.random() - 0.5) * 3,
         y: ty,
-        vy: -(0.25 + Math.random() * 0.35),
-        vx: (Math.random() - 0.5) * 0.2,
+        vy: -(0.3 + Math.random() * 0.4),
+        vx: (Math.random() - 0.5) * 0.25,
         life: 0,
-        maxLife: 40 + Math.random() * 60,
+        maxLife: 40 + Math.random() * 40,
         color,
+        size: Math.random() < 0.25 ? 2 : 1,
       });
     }
 
@@ -172,9 +174,9 @@ export function MenuScene() {
       ctx!.fillStyle = palHex('y')!;
       ctx!.fillRect(cx, fy - h + 5, 1, 1);
 
-      if (Math.random() < 0.45) {
+      if (Math.random() < 0.7) {
         const cIdx = Math.random();
-        const c = cIdx < 0.4 ? palHex('y')! : cIdx < 0.8 ? palHex('u')! : palHex('v')!;
+        const c = cIdx < 0.45 ? palHex('y')! : cIdx < 0.85 ? palHex('v')! : palHex('u')!;
         spawnEmber(cx, fy - h + 3, c);
       }
     }
@@ -255,45 +257,6 @@ export function MenuScene() {
         face = 1 + Math.floor(stableT / 0.9) % 6;
       }
 
-      ctx!.save();
-      ctx!.globalAlpha = 0.65;
-      ctx!.fillStyle = palHex('E')!;
-      ctx!.beginPath();
-      ctx!.arc(cx, cy + 1, 18, 0, Math.PI * 2);
-      ctx!.fill();
-      ctx!.restore();
-
-      ctx!.save();
-      const sparkle = 0.4 + 0.14 * Math.sin(t * 4);
-      ctx!.globalAlpha = sparkle;
-      ctx!.fillStyle = palHex('x')!;
-      ctx!.beginPath();
-      ctx!.arc(cx, cy, 22, 0, Math.PI * 2);
-      ctx!.fill();
-      ctx!.globalAlpha = sparkle * 0.35;
-      ctx!.beginPath();
-      ctx!.arc(cx, cy, 34, 0, Math.PI * 2);
-      ctx!.fill();
-      ctx!.restore();
-
-      ctx!.save();
-      ctx!.globalAlpha = 0.5;
-      ctx!.fillStyle = palHex('x')!;
-      for (let i = 0; i < 10; i++) {
-        const a = (i / 10) * Math.PI * 2 + t * 0.3;
-        const r = 26 + Math.sin(t * 2 + i) * 2;
-        const sx = Math.round(cx + Math.cos(a) * r);
-        const sy = Math.round(cy + Math.sin(a) * r * 0.7);
-        ctx!.fillRect(sx, sy, 1, 1);
-        if (i % 2 === 0) {
-          ctx!.fillRect(sx - 1, sy, 1, 1);
-          ctx!.fillRect(sx + 1, sy, 1, 1);
-          ctx!.fillRect(sx, sy - 1, 1, 1);
-          ctx!.fillRect(sx, sy + 1, 1, 1);
-        }
-      }
-      ctx!.restore();
-
       const themeSet = isRolling && rollProgress > 0.5 && Math.floor(t * 2) & 1 ? dieSetAlt : dieSet;
 
       const off = document.createElement('canvas');
@@ -311,17 +274,6 @@ export function MenuScene() {
       const px = Math.round(cx - drawW / 2);
       const py = Math.round(cy - drawH / 2);
       ctx!.drawImage(off, 0, 0, size, size, px, py, drawW, drawH);
-
-      if (!isRolling) {
-        ctx!.save();
-        ctx!.globalAlpha = 0.18;
-        ctx!.fillStyle = palHex('x')!;
-        ctx!.fillRect(px - 1, py, drawW + 2, 1);
-        ctx!.fillRect(px, py - 1, drawW, 1);
-        ctx!.fillRect(px - 1, py + drawH - 1, drawW + 2, 1);
-        ctx!.fillRect(px, py + drawH, drawW, 1);
-        ctx!.restore();
-      }
     }
 
     function drawCharacter(t: number) {
@@ -349,20 +301,22 @@ export function MenuScene() {
     }
 
     function drawEmbers(dt: number) {
+      const step = Math.min(2, dt * 60);
       for (let i = embers.length - 1; i >= 0; i--) {
         const e = embers[i]!;
-        e.life += dt * 60;
-        e.x += e.vx;
-        e.y += e.vy;
-        e.vy *= 0.99;
+        e.life += step;
+        e.x += e.vx * step;
+        e.y += e.vy * step;
+        e.vy *= Math.pow(0.985, step);
         if (e.life >= e.maxLife) {
           embers.splice(i, 1);
           continue;
         }
-        const a = 1 - e.life / e.maxLife;
+        const p = e.life / e.maxLife;
+        const a = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
         ctx!.globalAlpha = a;
         ctx!.fillStyle = e.color;
-        ctx!.fillRect(Math.round(e.x), Math.round(e.y), 1, 1);
+        ctx!.fillRect(Math.round(e.x), Math.round(e.y), e.size, e.size);
       }
       ctx!.globalAlpha = 1;
     }
@@ -394,6 +348,7 @@ export function MenuScene() {
       drawPillars();
       drawTorch(15, 155, t, 1.1);
       drawTorch(W - 15, 155, t, 2.3);
+      drawBigDie(t);
       drawFloor(t);
       drawEmbers(dt);
       drawCharacter(t);
