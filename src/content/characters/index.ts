@@ -9,9 +9,13 @@ function face(upgradeId: string, projectileCount: number, element?: CharacterDef
   return { kind: 'default', upgradeId, projectileCount, element };
 }
 
+function blankFace(element?: CharacterDefaultFace['element']): CharacterDefaultFace {
+  return { kind: 'default', upgradeId: null, projectileCount: 0, element };
+}
+
 const SOLDIER_DEFAULTS: CharacterDefaultFace[] = [
-  face('std_shot', 1),
-  face('std_shot', 1),
+  blankFace(),
+  blankFace(),
   face('std_shot', 2),
   face('std_shot', 2),
   face('std_shot', 3),
@@ -28,9 +32,9 @@ const GAMBLER_DEFAULTS: CharacterDefaultFace[] = [
 ];
 
 const ALCHEMIST_DEFAULTS: CharacterDefaultFace[] = [
-  face('fire_bolt', 1, 'fire'),
+  blankFace('fire'),
   face('aqua_bolt', 1, 'ice'),
-  face('std_shot', 1, 'poison'),
+  blankFace('poison'),
   face('arc_bolt', 1, 'lightning'),
   face('std_shot', 1, 'arcane'),
   face('std_shot', 1, 'none'),
@@ -46,8 +50,8 @@ const ALCHEMIST_RESTRICT: SlotRestriction[] = [
 ];
 
 const NECROMANCER_DEFAULTS: CharacterDefaultFace[] = [
-  face('std_shot', 1),
-  face('std_shot', 1),
+  blankFace(),
+  blankFace(),
   face('std_shot', 2),
   face('std_shot', 2),
   face('std_shot', 2),
@@ -55,12 +59,21 @@ const NECROMANCER_DEFAULTS: CharacterDefaultFace[] = [
 ];
 
 const BERSERKER_DEFAULTS: CharacterDefaultFace[] = [
+  blankFace(),
+  blankFace(),
   face('std_shot', 1),
   face('std_shot', 1),
   face('pulse_nova', 1),
   face('pulse_nova', 1),
-  face('pulse_nova', 1),
-  face('pulse_nova', 1),
+];
+
+const CLOCKMAKER_DEFAULTS: CharacterDefaultFace[] = [
+  blankFace(),
+  blankFace(),
+  face('std_shot', 1),
+  face('std_shot', 2),
+  face('std_shot', 2, 'ice'),
+  face('pulse_nova', 1, 'ice'),
 ];
 
 function d6(id: string, baseDmg = 0.9): DieConfig {
@@ -68,8 +81,8 @@ function d6(id: string, baseDmg = 0.9): DieConfig {
     id,
     rollDuration: BALANCE.die.baseRollDuration,
     faces: [
-      { value: 1, kind: 'SHOT', element: 'none', damageMul: baseDmg },
-      { value: 2, kind: 'SHOT', element: 'none', damageMul: baseDmg },
+      { value: 1, kind: 'BLANK', element: 'none' },
+      { value: 2, kind: 'BLANK', element: 'none' },
       { value: 3, kind: 'BURST', element: 'none', damageMul: baseDmg, projectileCount: 3 },
       { value: 4, kind: 'SHIELD', element: 'none' },
       { value: 5, kind: 'HEAL', element: 'none' },
@@ -97,9 +110,9 @@ const alchemistStart: DieConfig = {
   id: 'alchemist_d6',
   rollDuration: BALANCE.die.baseRollDuration,
   faces: [
-    { value: 1, kind: 'SHOT', element: 'fire', damageMul: 0.8 },
+    { value: 1, kind: 'BLANK', element: 'none' },
     { value: 2, kind: 'SHOT', element: 'ice', damageMul: 0.8 },
-    { value: 3, kind: 'SHOT', element: 'poison', damageMul: 0.8 },
+    { value: 3, kind: 'BLANK', element: 'none' },
     { value: 4, kind: 'SHOT', element: 'lightning', damageMul: 0.8 },
     { value: 5, kind: 'PULSE', element: 'fire', damageMul: 0.9 },
     { value: 6, kind: 'BURST', element: 'arcane', damageMul: 1.0, projectileCount: 3 },
@@ -110,12 +123,12 @@ const necromancerStart: DieConfig = {
   id: 'necro_d6',
   rollDuration: BALANCE.die.baseRollDuration,
   faces: [
-    { value: 1, kind: 'SHOT', element: 'none', damageMul: 0.8 },
-    { value: 2, kind: 'SHOT', element: 'none', damageMul: 0.8 },
-    { value: 3, kind: 'BURST', element: 'none', damageMul: 0.8, projectileCount: 2 },
-    { value: 4, kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 1.05 },
+    { value: 1, kind: 'BLANK', element: 'none' },
+    { value: 2, kind: 'BLANK', element: 'none' },
+    { value: 3, kind: 'BURST', element: 'none', damageMul: 0.7, projectileCount: 2 },
+    { value: 4, kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 0.85 },
     { value: 5, kind: 'HEAL', element: 'none' },
-    { value: 6, kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 1.4 },
+    { value: 6, kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 1.1 },
   ],
 };
 
@@ -123,8 +136,8 @@ const berserkerStart: DieConfig = {
   id: 'berserker_d6',
   rollDuration: BALANCE.die.baseRollDuration * 0.8,
   faces: [
-    { value: 1, kind: 'SHOT', element: 'none', damageMul: 0.95 },
-    { value: 2, kind: 'RAGE_SMASH', element: 'none', damageMul: 1.05 },
+    { value: 1, kind: 'BLANK', element: 'none' },
+    { value: 2, kind: 'BLANK', element: 'none' },
     { value: 3, kind: 'BURST', element: 'none', damageMul: 0.95, projectileCount: 3 },
     { value: 4, kind: 'RAGE_SMASH', element: 'none', damageMul: 1.2 },
     { value: 5, kind: 'PULSE', element: 'none', damageMul: 1.1 },
@@ -136,8 +149,8 @@ const clockmakerStart: DieConfig = {
   id: 'clock_d6',
   rollDuration: BALANCE.die.baseRollDuration * 1.2,
   faces: [
-    { value: 1, kind: 'CHARGED_BOLT', element: 'none', damageMul: 0.85 },
-    { value: 2, kind: 'CHARGED_BOLT', element: 'none', damageMul: 0.95 },
+    { value: 1, kind: 'BLANK', element: 'none' },
+    { value: 2, kind: 'BLANK', element: 'none' },
     { value: 3, kind: 'BURST', element: 'none', damageMul: 0.85, projectileCount: 2 },
     { value: 4, kind: 'SHIELD', element: 'none' },
     { value: 5, kind: 'CHARGED_BOLT', element: 'none', damageMul: 1.1 },
@@ -148,9 +161,9 @@ const clockmakerStart: DieConfig = {
 export const CHARACTERS: Character[] = [
   {
     id: 'soldier',
-    name: 'Soldier',
+    name: 'Knight',
     tagline: 'Balanced. Reliable. Unbroken.',
-    description: 'Standard d6. Fires steel bullets: fast, reliable, straight.',
+    description: 'Standard d6. Hurls steel bolts: fast, reliable, straight.',
     color: '#8aa7ff',
     spriteId: 'char_soldier',
     startingDice: [soldierStart],
@@ -188,6 +201,9 @@ export const CHARACTERS: Character[] = [
       },
     },
     defaultFaces: GAMBLER_DEFAULTS,
+    unlockCondition: (meta) =>
+      (meta.maxGoldSpentInRun ?? 0) >= BALANCE.meta.gamblerUnlockGoldSpent,
+    unlockHint: `Spend ${BALANCE.meta.gamblerUnlockGoldSpent} gold in a single run.`,
   },
   {
     id: 'alchemist',
@@ -202,6 +218,9 @@ export const CHARACTERS: Character[] = [
     passive: {},
     defaultFaces: ALCHEMIST_DEFAULTS,
     restrictedKinds: ALCHEMIST_RESTRICT,
+    unlockCondition: (meta) =>
+      (meta.maxWaveReached ?? 0) >= BALANCE.meta.alchemistUnlockWave,
+    unlockHint: `Reach wave ${BALANCE.meta.alchemistUnlockWave} in a single run.`,
   },
   {
     id: 'necromancer',
@@ -216,6 +235,9 @@ export const CHARACTERS: Character[] = [
     passive: {},
     defaultFaces: NECROMANCER_DEFAULTS,
     lockedSlots: [5],
+    unlockCondition: (meta) =>
+      (meta.totalKills ?? 0) >= BALANCE.meta.necromancerUnlockKills,
+    unlockHint: `Slay ${BALANCE.meta.necromancerUnlockKills} enemies across all runs.`,
   },
   {
     id: 'berserker',
@@ -229,6 +251,9 @@ export const CHARACTERS: Character[] = [
     exclusiveUpgrades: [],
     passive: {},
     defaultFaces: BERSERKER_DEFAULTS,
+    unlockCondition: (meta) =>
+      (meta.bestSingleRunKills ?? 0) >= BALANCE.meta.berserkerUnlockRunKills,
+    unlockHint: `Slay ${BALANCE.meta.berserkerUnlockRunKills} enemies in a single run.`,
   },
   {
     id: 'clockmaker',
@@ -241,8 +266,11 @@ export const CHARACTERS: Character[] = [
     baseProjectile: PROJECTILE_ARCHETYPES.clockmaker_gear!,
     exclusiveUpgrades: [],
     passive: {},
-    unlockCondition: (meta) => meta.totalRunsCompleted >= BALANCE.meta.clockmakerUnlockRuns,
-    unlockHint: `Complete ${BALANCE.meta.clockmakerUnlockRuns} runs to unlock.`,
+    defaultFaces: CLOCKMAKER_DEFAULTS,
+    // Intentionally unreachable for now — a future "Go back in time" mechanic
+    // will replace this predicate.
+    unlockCondition: () => false,
+    unlockHint: 'Go back in time.',
   },
 ];
 
