@@ -97,6 +97,9 @@ export interface Projectile {
   rotation: number;
   tags: Set<string>;
   tagT: number;
+  orbit?: { angle: number; radius: number; omega: number; cx: number; cy: number; ttl: number; reHitTimers?: Map<number, number> };
+  minion?: boolean;
+  animTrailId?: string;
 }
 
 export interface Enemy {
@@ -193,8 +196,6 @@ export interface HookCtx {
 
 export interface RollResult {
   face: Face;
-  streak: number;
-  streakMul: number;
   dieId: string;
 }
 
@@ -214,7 +215,7 @@ export interface Upgrade {
 
 export interface UpgradeHooks {
   onApply: (ctx: HookCtx) => void;
-  onRoll: (ctx: HookCtx & { face: Face; streak: number; dieId: string }) => void;
+  onRoll: (ctx: HookCtx & { face: Face; dieId: string }) => void;
   onProjectileSpawn: (ctx: HookCtx & { projectile: Projectile; face: Face }) => void;
   onProjectileHit: (ctx: HookCtx & { projectile: Projectile; enemy: Enemy }) => void;
   onKill: (ctx: HookCtx & { enemy: Enemy }) => void;
@@ -274,6 +275,12 @@ export interface MetaState {
   totalKills: number;
   maxWaveReached: number;
   pendingArsenalUnlocks: string[];
+  // Stats for challenge-based character unlocks.
+  maxGoldSpentInRun: number;
+  bestSingleRunKills: number;
+  // Cosmetic dice unlocks (IDs from DIE_THEME_IDS).
+  unlockedDiceThemes: string[];
+  pendingDiceThemeUnlocks: string[];
 }
 
 export interface AppliedUpgrade {
@@ -285,8 +292,6 @@ export interface RunState {
   characterId: string;
   wave: number;
   score: number;
-  streak: number;
-  streakFace: number | null;
   hp: number;
   maxHp: number;
   shield: number;
@@ -309,6 +314,9 @@ export interface RunState {
   ownedFaceUpgrades: Record<string, number>;
   slotLayout: import('./content/upgrades/types').SlotState[];
   gambitStacks: number;
+
+  // Per-run meta counter (feeds MetaState.maxGoldSpentInRun at run end).
+  goldSpent: number;
 }
 
 export interface SpawnEvent {
