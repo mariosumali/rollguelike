@@ -15,8 +15,8 @@ const upgrade: FaceUpgrade = {
   },
   evolution: {
     name: 'Eternal Circle',
-    flavor: 'The ring persists until wave end.',
-    extraEffects: [{ verb: 'orbit', count: 6, radius: 36, rpm: 180, damageMul: 1.2, duration: 99, pierce: 2 }],
+    flavor: 'The ring lingers noticeably longer before fading.',
+    extraEffects: [{ verb: 'orbit', count: 6, radius: 36, rpm: 180, damageMul: 1.2, duration: 8, pierce: 2 }],
   },
   tiers: [
     { effects: [{ verb: 'orbit', count: 3, radius: 28, rpm: 120, damageMul: 0.8, duration: 3, pierce: 1 }], damageMul: 1.0 },

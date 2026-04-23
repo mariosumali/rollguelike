@@ -18,11 +18,11 @@ const upgrade: FaceUpgrade = {
     flavor: 'Releases two ghosts that seek separate targets.',
   },
   tiers: [
-    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 1, hp: 1, duration: 2, damagePerHit: 5, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.4 } },
-    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 1, hp: 1, duration: 2.5, damagePerHit: 7, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.55 } },
-    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 1, hp: 1, duration: 3, damagePerHit: 9, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.7 } },
-    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 1, hp: 1, duration: 3.5, damagePerHit: 11, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.85 } },
-    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 2, hp: 1, duration: 4, damagePerHit: 14, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 1.0 }, note: 'Twin Echo' },
+    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 1, hp: 1, duration: 2, damagePerHit: 3, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.25 } },
+    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 1, hp: 1, duration: 2.5, damagePerHit: 4, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.4 } },
+    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 1, hp: 1, duration: 3, damagePerHit: 5, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.55 } },
+    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 1, hp: 1, duration: 3.5, damagePerHit: 7, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.7 } },
+    { effects: [{ verb: 'summonMinion', kind: 'spirit', count: 2, hp: 1, duration: 4, damagePerHit: 9, trigger: 'onKill' }], damageMul: 1.0, params: { chance: 0.85 }, note: 'Twin Echo' },
   ],
 };
 

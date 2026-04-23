@@ -7,7 +7,7 @@ const service: ShopService = {
     'Raises the supplement cap across all six slots. T1: +1, T2: +2, T3: +3. Hard cap 4.',
   rarity: 'legendary',
   maxTier: 3,
-  basePriceByTier: [150, 260, 380],
+  basePriceByTier: [260, 470, 700],
   effect: {
     kind: 'slotCapBundle',
     tier: 1,

@@ -130,6 +130,8 @@ export interface FaceUpgrade {
   animation: AnimationBinding;
   tiers: [FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier];
   basePrice?: Partial<Record<Rarity, number[]>>;
+  /** Optional palette-character rows used as the die-face pixel art when this upgrade occupies a slot. */
+  icon?: string[];
 }
 
 export const MAX_TIER = 5;
@@ -142,7 +144,8 @@ export interface SlotRestriction {
 
 export interface CharacterDefaultFace {
   kind: 'default';
-  upgradeId: string;
+  /** When null, the slot starts with no replacer — effectively a true blank face. */
+  upgradeId: string | null;
   projectileCount: number;
   damageMul?: number;
   element?: Element;

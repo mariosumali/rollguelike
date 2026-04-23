@@ -2,6 +2,7 @@ import type { Upgrade } from '../../types';
 import { getEngineState } from '../../engine/engine';
 import { getRunState } from '../../state/store';
 import { ARENA_W, WALL_Y } from '../../config/constants';
+import { BALANCE } from '../../config/balance';
 
 export const LANDMARK_UPGRADES: Upgrade[] = [
   {
@@ -115,7 +116,7 @@ export const LANDMARK_UPGRADES: Upgrade[] = [
         const eng = getEngineState();
         for (const e of eng.enemies) {
           if (!e.alive || e.state === 'die') continue;
-          if (e.y > WALL_Y - 22) e.hp -= 8 * dt;
+          if (e.y > WALL_Y - 22) e.hp -= 8 * dt * BALANCE.combat.globalDamageMul;
         }
       },
     },
