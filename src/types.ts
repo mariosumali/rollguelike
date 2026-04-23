@@ -258,6 +258,11 @@ export interface Character {
   exclusiveUpgrades: string[];
   unlockCondition?: (meta: MetaState) => boolean;
   unlockHint?: string;
+
+  // Dice Forge rework (new, optional)
+  defaultFaces?: import('./content/upgrades/types').CharacterDefaultFace[];
+  lockedSlots?: number[];
+  restrictedKinds?: import('./content/upgrades/types').SlotRestriction[];
 }
 
 export interface MetaState {
@@ -298,6 +303,12 @@ export interface RunState {
   lockedFaceTimer?: number;
   momentum?: number;
   momentumT?: number;
+
+  // Dice Forge rework (new)
+  gold: number;
+  ownedFaceUpgrades: Record<string, number>;
+  slotLayout: import('./content/upgrades/types').SlotState[];
+  gambitStacks: number;
 }
 
 export interface SpawnEvent {

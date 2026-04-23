@@ -292,9 +292,10 @@ button {
   color: var(--fg-dim);
 }
 .char-detail-desc {
-  font-size: 11px;
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 16px;
   color: var(--fg-1);
-  line-height: 1.4;
+  line-height: 1.2;
 }
 .btn-play {
   width: 100%;
@@ -994,7 +995,7 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
+  padding: 6px 12px;
   background: rgba(5, 5, 12, 0.65);
   border: 1px solid rgba(255, 216, 107, 0.25);
   box-shadow:
@@ -1002,9 +1003,10 @@ button {
     0 0 12px rgba(255, 216, 107, 0.1);
   font-size: 10px;
   color: var(--fg-1);
-  letter-spacing: 2px;
-  max-width: 320px;
-  min-height: 24px;
+  letter-spacing: 0.5px;
+  max-width: 340px;
+  min-height: 26px;
+  white-space: nowrap;
   overflow: hidden;
 }
 .tr-bracket {
@@ -1094,11 +1096,12 @@ button {
   line-height: 1.1;
 }
 .btn-label {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 2px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--fg-0);
+  white-space: nowrap;
 }
 .btn-sub {
   font-size: 9px;
@@ -1412,8 +1415,9 @@ button.stat-tile-btn:hover {
   color: var(--fg-dim);
 }
 .arsenal-desc {
-  font-size: 9.5px;
-  line-height: 1.4;
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.2;
   color: var(--fg-dim);
 }
 .is-locked .arsenal-desc {
@@ -1545,12 +1549,12 @@ button.stat-tile-btn:hover {
 }
 
 .menu-v2 .btn-label {
-  letter-spacing: 2.5px;
+  letter-spacing: 0.5px;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
 }
 
 .menu-v2 .btn-sub {
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   opacity: 0.85;
 }
 
@@ -1996,8 +2000,9 @@ button.stat-tile-btn:hover {
 .dossier-desc {
   margin-top: 2px;
   padding: 8px 10px;
-  font-size: 11px;
-  line-height: 1.5;
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 16px;
+  line-height: 1.2;
   color: var(--fg-1);
   background: rgba(0, 0, 0, 0.35);
   border-left: 2px solid var(--sel-accent, var(--accent));
@@ -2130,17 +2135,21 @@ button.stat-tile-btn:hover {
 }
 .settings-row {
   display: grid;
-  grid-template-columns: 80px 1fr 40px;
+  grid-template-columns: 104px 1fr 44px;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: 11px;
 }
 .settings-label {
   color: var(--fg-1);
+  font-family: 'Silkscreen', 'Press Start 2P', monospace;
   font-size: 11px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 .settings-val {
   color: var(--accent);
+  font-family: 'Silkscreen', 'Press Start 2P', monospace;
   font-size: 11px;
   text-align: right;
 }
@@ -2206,8 +2215,9 @@ button.stat-tile-btn:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 11px;
-  line-height: 1.4;
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 16px;
+  line-height: 1.2;
   color: var(--fg-1);
 }
 .how-list li {
@@ -2257,9 +2267,10 @@ button.stat-tile-btn:hover {
   letter-spacing: 1px;
 }
 .onboard-body {
-  font-size: 12px;
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 17px;
   color: var(--fg-1);
-  line-height: 1.5;
+  line-height: 1.2;
   max-width: 280px;
 }
 .onboard-dots {
@@ -2941,8 +2952,8 @@ button.stat-tile-btn:hover {
   font-family: 'Press Start 2P', 'Silkscreen', monospace;
 }
 .upg-card-v2 .upg-card-desc {
-  font-size: 10.5px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.2;
   color: var(--fg-1);
   letter-spacing: 0.2px;
   text-transform: none;
@@ -3022,9 +3033,9 @@ button.stat-tile-btn:hover {
   opacity: 0.75;
 }
 .drawer-row-v2 .drawer-desc {
-  font-size: 9.5px;
+  font-size: 14px;
   color: var(--fg-dim);
-  line-height: 1.45;
+  line-height: 1.2;
   margin-top: 2px;
   text-transform: none;
   letter-spacing: 0.2px;

@@ -1,8 +1,67 @@
 import type { Character, DieConfig } from '../../types';
+import type { CharacterDefaultFace, SlotRestriction } from '../upgrades/types';
 import { registerCharacters } from './registry';
 import { BALANCE } from '../../config/balance';
 import { getRunState } from '../../state/store';
 import { PROJECTILE_ARCHETYPES } from './projectiles';
+
+function face(upgradeId: string, projectileCount: number, element?: CharacterDefaultFace['element']): CharacterDefaultFace {
+  return { kind: 'default', upgradeId, projectileCount, element };
+}
+
+const SOLDIER_DEFAULTS: CharacterDefaultFace[] = [
+  face('std_shot', 1),
+  face('std_shot', 1),
+  face('std_shot', 2),
+  face('std_shot', 2),
+  face('std_shot', 3),
+  face('std_shot', 3),
+];
+
+const GAMBLER_DEFAULTS: CharacterDefaultFace[] = [
+  face('std_shot', 2),
+  face('std_shot', 0),
+  face('std_shot', 0),
+  face('std_shot', 0),
+  face('std_shot', 0),
+  face('std_shot', 2),
+];
+
+const ALCHEMIST_DEFAULTS: CharacterDefaultFace[] = [
+  face('fire_bolt', 1, 'fire'),
+  face('aqua_bolt', 1, 'ice'),
+  face('std_shot', 1, 'poison'),
+  face('arc_bolt', 1, 'lightning'),
+  face('std_shot', 1, 'arcane'),
+  face('std_shot', 1, 'none'),
+];
+
+const ALCHEMIST_RESTRICT: SlotRestriction[] = [
+  { slotIndex: 0, allowedTags: ['fire'] },
+  { slotIndex: 1, allowedTags: ['water', 'ice'] },
+  { slotIndex: 2, allowedTags: ['earth', 'poison'] },
+  { slotIndex: 3, allowedTags: ['air', 'lightning'] },
+  { slotIndex: 4, allowedTags: ['arcane'] },
+  { slotIndex: 5, allowedTags: ['nature'] },
+];
+
+const NECROMANCER_DEFAULTS: CharacterDefaultFace[] = [
+  face('std_shot', 1),
+  face('std_shot', 1),
+  face('std_shot', 2),
+  face('std_shot', 2),
+  face('std_shot', 2),
+  { kind: 'default', upgradeId: 'std_shot', projectileCount: 1, restrictedReplacement: true },
+];
+
+const BERSERKER_DEFAULTS: CharacterDefaultFace[] = [
+  face('std_shot', 1),
+  face('std_shot', 1),
+  face('pulse_nova', 1),
+  face('pulse_nova', 1),
+  face('pulse_nova', 1),
+  face('pulse_nova', 1),
+];
 
 function d6(id: string, baseDmg = 0.9): DieConfig {
   return {
@@ -98,6 +157,7 @@ export const CHARACTERS: Character[] = [
     baseProjectile: PROJECTILE_ARCHETYPES.soldier_bullet!,
     exclusiveUpgrades: [],
     passive: {},
+    defaultFaces: SOLDIER_DEFAULTS,
   },
   {
     id: 'gambler',
@@ -111,12 +171,23 @@ export const CHARACTERS: Character[] = [
     exclusiveUpgrades: [],
     passive: {
       onRoll: ({ face }) => {
+        const run = getRunState();
+        if (!run) return;
         if (face.kind === 'BLANK') {
-          const run = getRunState();
-          if (run) run.shield = Math.min(10, run.shield + 1);
+          run.shield = Math.min(10, run.shield + 1);
+        }
+        const extremes = BALANCE.gambler.gambitExtremes as readonly number[];
+        if (extremes.includes(face.value)) {
+          run.gambitStacks = Math.min(
+            BALANCE.gambler.gambitMaxStacks,
+            run.gambitStacks + 1,
+          );
+        } else {
+          run.gambitStacks = 0;
         }
       },
     },
+    defaultFaces: GAMBLER_DEFAULTS,
   },
   {
     id: 'alchemist',
@@ -129,6 +200,8 @@ export const CHARACTERS: Character[] = [
     baseProjectile: PROJECTILE_ARCHETYPES.alchemist_flask!,
     exclusiveUpgrades: [],
     passive: {},
+    defaultFaces: ALCHEMIST_DEFAULTS,
+    restrictedKinds: ALCHEMIST_RESTRICT,
   },
   {
     id: 'necromancer',
@@ -141,6 +214,8 @@ export const CHARACTERS: Character[] = [
     baseProjectile: PROJECTILE_ARCHETYPES.necromancer_bone!,
     exclusiveUpgrades: [],
     passive: {},
+    defaultFaces: NECROMANCER_DEFAULTS,
+    lockedSlots: [5],
   },
   {
     id: 'berserker',
@@ -153,6 +228,7 @@ export const CHARACTERS: Character[] = [
     baseProjectile: PROJECTILE_ARCHETYPES.berserker_axe!,
     exclusiveUpgrades: [],
     passive: {},
+    defaultFaces: BERSERKER_DEFAULTS,
   },
   {
     id: 'clockmaker',
