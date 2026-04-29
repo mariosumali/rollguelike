@@ -1396,7 +1396,8 @@ button.stat-tile-btn:hover {
   flex: 1;
   text-align: center;
   color: var(--fg-dim);
-  font-size: 10px;
+  font-size: 8px;
+  white-space: nowrap;
 }
 .arsenal-close {
   flex: 0 0 auto;
@@ -1454,14 +1455,73 @@ button.stat-tile-btn:hover {
   background: rgba(12, 12, 26, 0.95);
   border-left: 2px solid rgba(255, 255, 255, 0.12);
 }
+.arsenal-chain {
+  padding: 7px 8px 8px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04), transparent 55%),
+    rgba(12, 12, 26, 0.95);
+  border-left: 2px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.45);
+}
 .arsenal-row.is-locked {
   opacity: 0.45;
 }
-.arsenal-row.rarity-epic {
+.arsenal-row.rarity-rare,
+.arsenal-chain.rarity-rare {
+  border-left-color: var(--rare);
+}
+.arsenal-row.rarity-epic,
+.arsenal-chain.rarity-epic {
   border-left-color: var(--epic);
 }
-.arsenal-row.rarity-legendary {
+.arsenal-row.rarity-legendary,
+.arsenal-chain.rarity-legendary {
   border-left-color: var(--legendary);
+}
+.arsenal-chain-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 3px;
+}
+.arsenal-chain-title {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.arsenal-chain-count {
+  flex: 0 0 auto;
+  color: var(--fg-dim);
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+.arsenal-chain-desc {
+  margin-bottom: 6px;
+}
+.arsenal-tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.arsenal-tier {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+}
+.arsenal-tier.rarity-rare {
+  border-color: color-mix(in srgb, var(--rare) 28%, rgba(255, 255, 255, 0.055));
+}
+.arsenal-tier.rarity-epic {
+  border-color: color-mix(in srgb, var(--epic) 28%, rgba(255, 255, 255, 0.055));
+}
+.arsenal-tier.rarity-legendary {
+  border-color: color-mix(in srgb, var(--legendary) 32%, rgba(255, 255, 255, 0.055));
 }
 .arsenal-icon-shell {
   flex: 0 0 auto;
@@ -1478,12 +1538,20 @@ button.stat-tile-btn:hover {
     inset 1px 1px 0 rgba(255, 255, 255, 0.04),
     inset -1px -1px 0 rgba(0, 0, 0, 0.6);
 }
+.arsenal-tier-icon {
+  width: 34px;
+  height: 34px;
+}
 .arsenal-icon {
   width: 36px;
   height: 36px;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.65));
+}
+.arsenal-tier-icon .arsenal-icon {
+  width: 30px;
+  height: 30px;
 }
 .arsenal-copy {
   flex: 1;
@@ -1498,6 +1566,17 @@ button.stat-tile-btn:hover {
 }
 .arsenal-name {
   font-size: 11px;
+}
+.arsenal-tier-label {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+.arsenal-tier-name {
+  min-width: 0;
+  color: var(--fg-0);
+  font-size: 9px;
 }
 .arsenal-rarity {
   font-size: 8px;
@@ -3489,6 +3568,12 @@ html[data-high-contrast='on'] .menu-scanlines {
   color: var(--fg-0);
 }
 
+@media (max-width: 640px) {
+  .hud-v2 .run-mutator-chip {
+    display: none;
+  }
+}
+
 .hud-v2 .boss-tag {
   font-size: 8px;
   color: #1a0a0a;
@@ -5008,6 +5093,7 @@ html[data-high-contrast='on'] .menu-scanlines {
 
 .forge-chip.is-sub {
   padding: 3px 6px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .forge-slot-expand {
@@ -5278,6 +5364,96 @@ html[data-high-contrast='on'] .menu-scanlines {
   display: block;
 }
 
+/* Supplement forge offers: add-on visual — cool dual ring, not the same frame as weapons */
+.forge-offer-supplement.upg-card-v2 {
+  border-style: solid;
+  border-width: 2px;
+  border-color: color-mix(
+    in srgb,
+    var(--card-accent, var(--accent)) 38%,
+    rgba(140, 215, 255, 0.58)
+  );
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--card-accent, var(--accent)) 6%, rgba(10, 16, 28, 0.94))
+        0%,
+      rgba(8, 10, 20, 0.98) 100%
+    );
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.88),
+    inset 0 0 0 2px rgba(120, 205, 255, 0.11),
+    inset 2px 2px 0 rgba(150, 215, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(90, 165, 215, 0.22),
+    0 3px 0 rgba(0, 0, 0, 0.55),
+    0 0 12px color-mix(in srgb, var(--card-accent, var(--accent)) 14%, transparent),
+    0 0 22px rgba(100, 185, 235, 0.08);
+}
+
+.forge-offer-supplement .card-corner {
+  opacity: 0.75;
+  background: color-mix(
+    in srgb,
+    var(--card-accent, var(--accent)) 35%,
+    rgba(170, 225, 255, 0.75)
+  );
+}
+
+.forge-offer-supplement .forge-offer-icon {
+  border-style: solid;
+  border-width: 1px;
+  border-color: color-mix(
+    in srgb,
+    var(--card-accent, rgba(150, 220, 255, 0.5)) 52%,
+    rgba(55, 95, 125, 0.55)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(120, 195, 235, 0.1),
+    inset 1px 1px 0 color-mix(in srgb, var(--card-accent, transparent) 22%, transparent),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      color-mix(in srgb, var(--card-accent, var(--accent)) 14%, rgba(10, 18, 30, 0.96))
+        0%,
+      rgba(5, 8, 16, 0.98) 68%
+    );
+}
+
+.forge-offer-role {
+  margin: -1px 0 0;
+  text-align: center;
+  font-size: 7px;
+  letter-spacing: 2px;
+  line-height: 1;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--card-accent, var(--accent)) 75%, var(--fg-dim));
+  text-shadow:
+    0 0 6px color-mix(in srgb, var(--card-accent, transparent) 35%, transparent),
+    1px 1px 0 rgba(0, 0, 0, 0.85);
+}
+
+.forge-chip-sub-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.forge-chip-sub-lead .forge-face-icon {
+  flex: 0 0 auto;
+}
+
+.chip-sub-icon-placeholder {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  border: 1px solid rgba(120, 195, 235, 0.16);
+  background: rgba(0, 0, 0, 0.22);
+}
+
 .forge-offer-drag-hint {
   color: var(--fg-dim);
   font-size: 10px;
@@ -5413,11 +5589,6 @@ html[data-high-contrast='on'] .menu-scanlines {
 .forge-chip.is-default .chip-kind-icon {
   color: var(--fg-dim);
   opacity: 0.75;
-}
-
-/* Add the info button column to the chip grid */
-.forge-chip {
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
 
 /* Slot head · compact face number + supp pips */
