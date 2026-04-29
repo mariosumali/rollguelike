@@ -152,12 +152,20 @@ export interface FaceUpgrade {
   kind: FaceUpgradeKind;
   rarity: Rarity;
   description: string;
+  /** Shared lineage key for concrete upgrades that replace one another. */
+  chainId?: string;
+  /** Position within a chain. Used for pricing/animation intensity, not effect lookup. */
+  rank?: number;
+  /** Concrete predecessor id required on a face before this upgrade can be offered. */
+  upgradesFrom?: string;
+  /** Optional concrete successor id, used for validation and UI hints. */
+  upgradesTo?: string;
   bindsTo?: number[];
   tags?: string[];
   characterExclusive?: string;
   evolution?: FaceUpgradeEvolution;
   animation: AnimationBinding;
-  tiers: [FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier];
+  effect: FaceUpgradeTier;
   basePrice?: Partial<Record<Rarity, number[]>>;
   /** Optional palette-character rows used as the die-face pixel art when this upgrade occupies a slot. */
   icon?: string[];
