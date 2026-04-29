@@ -13,7 +13,7 @@ import {
   consumePendingDiceThemeUnlocks,
 } from '../state/persistence';
 import { getUpgrade } from '../content/upgrades/registry';
-import { listFaceUpgrades } from '../content/upgrades/faceRegistry';
+import { getFaceChainId, getFaceRank, listFaceUpgrades } from '../content/upgrades/faceRegistry';
 import { getFaceIconCacheKey, getFaceIconRows } from '../content/upgrades/faceIcons';
 import {
   buildFaceIconCanvas,
@@ -329,30 +329,59 @@ function CodexIcon({ upgrade }: { upgrade: FaceUpgrade }) {
   return <canvas ref={ref} width={36} height={36} className="arsenal-icon" aria-hidden />;
 }
 
+interface CodexChain {
+  chainId: string;
+  entries: FaceUpgrade[];
+}
+
+function tierLabel(rank: number): string {
+  return `T${Math.max(1, rank)}`;
+}
+
+function buildCodexChains(entries: FaceUpgrade[], kind: FaceUpgrade['kind']): CodexChain[] {
+  const chains = new Map<string, FaceUpgrade[]>();
+  for (const entry of entries) {
+    if (entry.kind !== kind) continue;
+    const chainId = getFaceChainId(entry);
+    const chain = chains.get(chainId);
+    if (chain) chain.push(entry);
+    else chains.set(chainId, [entry]);
+  }
+
+  return Array.from(chains.entries())
+    .map(([chainId, chainEntries]) => ({
+      chainId,
+      entries: chainEntries.sort((a, b) => getFaceRank(a) - getFaceRank(b) || a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => {
+      const aRoot = a.entries[0]!;
+      const bRoot = b.entries[0]!;
+      const order = { common: 0, rare: 1, epic: 2, legendary: 3 } as const;
+      return order[aRoot.rarity] - order[bRoot.rarity] || aRoot.name.localeCompare(bRoot.name);
+    });
+}
+
 function CodexPanel({ onClose }: { onClose: () => void }) {
   const entries = listFaceUpgrades();
-  const sortByRarityThenName = (a: FaceUpgrade, b: FaceUpgrade) => {
-    const order = { common: 0, rare: 1, epic: 2, legendary: 3 } as const;
-    return order[a.rarity] - order[b.rarity] || a.name.localeCompare(b.name);
-  };
   const sections = [
     {
       title: 'WEAPONS',
       note: 'Face replacers',
-      entries: entries.filter((u) => u.kind === 'replacer').sort(sortByRarityThenName),
+      chains: buildCodexChains(entries, 'replacer'),
     },
     {
       title: 'WEAPON SUPPLEMENTS',
       note: 'Slot modifiers',
-      entries: entries.filter((u) => u.kind === 'supplement').sort(sortByRarityThenName),
+      chains: buildCodexChains(entries, 'supplement'),
     },
   ];
+  const chainCount = sections.reduce((total, section) => total + section.chains.length, 0);
   return (
     <div className="overlay arsenal-overlay" onClick={onClose}>
       <div className="arsenal-panel" onClick={(e) => e.stopPropagation()}>
         <div className="arsenal-head pixel-text">
           <span>FACE CODEX</span>
-          <span className="arsenal-count">{entries.length}</span>
+          <span className="arsenal-count">{chainCount} CHAINS · {entries.length} TIERS</span>
           <button className="btn btn-ghost arsenal-close" onClick={() => { playSfx('ui_click'); onClose(); }}>
             ✕
           </button>
@@ -363,25 +392,44 @@ function CodexPanel({ onClose }: { onClose: () => void }) {
               <div className="arsenal-section-head pixel-text">
                 <span>{section.title}</span>
                 <span className="arsenal-section-note">
-                  {section.note} · {section.entries.length}
+                  {section.note} · {section.chains.length}
                 </span>
               </div>
-              {section.entries.map((u) => (
-                <div key={u.id} className={`arsenal-row rarity-${u.rarity} is-unlocked`}>
-                  <div className="arsenal-icon-shell">
-                    <CodexIcon upgrade={u} />
-                  </div>
-                  <div className="arsenal-copy">
-                    <div className="arsenal-row-head">
-                      <span className="arsenal-name pixel-text">{u.name}</span>
-                      <span className={`arsenal-rarity pixel-text rarity-tag-${u.rarity}`}>
-                        {u.rarity.toUpperCase()}
+              {section.chains.map((chain) => {
+                const root = chain.entries[0]!;
+                return (
+                  <div key={chain.chainId} className={`arsenal-chain rarity-${root.rarity} is-unlocked`}>
+                    <div className="arsenal-chain-head">
+                      <div className="arsenal-chain-title">
+                        <span className="arsenal-name pixel-text">{root.name}</span>
+                        <span className="arsenal-chain-count pixel-text">
+                          {chain.entries.length} TIER{chain.entries.length === 1 ? '' : 'S'}
+                        </span>
+                      </div>
+                      <span className={`arsenal-rarity pixel-text rarity-tag-${root.rarity}`}>
+                        {root.rarity.toUpperCase()}
                       </span>
                     </div>
-                    <div className="arsenal-desc">{u.description}</div>
+                    <div className="arsenal-desc arsenal-chain-desc">{root.description}</div>
+                    <div className="arsenal-tier-list">
+                      {chain.entries.map((u) => (
+                        <div key={u.id} className={`arsenal-tier rarity-${u.rarity}`}>
+                          <div className="arsenal-icon-shell arsenal-tier-icon">
+                            <CodexIcon upgrade={u} />
+                          </div>
+                          <div className="arsenal-copy">
+                            <div className="arsenal-row-head">
+                              <span className="arsenal-tier-label pixel-text">{tierLabel(getFaceRank(u))}</span>
+                              <span className="arsenal-tier-name pixel-text">{u.name}</span>
+                            </div>
+                            <div className="arsenal-desc">{u.description}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </section>
           ))}
         </div>

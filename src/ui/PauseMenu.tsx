@@ -38,8 +38,8 @@ function PauseBuildSummary({
 
   const benchFaces = Object.entries(run?.ownedFaceUpgrades ?? {})
     .filter(([id]) => !equippedFaceIds.has(id))
-    .map(([id, tier]) => ({ upgrade: getFaceUpgrade(id), tier }))
-    .filter((entry): entry is { upgrade: NonNullable<ReturnType<typeof getFaceUpgrade>>; tier: number } =>
+    .map(([id]) => ({ upgrade: getFaceUpgrade(id) }))
+    .filter((entry): entry is { upgrade: NonNullable<ReturnType<typeof getFaceUpgrade>> } =>
       Boolean(entry.upgrade),
     );
 
@@ -67,7 +67,6 @@ function PauseBuildSummary({
             const replacerName = replacer
               ? getFaceName(replacer.id, characterId, replacer.name)
               : 'Empty';
-            const tier = replacer ? run?.ownedFaceUpgrades[replacer.id] ?? 1 : 0;
 
             return (
               <div
@@ -76,14 +75,13 @@ function PauseBuildSummary({
                 style={{ ['--card-accent' as string]: accent }}
                 title={
                   replacer
-                    ? `${replacerName} T${tier}\n${replacer.description}`
+                    ? `${replacerName}\n${replacer.description}`
                     : `Face ${i + 1} · empty slot`
                 }
               >
                 <div className="pause-face-main-v2">
                   <span className="pause-face-value-v2">{i + 1}</span>
                   <span className="pause-face-name-v2">{replacerName}</span>
-                  {replacer && <span className="pause-face-tier-v2">T{tier}</span>}
                 </div>
                 <div className="pause-face-sups-v2">
                   {supplements.length === 0 ? (
@@ -94,9 +92,9 @@ function PauseBuildSummary({
                         key={`${up.id}-${idx}`}
                         className="pause-face-sup-v2"
                         style={{ ['--card-accent' as string]: RARITY_COLORS[up.rarity] }}
-                        title={`${up.name} T${run?.ownedFaceUpgrades[up.id] ?? 1}\n${up.description}`}
+                        title={`${up.name}\n${up.description}`}
                       >
-                        {up.name} T{run?.ownedFaceUpgrades[up.id] ?? 1}
+                        {up.name}
                       </span>
                     ))
                   )}
@@ -111,14 +109,14 @@ function PauseBuildSummary({
         <div className="build-section-v2">
           <div className="build-section-label">OWNED · NOT EQUIPPED</div>
           <div className="pause-chip-list-v2">
-            {benchFaces.map(({ upgrade, tier }) => (
+            {benchFaces.map(({ upgrade }) => (
               <span
                 key={upgrade.id}
                 className="pause-build-chip-v2"
                 style={{ ['--card-accent' as string]: RARITY_COLORS[upgrade.rarity] }}
                 title={upgrade.description}
               >
-                {getFaceName(upgrade.id, characterId, upgrade.name)} T{tier}
+                {getFaceName(upgrade.id, characterId, upgrade.name)}
               </span>
             ))}
           </div>

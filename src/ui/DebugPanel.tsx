@@ -290,8 +290,8 @@ export function DebugPanel() {
                         type="button"
                         className="debug-list-item"
                         onClick={() => {
-                          const ok = debugGrantFaceUpgrade(u.id, 3);
-                          flash(ok ? `Installed ${u.name} (T3)` : `Owned ${u.name} (no slot)`);
+                          const ok = debugGrantFaceUpgrade(u.id);
+                          flash(ok ? `Installed ${u.name}` : `Owned ${u.name} (no slot)`);
                         }}
                         title={u.id}
                       >
