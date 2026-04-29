@@ -4,6 +4,7 @@ import { BALANCE } from '../config/balance';
 import { PLAYER_X, DIE_Y, PROJECTILE_SPAWN_Y } from '../config/constants';
 import { ELEMENT_COLORS } from '../sprites/effects';
 import { executeUpgrade } from '../engine/effectExecutor';
+import { getCharacter } from '../content/characters/registry';
 import type { TierIntensity } from '../content/animations/types';
 
 export interface FaceOps {
@@ -65,11 +66,10 @@ export function resolveFace(face: Face, baseDmg: number, roll: RollResult, run: 
   // (e.g. Gambler values 1 and 5) from the replacer icon drawn on the die.
   const slotIndex = Math.max(0, Math.min(5, face.value - 1));
   const slot = face.value >= 1 ? run.slotLayout?.[slotIndex] : undefined;
-  if (slot && (slot.replacerId || slot.supplementIds.length > 0)) {
+  if (slot && slot.replacerId) {
     const shared: PendingMods = {};
-    for (const suppId of slot.supplementIds) {
-      executeUpgrade(suppId, 1, face, baseDmg, run, ops, shared);
-    }
+    // Per-face supplements are dormant on the relics branch. Old supplement
+    // ids may still exist in content/saves, but they no longer execute here.
     if (slot.replacerId) {
       executeUpgrade(slot.replacerId, 1, face, baseDmg, run, ops, shared);
     } else {
@@ -77,7 +77,18 @@ export function resolveFace(face: Face, baseDmg: number, roll: RollResult, run: 
     }
     return;
   }
-  resolveLegacyFace(face, baseDmg, roll, run, ops);
+  const baseline = getBaselineFace(run, slotIndex, face);
+  resolveLegacyFace(baseline, baseDmg, roll, run, ops);
+}
+
+function getBaselineFace(run: RunState, slotIndex: number, rolledFace: Face): Face {
+  const character = getCharacter(run.characterId);
+  const defaultFace = character?.defaultFaces?.[slotIndex];
+  if (!defaultFace) return rolledFace;
+  return {
+    ...defaultFace.face,
+    value: rolledFace.value,
+  };
 }
 
 function resolveLegacyFace(face: Face, baseDmg: number, _roll: RollResult, run: RunState, ops: FaceOps): void {
@@ -95,7 +106,7 @@ function resolveLegacyFace(face: Face, baseDmg: number, _roll: RollResult, run: 
     }
     case 'PULSE': {
       const r = BALANCE.combat.pulseRadius + face.value * 3;
-      ops.pulse(r, BALANCE.combat.pulseDamage(face.value), face.element);
+      ops.pulse(r, BALANCE.combat.pulseDamage(face.value) * (face.damageMul ?? 1), face.element);
       break;
     }
     case 'SHIELD': {
