@@ -13,7 +13,7 @@ interface UpgradeOffer {
 export interface ForgeShopOffer {
   id: string;
   slotIndex: number;
-  nextTier: number;
+  rank: number;
   price: number;
 }
 

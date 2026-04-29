@@ -18,8 +18,15 @@ import type {
   DieThemeId,
 } from './store';
 import { listUpgrades } from '../content/upgrades/registry';
+import {
+  getFaceChainId,
+  getFaceRank,
+  getFaceUpgrade,
+  listFaceUpgrades,
+} from '../content/upgrades/faceRegistry';
 import { MAX_TIER } from '../content/upgrades/types';
 import { DIE_THEME_DEFAULT_UNLOCKS, DIE_THEME_UNLOCKS } from '../sprites/dice';
+import type { SlotState } from '../content/upgrades/types';
 
 const KEY_META = 'rollguelike.meta.v1';
 const KEY_RUN = 'rollguelike.run.v1';
@@ -74,11 +81,15 @@ export function loadRun(): RunState | null {
 }
 
 function migrateRun(parsed: Partial<RunState>): RunState {
+  const legacyTiers: Record<string, number> = {};
   const ownedFaceUpgrades: Record<string, number> = {};
   for (const [id, tier] of Object.entries(parsed.ownedFaceUpgrades ?? {})) {
     if (typeof tier !== 'number' || !Number.isFinite(tier)) continue;
-    ownedFaceUpgrades[id] = Math.max(1, Math.min(MAX_TIER, Math.floor(tier)));
+    const safeTier = Math.max(1, Math.min(MAX_TIER, Math.floor(tier)));
+    legacyTiers[id] = safeTier;
+    ownedFaceUpgrades[resolveLegacyFaceUpgradeId(id, safeTier)] = 1;
   }
+  const slotLayout = migrateSlotLayout(parsed.slotLayout, legacyTiers, ownedFaceUpgrades);
   return {
     characterId: parsed.characterId ?? 'soldier',
     wave: parsed.wave ?? 1,
@@ -101,7 +112,7 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     momentumT: parsed.momentumT,
     gold: parsed.gold ?? 0,
     ownedFaceUpgrades,
-    slotLayout: parsed.slotLayout ?? [],
+    slotLayout,
     gambitStacks: parsed.gambitStacks ?? 0,
     goldSpent: parsed.goldSpent ?? 0,
     runMutatorId: parsed.runMutatorId,
@@ -110,6 +121,77 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     nextForgeDiscount: parsed.nextForgeDiscount,
     guaranteedForgeRarity: parsed.guaranteedForgeRarity,
   };
+}
+
+function resolveLegacyFaceUpgradeId(id: string, tier: number): string {
+  const upgrade = getFaceUpgrade(id);
+  if (!upgrade) return id;
+  const targetRank = Math.max(1, Math.min(MAX_TIER, Math.floor(tier || getFaceRank(upgrade))));
+  const chainId = getFaceChainId(upgrade);
+  const ranked = listFaceUpgrades().find((u) => getFaceChainId(u) === chainId && getFaceRank(u) === targetRank);
+  return ranked?.id ?? id;
+}
+
+function migrateSlotLayout(
+  parsedSlots: RunState['slotLayout'] | undefined,
+  legacyTiers: Record<string, number>,
+  ownedFaceUpgrades: Record<string, number>,
+): SlotState[] {
+  const rawSlots = Array.isArray(parsedSlots) ? parsedSlots : [];
+  const slots: SlotState[] = rawSlots.map((slot, index) => ({
+    index: typeof slot?.index === 'number' ? slot.index : index,
+    replacerId: slot?.replacerId ? resolveLegacyFaceUpgradeId(slot.replacerId, legacyTiers[slot.replacerId] ?? 1) : null,
+    supplementIds: Array.isArray(slot?.supplementIds)
+      ? slot.supplementIds
+          .filter((id): id is string => typeof id === 'string')
+          .map((id) => resolveLegacyFaceUpgradeId(id, legacyTiers[id] ?? 1))
+      : [],
+    supplementCap: typeof slot?.supplementCap === 'number' ? slot.supplementCap : 0,
+  }));
+
+  const bestByChain = new Map<string, { id: string; rank: number; order: number }>();
+  let order = 0;
+  for (const slot of slots) {
+    for (const id of [slot.replacerId, ...slot.supplementIds]) {
+      if (!id) continue;
+      const upgrade = getFaceUpgrade(id);
+      if (!upgrade) continue;
+      const chainId = getFaceChainId(upgrade);
+      const rank = getFaceRank(upgrade);
+      const current = bestByChain.get(chainId);
+      if (!current || rank > current.rank) {
+        bestByChain.set(chainId, { id, rank, order });
+      }
+      order++;
+    }
+  }
+
+  const keptChains = new Set<string>();
+  for (const slot of slots) {
+    if (slot.replacerId) {
+      const upgrade = getFaceUpgrade(slot.replacerId);
+      const chainId = upgrade ? getFaceChainId(upgrade) : '';
+      const best = bestByChain.get(chainId);
+      if (!upgrade || !best || best.id !== slot.replacerId || keptChains.has(chainId)) {
+        slot.replacerId = null;
+      } else {
+        keptChains.add(chainId);
+        ownedFaceUpgrades[slot.replacerId] = 1;
+      }
+    }
+    slot.supplementIds = slot.supplementIds.filter((id) => {
+      const upgrade = getFaceUpgrade(id);
+      if (!upgrade) return false;
+      const chainId = getFaceChainId(upgrade);
+      const best = bestByChain.get(chainId);
+      if (!best || best.id !== id || keptChains.has(chainId)) return false;
+      keptChains.add(chainId);
+      ownedFaceUpgrades[id] = 1;
+      return true;
+    });
+  }
+
+  return slots;
 }
 
 export function saveRun(run: RunState | null): void {
