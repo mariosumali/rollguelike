@@ -1,4 +1,4 @@
-import type { WaveScript, SpawnEvent, EnemyType, RunState, WaveArchetypeId, EliteKind } from '../../types';
+import type { WaveScript, SpawnEvent, EnemyType, RunState, WaveArchetypeId, EliteKind, HouseEnemyFamily } from '../../types';
 import { BALANCE } from '../../config/balance';
 import { ARENA_W } from '../../config/constants';
 import { listNonBosses, listBosses } from '../enemies/registry';
@@ -22,7 +22,7 @@ function generateRegularWave(waveNum: number, rng: () => number, run?: RunState)
   const events: SpawnEvent[] = [];
   let t = 0.2;
 
-  const weights = weightedPool(pool, waveNum, biome.enemyWeights);
+  const weights = weightedPool(pool, waveNum, biome.enemyWeights, biome.enemyFamilyBias, mutator?.enemyFamilyBias);
   const eliteChance = Math.max(
     0,
     BALANCE.enemy.eliteBaseChance(waveNum) +
@@ -98,9 +98,20 @@ function eligiblePool(waveNum: number, forceOddEvenEarly: boolean): EnemyType[] 
   });
 }
 
-function weightedPool(pool: EnemyType[], waveNum: number, biomeWeights: Record<string, number> | undefined): [EnemyType, number][] {
-  return pool.map((t) => [t, Math.max(0.0001, t.weight(waveNum) * (biomeWeights?.[t.id] ?? 1))]);
+function weightedPool(
+  pool: EnemyType[],
+  waveNum: number,
+  biomeWeights: Record<string, number> | undefined,
+  biomeFamilyBias: BiomeFamilyBias | undefined,
+  mutatorFamilyBias: BiomeFamilyBias | undefined,
+): [EnemyType, number][] {
+  return pool.map((t) => {
+    const familyMul = t.family ? (biomeFamilyBias?.[t.family] ?? 1) * (mutatorFamilyBias?.[t.family] ?? 1) : 1;
+    return [t, Math.max(0.0001, t.weight(waveNum) * (biomeWeights?.[t.id] ?? 1) * familyMul)];
+  });
 }
+
+type BiomeFamilyBias = Partial<Record<HouseEnemyFamily, number>>;
 
 function pickArchetype(
   waveNum: number,
