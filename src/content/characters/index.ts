@@ -1,43 +1,44 @@
-import type { Character, DieConfig } from '../../types';
+import type { Character, DieConfig, Face } from '../../types';
 import type { CharacterDefaultFace, SlotRestriction } from '../upgrades/types';
 import { registerCharacters } from './registry';
 import { BALANCE } from '../../config/balance';
 import { getRunState } from '../../state/store';
 import { PROJECTILE_ARCHETYPES } from './projectiles';
 
-function face(upgradeId: string, projectileCount: number, element?: CharacterDefaultFace['element']): CharacterDefaultFace {
-  return { kind: 'default', upgradeId, projectileCount, element };
-}
-
-function blankFace(element?: CharacterDefaultFace['element']): CharacterDefaultFace {
-  return { kind: 'default', upgradeId: null, projectileCount: 0, element };
+function baseFace(
+  name: string,
+  description: string,
+  face: Omit<Face, 'value'>,
+  restrictedReplacement = false,
+): CharacterDefaultFace {
+  return { kind: 'default', name, description, face, restrictedReplacement };
 }
 
 const SOLDIER_DEFAULTS: CharacterDefaultFace[] = [
-  blankFace(),
-  blankFace(),
-  face('std_shot', 2),
-  face('std_shot', 2),
-  face('std_shot', 3),
-  face('std_shot', 3),
+  baseFace('Quick Cut', 'A light opening shot.', { kind: 'SHOT', element: 'none', projectileCount: 1, damageMul: 0.9 }),
+  baseFace('Guard Bolt', 'A steady weak shot.', { kind: 'SHOT', element: 'none', projectileCount: 1, damageMul: 1.0 }),
+  baseFace('Steel Spray', 'A modest spread of steel.', { kind: 'BURST', element: 'none', projectileCount: 2, damageMul: 0.8 }),
+  baseFace('Brace', 'Raise a defensive guard.', { kind: 'SHIELD', element: 'none' }),
+  baseFace('Field Shot', 'Strike while recovering.', { kind: 'SHOT', element: 'none', projectileCount: 2, damageMul: 0.85 }),
+  baseFace('Shield Pulse', 'A close-range pulse.', { kind: 'PULSE', element: 'none', damageMul: 0.85 }),
 ];
 
 const GAMBLER_DEFAULTS: CharacterDefaultFace[] = [
-  face('std_shot', 2),
-  face('std_shot', 0),
-  face('std_shot', 0),
-  face('std_shot', 0),
-  face('std_shot', 0),
-  face('std_shot', 2),
+  baseFace('Snake Eye', 'A risky chip toss.', { kind: 'SHOT', element: 'none', projectileCount: 1, damageMul: 0.65 }),
+  baseFace('Chip Toss', 'A reliable tossed chip.', { kind: 'SHOT', element: 'none', projectileCount: 2, damageMul: 0.85 }),
+  baseFace('Split Pot', 'A short fan of chips.', { kind: 'BURST', element: 'none', projectileCount: 3, damageMul: 0.9 }),
+  baseFace('Double Down', 'Repeat the last face.', { kind: 'WILD', element: 'none', damageMul: 1.2 }),
+  baseFace('Lucky Guard', 'Bank a little protection.', { kind: 'SHIELD', element: 'none' }),
+  baseFace('Jackpot Spark', 'A high roll blast.', { kind: 'PULSE', element: 'none', damageMul: 1.15 }),
 ];
 
 const ALCHEMIST_DEFAULTS: CharacterDefaultFace[] = [
-  blankFace('fire'),
-  face('aqua_bolt', 1, 'ice'),
-  blankFace('poison'),
-  face('arc_bolt', 1, 'lightning'),
-  face('std_shot', 1, 'arcane'),
-  face('std_shot', 1, 'none'),
+  baseFace('Ember Vial', 'A small fire flask.', { kind: 'SHOT', element: 'fire', projectileCount: 1, damageMul: 0.75 }),
+  baseFace('Frost Vial', 'A cold flask with a light hit.', { kind: 'SHOT', element: 'ice', projectileCount: 1, damageMul: 0.75 }),
+  baseFace('Venom Vial', 'A poison flask poke.', { kind: 'SHOT', element: 'poison', projectileCount: 1, damageMul: 0.75 }),
+  baseFace('Storm Vial', 'A lightning flask poke.', { kind: 'SHOT', element: 'lightning', projectileCount: 1, damageMul: 0.75 }),
+  baseFace('Arcane Pop', 'A small arcane pulse.', { kind: 'PULSE', element: 'arcane', damageMul: 0.8 }),
+  baseFace('Glass Scatter', 'A compact flask spread.', { kind: 'BURST', element: 'none', projectileCount: 2, damageMul: 0.85 }),
 ];
 
 const ALCHEMIST_RESTRICT: SlotRestriction[] = [
@@ -50,30 +51,30 @@ const ALCHEMIST_RESTRICT: SlotRestriction[] = [
 ];
 
 const NECROMANCER_DEFAULTS: CharacterDefaultFace[] = [
-  blankFace(),
-  blankFace(),
-  face('std_shot', 2),
-  face('std_shot', 2),
-  face('std_shot', 2),
-  { kind: 'default', upgradeId: 'std_shot', projectileCount: 1, restrictedReplacement: true },
+  baseFace('Bone Splinter', 'A brittle bone shot.', { kind: 'SHOT', element: 'none', projectileCount: 1, damageMul: 0.65 }),
+  baseFace('Grave Spark', 'A faint soul shot.', { kind: 'SHOT', element: 'arcane', projectileCount: 1, damageMul: 0.7 }),
+  baseFace('Bone Shards', 'A small bone spread.', { kind: 'BURST', element: 'none', projectileCount: 2, damageMul: 0.75 }),
+  baseFace('Soul Sip', 'Spend souls for a blast, or fire a weak shard.', { kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 0.8 }),
+  baseFace('Bone Mending', 'Knit flesh with grave dust.', { kind: 'HEAL', element: 'none' }),
+  baseFace('Soul Anchor', 'A bound soul drain that cannot be replaced.', { kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 1.0 }, true),
 ];
 
 const BERSERKER_DEFAULTS: CharacterDefaultFace[] = [
-  blankFace(),
-  blankFace(),
-  face('std_shot', 1),
-  face('std_shot', 1),
-  face('pulse_nova', 1),
-  face('pulse_nova', 1),
+  baseFace('Anger Spark', 'A weak hit to start the chain.', { kind: 'SHOT', element: 'none', projectileCount: 1, damageMul: 0.55 }),
+  baseFace('Axe Flick', 'A quick thrown axe.', { kind: 'SHOT', element: 'none', projectileCount: 1, damageMul: 0.7 }),
+  baseFace('Axe Sweep', 'A short sweeping burst.', { kind: 'BURST', element: 'none', projectileCount: 2, damageMul: 0.8 }),
+  baseFace('Rage Chop', 'A smash that scales with Rage.', { kind: 'RAGE_SMASH', element: 'none', damageMul: 0.95 }),
+  baseFace('War Stomp', 'A close pulse of force.', { kind: 'PULSE', element: 'none', damageMul: 0.85 }),
+  baseFace('Blood Roar', 'A heavy rage smash.', { kind: 'RAGE_SMASH', element: 'none', damageMul: 1.25 }),
 ];
 
 const CLOCKMAKER_DEFAULTS: CharacterDefaultFace[] = [
-  blankFace(),
-  blankFace(),
-  face('std_shot', 1),
-  face('std_shot', 2),
-  face('std_shot', 2, 'ice'),
-  face('pulse_nova', 1, 'ice'),
+  baseFace('Tick', 'A small gear shot.', { kind: 'SHOT', element: 'none', projectileCount: 1, damageMul: 0.6 }),
+  baseFace('Tock', 'A measured gear shot.', { kind: 'SHOT', element: 'none', projectileCount: 1, damageMul: 0.75 }),
+  baseFace('Gear Toss', 'A heavier gear hit.', { kind: 'SHOT', element: 'none', projectileCount: 2, damageMul: 0.8 }),
+  baseFace('Wind-Up Guard', 'Raise a precise shield.', { kind: 'SHIELD', element: 'none' }),
+  baseFace('Charged Gear', 'A charged frost gear.', { kind: 'CHARGED_BOLT', element: 'ice', projectileCount: 1, damageMul: 0.95 }),
+  baseFace('Time Ripple', 'A chilling clock pulse.', { kind: 'PULSE', element: 'ice', damageMul: 1.0 }),
 ];
 
 function d6(id: string, baseDmg = 0.9): DieConfig {
@@ -81,12 +82,12 @@ function d6(id: string, baseDmg = 0.9): DieConfig {
     id,
     rollDuration: BALANCE.die.baseRollDuration,
     faces: [
-      { value: 1, kind: 'BLANK', element: 'none' },
-      { value: 2, kind: 'BLANK', element: 'none' },
-      { value: 3, kind: 'BURST', element: 'none', damageMul: baseDmg, projectileCount: 3 },
+      { value: 1, kind: 'SHOT', element: 'none', damageMul: 0.55, projectileCount: 1 },
+      { value: 2, kind: 'SHOT', element: 'none', damageMul: 0.7, projectileCount: 1 },
+      { value: 3, kind: 'BURST', element: 'none', damageMul: baseDmg * 0.9, projectileCount: 2 },
       { value: 4, kind: 'SHIELD', element: 'none' },
       { value: 5, kind: 'HEAL', element: 'none' },
-      { value: 6, kind: 'PULSE', element: 'none', damageMul: baseDmg },
+      { value: 6, kind: 'PULSE', element: 'none', damageMul: baseDmg * 0.95 },
     ],
   };
 }
@@ -97,12 +98,12 @@ const gamblerStart: DieConfig = {
   id: 'gambler_d6',
   rollDuration: BALANCE.die.baseRollDuration,
   faces: [
-    { value: 1, kind: 'BLANK', element: 'none' },
-    { value: 2, kind: 'SHOT', element: 'none', damageMul: 1.1 },
-    { value: 3, kind: 'BURST', element: 'none', damageMul: 1.1, projectileCount: 4 },
-    { value: 4, kind: 'WILD', element: 'none', damageMul: 1.35 },
-    { value: 5, kind: 'BLANK', element: 'none' },
-    { value: 6, kind: 'PULSE', element: 'none', damageMul: 1.5 },
+    { value: 1, kind: 'SHOT', element: 'none', damageMul: 0.65, projectileCount: 1 },
+    { value: 2, kind: 'SHOT', element: 'none', damageMul: 0.85, projectileCount: 2 },
+    { value: 3, kind: 'BURST', element: 'none', damageMul: 0.9, projectileCount: 3 },
+    { value: 4, kind: 'WILD', element: 'none', damageMul: 1.2 },
+    { value: 5, kind: 'SHIELD', element: 'none' },
+    { value: 6, kind: 'PULSE', element: 'none', damageMul: 1.15 },
   ],
 };
 
@@ -110,12 +111,12 @@ const alchemistStart: DieConfig = {
   id: 'alchemist_d6',
   rollDuration: BALANCE.die.baseRollDuration,
   faces: [
-    { value: 1, kind: 'BLANK', element: 'none' },
-    { value: 2, kind: 'SHOT', element: 'ice', damageMul: 0.8 },
-    { value: 3, kind: 'BLANK', element: 'none' },
-    { value: 4, kind: 'SHOT', element: 'lightning', damageMul: 0.8 },
-    { value: 5, kind: 'PULSE', element: 'fire', damageMul: 0.9 },
-    { value: 6, kind: 'BURST', element: 'arcane', damageMul: 1.0, projectileCount: 3 },
+    { value: 1, kind: 'SHOT', element: 'fire', damageMul: 0.75, projectileCount: 1 },
+    { value: 2, kind: 'SHOT', element: 'ice', damageMul: 0.75, projectileCount: 1 },
+    { value: 3, kind: 'SHOT', element: 'poison', damageMul: 0.75, projectileCount: 1 },
+    { value: 4, kind: 'SHOT', element: 'lightning', damageMul: 0.75, projectileCount: 1 },
+    { value: 5, kind: 'PULSE', element: 'arcane', damageMul: 0.8 },
+    { value: 6, kind: 'BURST', element: 'none', damageMul: 0.85, projectileCount: 2 },
   ],
 };
 
@@ -123,12 +124,12 @@ const necromancerStart: DieConfig = {
   id: 'necro_d6',
   rollDuration: BALANCE.die.baseRollDuration,
   faces: [
-    { value: 1, kind: 'BLANK', element: 'none' },
-    { value: 2, kind: 'BLANK', element: 'none' },
-    { value: 3, kind: 'BURST', element: 'none', damageMul: 0.7, projectileCount: 2 },
-    { value: 4, kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 0.85 },
+    { value: 1, kind: 'SHOT', element: 'none', damageMul: 0.65, projectileCount: 1 },
+    { value: 2, kind: 'SHOT', element: 'arcane', damageMul: 0.7, projectileCount: 1 },
+    { value: 3, kind: 'BURST', element: 'none', damageMul: 0.75, projectileCount: 2 },
+    { value: 4, kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 0.8 },
     { value: 5, kind: 'HEAL', element: 'none' },
-    { value: 6, kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 1.1 },
+    { value: 6, kind: 'SOUL_DRAIN', element: 'arcane', damageMul: 1.0 },
   ],
 };
 
@@ -136,12 +137,12 @@ const berserkerStart: DieConfig = {
   id: 'berserker_d6',
   rollDuration: BALANCE.die.baseRollDuration * 0.8,
   faces: [
-    { value: 1, kind: 'BLANK', element: 'none' },
-    { value: 2, kind: 'BLANK', element: 'none' },
-    { value: 3, kind: 'BURST', element: 'none', damageMul: 0.95, projectileCount: 3 },
-    { value: 4, kind: 'RAGE_SMASH', element: 'none', damageMul: 1.2 },
-    { value: 5, kind: 'PULSE', element: 'none', damageMul: 1.1 },
-    { value: 6, kind: 'RAGE_SMASH', element: 'none', damageMul: 1.55 },
+    { value: 1, kind: 'SHOT', element: 'none', damageMul: 0.55, projectileCount: 1 },
+    { value: 2, kind: 'SHOT', element: 'none', damageMul: 0.7, projectileCount: 1 },
+    { value: 3, kind: 'BURST', element: 'none', damageMul: 0.8, projectileCount: 2 },
+    { value: 4, kind: 'RAGE_SMASH', element: 'none', damageMul: 0.95 },
+    { value: 5, kind: 'PULSE', element: 'none', damageMul: 0.85 },
+    { value: 6, kind: 'RAGE_SMASH', element: 'none', damageMul: 1.25 },
   ],
 };
 
@@ -149,12 +150,12 @@ const clockmakerStart: DieConfig = {
   id: 'clock_d6',
   rollDuration: BALANCE.die.baseRollDuration * 1.2,
   faces: [
-    { value: 1, kind: 'BLANK', element: 'none' },
-    { value: 2, kind: 'BLANK', element: 'none' },
-    { value: 3, kind: 'BURST', element: 'none', damageMul: 0.85, projectileCount: 2 },
+    { value: 1, kind: 'SHOT', element: 'none', damageMul: 0.6, projectileCount: 1 },
+    { value: 2, kind: 'SHOT', element: 'none', damageMul: 0.75, projectileCount: 1 },
+    { value: 3, kind: 'SHOT', element: 'none', damageMul: 0.8, projectileCount: 2 },
     { value: 4, kind: 'SHIELD', element: 'none' },
-    { value: 5, kind: 'CHARGED_BOLT', element: 'none', damageMul: 1.1 },
-    { value: 6, kind: 'PULSE', element: 'ice', damageMul: 1.2 },
+    { value: 5, kind: 'CHARGED_BOLT', element: 'ice', damageMul: 0.95, projectileCount: 1 },
+    { value: 6, kind: 'PULSE', element: 'ice', damageMul: 1.0 },
   ],
 };
 
@@ -186,9 +187,6 @@ export const CHARACTERS: Character[] = [
       onRoll: ({ face }) => {
         const run = getRunState();
         if (!run) return;
-        if (face.kind === 'BLANK') {
-          run.shield = Math.min(10, run.shield + 1);
-        }
         const extremes = BALANCE.gambler.gambitExtremes as readonly number[];
         if (extremes.includes(face.value)) {
           run.gambitStacks = Math.min(
