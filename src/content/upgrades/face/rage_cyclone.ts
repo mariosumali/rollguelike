@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { epic: prices.premiumEpic };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -14,7 +18,8 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'berserker',
     animation: { cast: 'rage_flame', projectile: 'fang_orbit', hit: 'impact_smash', evolution: 'rage_flame_max' },
     icon: ['..............','...h......h...','.....h..h.....','..h...hh...h..','...hhhhhhhh...','..h...hh...h..','.....h..h.....','...h......h...','......h.......','.....h.h......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 3, radius: 32, rpm: 160, damageMul: 0.8, duration: 3.0, pierce: 1 }, { verb: 'pulse', radius: 26, damageMul: 0.3, knockback: 18 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'orbit', count: 3, radius: 32, rpm: 180, damageMul: 0.65, duration: 2.8, pierce: 1 }, { verb: 'pulse', radius: 26, damageMul: 0.25, knockback: 18 }], damageMul: 1.0, timing: tempo.standard },
+    basePrice,
   },
   {
     id: "rage_cyclone_ii",
@@ -30,7 +35,8 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'berserker',
     animation: { cast: 'rage_flame', projectile: 'fang_orbit', hit: 'impact_smash', evolution: 'rage_flame_max' },
     icon: ['..............','...h......h...','.....h..h.....','..h...hh...h..','...hhhhhhhh...','..h...hh...h..','.....h..h.....','...h......h...','......h.......','.....h.h......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 4, radius: 38, rpm: 190, damageMul: 1.0, duration: 3.8, pierce: 2 }, { verb: 'pulse', radius: 38, damageMul: 0.5, knockback: 28 }], damageMul: 1.05 },
+    effect: { effects: [{ verb: 'orbit', count: 4, radius: 38, rpm: 220, damageMul: 0.78, duration: 3.5, pierce: 2 }, { verb: 'pulse', radius: 38, damageMul: 0.42, knockback: 28 }], damageMul: 1.05, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "rage_cyclone_iii",
@@ -45,7 +51,8 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'berserker',
     animation: { cast: 'rage_flame', projectile: 'fang_orbit', hit: 'impact_smash', evolution: 'rage_flame_max' },
     icon: ['..............','...h......h...','.....h..h.....','..h...hh...h..','...hhhhhhhh...','..h...hh...h..','.....h..h.....','...h......h...','......h.......','.....h.h......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 6, radius: 44, rpm: 230, damageMul: 1.15, duration: 4.8, pierce: 2 }, { verb: 'pulse', radius: 52, damageMul: 0.75, element: 'fire', knockback: 40 }, { verb: 'pulse', radius: 56, damageMul: 0.8, element: 'fire', knockback: 44 }], damageMul: 1.1, note: 'Red Tempest' },
+    effect: { effects: [{ verb: 'orbit', count: 6, radius: 44, rpm: 260, damageMul: 0.92, duration: 4.4, pierce: 2 }, { verb: 'pulse', radius: 54, damageMul: 0.68, element: 'fire', knockback: 42 }], damageMul: 1.1, timing: tempo.heavy, note: 'Red Tempest' },
+    basePrice,
   }
 ];
 
