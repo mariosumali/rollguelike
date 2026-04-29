@@ -20,9 +20,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'applyStatus', status: 'stun', power: 1, duration: 0.3 }], damageMul: 1.0, params: { reactionRadiusMul: 1.25 } },
-    { effects: [{ verb: 'applyStatus', status: 'stun', power: 1, duration: 0.35 }], damageMul: 1.0, params: { reactionRadiusMul: 1.35 } },
     { effects: [{ verb: 'applyStatus', status: 'stun', power: 1, duration: 0.4 }], damageMul: 1.0, params: { reactionRadiusMul: 1.4 } },
-    { effects: [{ verb: 'applyStatus', status: 'stun', power: 2, duration: 0.45 }], damageMul: 1.0, params: { reactionRadiusMul: 1.5 } },
     { effects: [{ verb: 'applyStatus', status: 'stun', power: 2, duration: 0.5 }, { verb: 'pulse', radius: 28, damageMul: 0.5 }], damageMul: 1.0, params: { reactionRadiusMul: 1.5 }, note: 'Quintessence' },
   ],
 };

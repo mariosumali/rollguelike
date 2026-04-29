@@ -5,7 +5,7 @@ const upgrade: FaceUpgrade = {
   name: 'Arc Bolt',
   kind: 'replacer',
   rarity: 'rare',
-  description: 'Lightning that jumps between foes.',
+  description: 'Lightning visibly jumps between foes.',
   tags: ['projectile', 'lightning', 'elemental'],
   animation: {
     cast: 'spark_cast',
@@ -15,15 +15,13 @@ const upgrade: FaceUpgrade = {
   },
   evolution: {
     name: 'Storm Call',
-    flavor: 'Chained hits stun.',
-    extraEffects: [{ verb: 'applyStatus', status: 'stun', power: 1, duration: 0.3 }],
+    flavor: 'The die itself lashes out with a storm web.',
+    extraEffects: [{ verb: 'chainLightning', jumps: 5, damageMul: 0.75, radius: 120, stunDur: 0.35, fromDie: true }],
   },
   tiers: [
     { effects: [{ verb: 'fireProjectile', count: 1, element: 'lightning' }, { verb: 'chain', maxChains: 2, decay: 0.5 }], damageMul: 1.0 },
-    { effects: [{ verb: 'fireProjectile', count: 1, element: 'lightning' }, { verb: 'chain', maxChains: 3, decay: 0.45 }], damageMul: 1.05 },
-    { effects: [{ verb: 'fireProjectile', count: 1, element: 'lightning' }, { verb: 'chain', maxChains: 4, decay: 0.4 }], damageMul: 1.1 },
-    { effects: [{ verb: 'fireProjectile', count: 2, element: 'lightning' }, { verb: 'chain', maxChains: 4, decay: 0.35 }], damageMul: 1.2 },
-    { effects: [{ verb: 'fireProjectile', count: 2, element: 'lightning' }, { verb: 'chain', maxChains: 6, decay: 0.2 }, { verb: 'applyStatus', status: 'stun', power: 1, duration: 0.3 }], damageMul: 1.3, note: 'Storm Call' },
+    { effects: [{ verb: 'fireProjectile', count: 1, element: 'lightning' }, { verb: 'chainLightning', jumps: 3, damageMul: 0.55, radius: 95, stunDur: 0.2 }], damageMul: 1.1 },
+    { effects: [{ verb: 'fireProjectile', count: 2, element: 'lightning', spread: Math.PI / 14 }, { verb: 'chainLightning', jumps: 5, damageMul: 0.7, radius: 120, stunDur: 0.35, fromDie: true }], damageMul: 1.25, note: 'Storm Call' },
   ],
 };
 

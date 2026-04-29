@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', crit: 0.04 }], damageMul: 1.0 },
-    { effects: [{ verb: 'modifyProjectile', crit: 0.07 }], damageMul: 1.0 },
     { effects: [{ verb: 'modifyProjectile', crit: 0.11 }], damageMul: 1.0 },
-    { effects: [{ verb: 'modifyProjectile', crit: 0.16 }], damageMul: 1.0 },
     { effects: [{ verb: 'modifyProjectile', crit: 0.22 }], damageMul: 1.0, note: 'Deadly Edge' },
   ],
 };

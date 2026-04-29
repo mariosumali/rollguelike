@@ -20,9 +20,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 2, chance: 1.0 }], damageMul: 1.0, params: { requireMatch: 2, windowSec: 2 } },
-    { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 3, chance: 1.0 }], damageMul: 1.0, params: { requireMatch: 2, windowSec: 2 } },
     { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 4, chance: 1.0 }], damageMul: 1.0, params: { requireMatch: 2, windowSec: 2.5 } },
-    { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 5, chance: 1.0 }], damageMul: 1.0, params: { requireMatch: 2, windowSec: 2.5 } },
     { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 6, chance: 1.0 }, { verb: 'heal', amount: 4 }], damageMul: 1.0, params: { requireMatch: 2, windowSec: 3 }, note: "Philosopher's Spark" },
   ],
 };

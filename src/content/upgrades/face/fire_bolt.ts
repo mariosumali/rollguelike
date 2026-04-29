@@ -5,7 +5,7 @@ const upgrade: FaceUpgrade = {
   name: 'Fire Bolt',
   kind: 'replacer',
   rarity: 'rare',
-  description: 'Ignites targets. Burn stacks with tier.',
+  description: 'Flaming shots erupt into visible pillars at higher tiers.',
   tags: ['projectile', 'fire', 'elemental'],
   animation: {
     cast: 'fire_cast',
@@ -15,15 +15,13 @@ const upgrade: FaceUpgrade = {
   },
   evolution: {
     name: 'Phoenix Bolt',
-    flavor: 'Splits on hit.',
-    extraEffects: [{ verb: 'fireProjectile', count: 3, spread: Math.PI / 4 }],
+    flavor: 'Calls a row of flame pillars and fans phoenix sparks.',
+    extraEffects: [{ verb: 'fireProjectile', count: 3, element: 'fire', spread: Math.PI / 4, damageMul: 0.65 }],
   },
   tiers: [
-    { effects: [{ verb: 'fireProjectile', count: 1, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 1, duration: 2 }], damageMul: 1.0 },
-    { effects: [{ verb: 'fireProjectile', count: 2, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 2, duration: 2 }], damageMul: 1.0 },
-    { effects: [{ verb: 'fireProjectile', count: 2, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 2, duration: 3 }], damageMul: 1.1 },
-    { effects: [{ verb: 'fireProjectile', count: 3, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 3, duration: 3 }], damageMul: 1.1 },
-    { effects: [{ verb: 'fireProjectile', count: 3, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 4, duration: 4 }, { verb: 'pulse', radius: 24, element: 'fire' }], damageMul: 1.2, note: 'Phoenix' },
+    { effects: [{ verb: 'fireProjectile', count: 1, element: 'fire' }, { verb: 'modifyProjectile', burnDps: 3, burnDur: 2 }], damageMul: 1.0 },
+    { effects: [{ verb: 'fireProjectile', count: 2, element: 'fire', spread: Math.PI / 10 }, { verb: 'flamePillar', count: 1, radius: 18, damageMul: 0.65, duration: 0.8, burnDps: 4, burnDur: 2.5 }], damageMul: 1.1 },
+    { effects: [{ verb: 'fireProjectile', count: 2, element: 'fire', spread: Math.PI / 8 }, { verb: 'flamePillar', count: 3, radius: 22, damageMul: 0.8, duration: 1.1, delay: 0.16, burnDps: 6, burnDur: 4 }], damageMul: 1.2, note: 'Phoenix' },
   ],
 };
 

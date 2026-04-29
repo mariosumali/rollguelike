@@ -18,9 +18,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'applyStatus', status: 'mark', power: 1, duration: 2.5 }], damageMul: 1.0, params: { markMul: 2.0 } },
-    { effects: [{ verb: 'applyStatus', status: 'mark', power: 1, duration: 3 }], damageMul: 1.0, params: { markMul: 2.0 } },
     { effects: [{ verb: 'applyStatus', status: 'mark', power: 2, duration: 3 }], damageMul: 1.0, params: { markMul: 2.2 } },
-    { effects: [{ verb: 'applyStatus', status: 'mark', power: 2, duration: 3.5 }], damageMul: 1.0, params: { markMul: 2.5 } },
     { effects: [{ verb: 'applyStatus', status: 'mark', power: 3, duration: 4 }], damageMul: 1.0, params: { markMul: 3.0 }, note: 'Signature Brand' },
   ],
 };

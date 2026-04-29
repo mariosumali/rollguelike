@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'pulse', radius: 45, damageMul: 1.0 }], damageMul: 1.0 },
-    { effects: [{ verb: 'pulse', radius: 55, damageMul: 1.2 }], damageMul: 1.0 },
     { effects: [{ verb: 'pulse', radius: 65, damageMul: 1.4, knockback: 20 }], damageMul: 1.0 },
-    { effects: [{ verb: 'pulse', radius: 75, damageMul: 1.6, knockback: 30 }], damageMul: 1.0 },
     { effects: [{ verb: 'pulse', radius: 90, damageMul: 2.0, knockback: 40, repeat: 2, delay: 0.5 }], damageMul: 1.0, note: 'Supernova' },
   ],
 };

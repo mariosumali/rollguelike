@@ -18,9 +18,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.0 }], damageMul: 1.0, params: { doubleChance: 0.15 } },
-    { effects: [{ verb: 'modifyProjectile', damageMul: 1.0 }], damageMul: 1.0, params: { doubleChance: 0.22 } },
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.0 }], damageMul: 1.0, params: { doubleChance: 0.3 } },
-    { effects: [{ verb: 'modifyProjectile', damageMul: 1.0 }], damageMul: 1.0, params: { doubleChance: 0.4 } },
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.0 }], damageMul: 1.0, params: { tripleAlways: 1, lockoutNext: 1 }, note: 'Triplet' },
   ],
 };

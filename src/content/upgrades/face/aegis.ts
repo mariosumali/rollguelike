@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'shield', stacks: 2 }], damageMul: 1.0 },
-    { effects: [{ verb: 'shield', stacks: 3 }], damageMul: 1.0 },
     { effects: [{ verb: 'shield', stacks: 4, reflect: 0.2 }], damageMul: 1.0 },
-    { effects: [{ verb: 'shield', stacks: 6, reflect: 0.4 }], damageMul: 1.0 },
     { effects: [{ verb: 'shield', stacks: 8, reflect: 0.6, reflectChain: true }], damageMul: 1.0, note: 'Bulwark' },
   ],
 };
