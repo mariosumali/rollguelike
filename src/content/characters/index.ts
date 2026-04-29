@@ -168,7 +168,7 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_soldier',
     startingDice: [soldierStart],
     baseProjectile: PROJECTILE_ARCHETYPES.soldier_bullet!,
-    exclusiveUpgrades: [],
+    exclusiveUpgrades: ['overwatch', 'bastion_bolt'],
     passive: {},
     defaultFaces: SOLDIER_DEFAULTS,
   },
@@ -181,7 +181,7 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_gambler',
     startingDice: [gamblerStart],
     baseProjectile: PROJECTILE_ARCHETYPES.gambler_chip!,
-    exclusiveUpgrades: [],
+    exclusiveUpgrades: ['all_in', 'loaded_jackpot'],
     passive: {
       onRoll: ({ face }) => {
         const run = getRunState();
@@ -214,7 +214,7 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_alchemist',
     startingDice: [alchemistStart],
     baseProjectile: PROJECTILE_ARCHETYPES.alchemist_flask!,
-    exclusiveUpgrades: [],
+    exclusiveUpgrades: ['transmute', 'reaction_mastery', 'volatile_mixture'],
     passive: {},
     defaultFaces: ALCHEMIST_DEFAULTS,
     restrictedKinds: ALCHEMIST_RESTRICT,
@@ -231,7 +231,7 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_necromancer',
     startingDice: [necromancerStart],
     baseProjectile: PROJECTILE_ARCHETYPES.necromancer_bone!,
-    exclusiveUpgrades: [],
+    exclusiveUpgrades: ['soul_harvest', 'grave_contract'],
     passive: {},
     defaultFaces: NECROMANCER_DEFAULTS,
     lockedSlots: [5],
@@ -248,7 +248,7 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_berserker',
     startingDice: [berserkerStart],
     baseProjectile: PROJECTILE_ARCHETYPES.berserker_axe!,
-    exclusiveUpgrades: [],
+    exclusiveUpgrades: ['bloodrush', 'rage_cyclone'],
     passive: {},
     defaultFaces: BERSERKER_DEFAULTS,
     unlockCondition: (meta) =>
@@ -264,7 +264,7 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_clockmaker',
     startingDice: [clockmakerStart],
     baseProjectile: PROJECTILE_ARCHETYPES.clockmaker_gear!,
-    exclusiveUpgrades: [],
+    exclusiveUpgrades: ['time_snare'],
     passive: {},
     defaultFaces: CLOCKMAKER_DEFAULTS,
     // Intentionally unreachable for now — a future "Go back in time" mechanic
