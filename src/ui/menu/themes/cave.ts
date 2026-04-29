@@ -72,6 +72,7 @@ export function createCaveTheme(engine: MenuEngine): ThemeController {
 
   return {
     torchPal: TORCH_CRYSTAL,
+    torchMounts: [{ x: 15, y: 155 }, { x: W - 15, y: 155 }],
     stars: false,
     shootingStars: false,
     magicCircleKey: 'H',
