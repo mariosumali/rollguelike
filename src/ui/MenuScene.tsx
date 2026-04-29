@@ -89,6 +89,10 @@ export function MenuScene() {
     };
 
     const controller = THEME_FACTORIES[theme](engine);
+    const torchMounts = controller.torchMounts ?? [
+      { x: 19, y: 155 },
+      { x: W - 19, y: 155 },
+    ];
 
     // ── Shared particle systems that honor theme flags ───────────────────
 
@@ -205,9 +209,11 @@ export function MenuScene() {
       safe(() => drawShootingStars());
       safe(() => controller.drawMidground(t, dt));
 
-      // Flanking torches drawn uniformly on every theme.
-      safe(() => drawTorch(engine, controller.torchPal, 18, 155, t, 1.1));
-      safe(() => drawTorch(engine, controller.torchPal, W - 20, 155, t, 2.3));
+      // Flanking torches share a sprite, but each theme owns its mount centers.
+      for (let i = 0; i < torchMounts.length; i++) {
+        const mount = torchMounts[i]!;
+        safe(() => drawTorch(engine, controller.torchPal, mount.x - 1, mount.y, t, 1.1 + i * 1.2));
+      }
 
       safe(() => controller.drawFloor(t, dt));
       safe(() => drawEmbers(dt));
