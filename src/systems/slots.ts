@@ -4,13 +4,13 @@ import { BALANCE } from '../config/balance';
 
 export function createSlotLayout(character: Character): SlotState[] {
   const count = BALANCE.slot.slotsPerCharacter;
-  const cap = BALANCE.slot.supplementsDefault;
-  const defaults = character.defaultFaces ?? [];
+  void character;
   return Array.from({ length: count }, (_, i) => ({
     index: i,
-    replacerId: defaults[i]?.upgradeId ?? null,
+    replacerId: null,
     supplementIds: [],
-    supplementCap: cap,
+    // Supplements are dormant while global relics own run-shaping passives.
+    supplementCap: 0,
   }));
 }
 
@@ -30,11 +30,12 @@ export function slotAllowedTags(character: Character, slotIndex: number): string
 }
 
 export function canPlaceSupplement(slot: SlotState): boolean {
-  return slot.supplementIds.length < slot.supplementCap;
+  void slot;
+  return false;
 }
 
 export function expandSlot(slot: SlotState): boolean {
-  if (slot.supplementCap >= BALANCE.slot.supplementsMax) return false;
-  slot.supplementCap += 1;
-  return true;
+  // Dormant supplement capacity system retained for possible future reuse.
+  void slot;
+  return false;
 }
