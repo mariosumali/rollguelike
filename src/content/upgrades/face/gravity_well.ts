@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { epic: prices.controlEpic };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -13,7 +17,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['aoe', 'pull', 'void', 'arcane'],
     animation: { cast: 'void_cast', projectile: 'void_orb', hit: 'void_collapse', evolution: 'event_horizon' },
     icon: ['..............','....H.....H...','......H.......','...H.....H....','.....HHH......','....HHIHH.....','.....HHH......','...H.....H....','......H.......','....H.....H...','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'pull', radius: 48, strength: 0.4, dps: 2, duration: 1.1 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'pull', radius: 48, strength: 0.4, dps: 1.5, duration: 1.1 }], damageMul: 1.0, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "gravity_well_ii",
@@ -28,7 +33,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['aoe', 'pull', 'void', 'arcane'],
     animation: { cast: 'void_cast', projectile: 'void_orb', hit: 'void_collapse', evolution: 'event_horizon' },
     icon: ['..............','....H.....H...','......H.......','...H.....H....','.....HHH......','....HHIHH.....','.....HHH......','...H.....H....','......H.......','....H.....H...','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'pull', radius: 66, strength: 0.55, dps: 4, duration: 1.5 }, { verb: 'groundZone', radius: 38, dps: 3, duration: 1.4, element: 'arcane', slow: 0.2 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'pull', radius: 66, strength: 0.55, dps: 3, duration: 1.5 }, { verb: 'groundZone', radius: 38, dps: 2.5, duration: 1.4, element: 'arcane', slow: 0.2 }], damageMul: 1.0, timing: tempo.heavy },
+    basePrice,
   },
   {
     id: "gravity_well_iii",
@@ -42,7 +48,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['aoe', 'pull', 'void', 'arcane'],
     animation: { cast: 'void_cast', projectile: 'void_orb', hit: 'void_collapse', evolution: 'event_horizon' },
     icon: ['..............','....H.....H...','......H.......','...H.....H....','.....HHH......','....HHIHH.....','.....HHH......','...H.....H....','......H.......','....H.....H...','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'pull', radius: 86, strength: 0.75, dps: 6, duration: 2.0 }, { verb: 'groundZone', radius: 52, dps: 5, duration: 2.0, element: 'arcane', slow: 0.35 }, { verb: 'statusAura', status: 'mark', radius: 90, power: 1.2, duration: 2.5 }, { verb: 'statusAura', status: 'mark', radius: 90, power: 1.4, duration: 2.5 }], damageMul: 1.0, note: 'Singularity Seed' },
+    effect: { effects: [{ verb: 'pull', radius: 86, strength: 0.75, dps: 4.5, duration: 2.0 }, { verb: 'groundZone', radius: 52, dps: 4, duration: 2.0, element: 'arcane', slow: 0.35 }, { verb: 'statusAura', status: 'mark', radius: 90, power: 1.35, duration: 2.5 }], damageMul: 1.0, timing: tempo.artillery, note: 'Singularity Seed' },
+    basePrice,
   }
 ];
 
