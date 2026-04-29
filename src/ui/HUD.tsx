@@ -44,7 +44,7 @@ export function HUD({ onPause }: Props) {
           </div>
         )}
         {hud.runMutatorShortName && (
-          <div className="hud-chip pixel-text" aria-label={`run mutator ${hud.runMutatorName}`}>
+          <div className="hud-chip run-mutator-chip pixel-text" aria-label={`run mutator ${hud.runMutatorName}`}>
             <span className="chip-key">OMEN</span>
             <span className="chip-val">{hud.runMutatorShortName}</span>
           </div>

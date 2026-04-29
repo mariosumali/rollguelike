@@ -15,7 +15,6 @@ import {
   moveOrSwapSupplement,
 } from '../engine/engine';
 import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
-import { MAX_TIER } from '../content/upgrades/types';
 import { getFaceName } from '../content/upgrades/faceNames';
 import { getFaceIconRows, getFaceIconCacheKey } from '../content/upgrades/faceIcons';
 import { getCharacter } from '../content/characters/registry';
@@ -61,8 +60,8 @@ interface SellConfirm {
 interface DetailsView {
   upgrade: FaceUpgrade;
   displayName: string;
-  currentTier: number | null;
-  nextTier: number | null;
+  offerLabel: string | null;
+  replacesName: string | null;
   price: number | null;
   isDefault: boolean;
   isOffer: boolean;
@@ -75,13 +74,6 @@ const KIND_GLYPH: Record<'replacer' | 'supplement' | 'default', string> = {
   supplement: '+',
   default: '◇',
 };
-
-const TIER_NAMES = ['IDENTITY', 'AMPLIFIED', 'EVOLUTION'] as const;
-
-function forgeTierLabel(tier: number): string {
-  const safe = Math.max(1, Math.min(MAX_TIER, tier));
-  return `T${safe} · ${TIER_NAMES[safe - 1] ?? 'TIER'}`;
-}
 
 function FaceIcon({
   upgradeId,
@@ -502,19 +494,30 @@ export function ForgeShop() {
                 if (!up) return null;
                 const canAfford = hud.gold >= o.price;
                 const disabled = !canAfford;
-                const tierLabel = o.nextTier === MAX_TIER ? `T${MAX_TIER}★` : `T${o.nextTier}`;
+                const predecessor = up.upgradesFrom ? getFaceUpgrade(up.upgradesFrom) : null;
+                const predecessorName = predecessor
+                  ? getFaceName(predecessor.id, character?.id, predecessor.name)
+                  : null;
+                const offerLabel = predecessorName ? 'UPGRADE' : 'NEW';
                 const isDraggingThis =
                   drag?.source.kind === 'offer' && drag.source.offerIndex === i;
                 const displayName = getFaceName(up.id, character?.id, up.name);
                 const kindGlyph = KIND_GLYPH[up.kind];
+                const isSupplementOffer = up.kind === 'supplement';
+                const showForgeIcon =
+                  up.kind === 'replacer' || up.kind === 'supplement';
                 return (
                   <div
                     key={`${o.id}-${i}`}
                     role="button"
-                    aria-label={`OFFER ${displayName} — ${up.rarity} T${o.nextTier} — ${o.price}G — ${up.description}`}
+                    aria-label={`OFFER ${
+                      isSupplementOffer ? 'SUPPLEMENT · ' : ''
+                    }${displayName} — ${up.rarity} — ${o.price}G — ${up.description}`}
                     className={`upg-card-v2 forge-offer forge-offer-compact rarity-${up.rarity} ${
-                      disabled ? 'is-disabled' : ''
-                    } ${isDraggingThis ? 'is-dragging' : ''}`}
+                      isSupplementOffer ? 'forge-offer-supplement' : ''
+                    } ${disabled ? 'is-disabled' : ''} ${
+                      isDraggingThis ? 'is-dragging' : ''
+                    }`}
                     onPointerDown={(e) => {
                       if (disabled) return;
                       beginDrag(
@@ -543,8 +546,8 @@ export function ForgeShop() {
                         openDetails({
                           upgrade: up,
                           displayName,
-                          currentTier: o.nextTier - 1,
-                          nextTier: o.nextTier,
+                          offerLabel,
+                          replacesName: predecessorName,
                           price: o.price,
                           isDefault: false,
                           isOffer: true,
@@ -558,13 +561,17 @@ export function ForgeShop() {
                       <span
                         className="forge-kind-icon"
                         aria-label={up.kind}
-                        title={up.kind.toUpperCase()}
+                        title={
+                          isSupplementOffer
+                            ? 'SUPPLEMENT (add-on; stacks on a weapon face)'
+                            : up.kind.toUpperCase()
+                        }
                       >
                         {kindGlyph}
                       </span>
-                      <span className="forge-offer-tier">{tierLabel}</span>
+                      <span className="forge-offer-tier">{offerLabel}</span>
                     </div>
-                    {up.kind === 'replacer' && (
+                    {showForgeIcon && (
                       <div className="forge-offer-icon" aria-hidden>
                         <FaceIcon
                           upgradeId={up.id}
@@ -573,7 +580,15 @@ export function ForgeShop() {
                         />
                       </div>
                     )}
+                    {isSupplementOffer && (
+                      <div className="forge-offer-role" aria-hidden>
+                        SUPPLEMENT
+                      </div>
+                    )}
                     <div className="upg-card-name">{displayName}</div>
+                    {predecessorName && (
+                      <div className="forge-offer-replaces">REPLACES {predecessorName}</div>
+                    )}
                     <div className="forge-offer-row-bot" aria-hidden>
                       <span className="forge-offer-price">
                         <span className="gold-amount">{o.price}</span>G
@@ -764,39 +779,22 @@ export function ForgeShop() {
               {details.displayName}
             </div>
 
-            {(details.currentTier !== null || details.nextTier !== null) && (
+            {(details.offerLabel || details.replacesName) && (
               <div className="fdp-tier-row">
-                {details.currentTier !== null && details.currentTier > 0 && (
-                  <span className="fdp-tier-chip">
-                    OWNED · T{details.currentTier}
+                {details.offerLabel && (
+                  <span className="fdp-tier-chip fdp-tier-next">
+                    {details.offerLabel}
                   </span>
                 )}
-                {details.nextTier !== null && (
-                  <span className="fdp-tier-chip fdp-tier-next">
-                    {details.nextTier === MAX_TIER ? forgeTierLabel(details.nextTier) : `NEXT · ${forgeTierLabel(details.nextTier)}`}
+                {details.replacesName && (
+                  <span className="fdp-tier-chip">
+                    REPLACES · {details.replacesName}
                   </span>
                 )}
               </div>
             )}
 
             <div className="fdp-desc">{details.upgrade.description}</div>
-
-            {details.nextTier === MAX_TIER && details.upgrade.evolution && (
-              <div className="fdp-evolution">
-                <div className="fdp-evo-head">
-                  ★ {details.upgrade.evolution.name}
-                </div>
-                <div className="fdp-evo-flavor">
-                  {details.upgrade.evolution.flavor ?? details.upgrade.description}
-                </div>
-              </div>
-            )}
-
-            {details.currentTier !== null && details.nextTier === null && (
-              <div className="fdp-hint">
-                {forgeTierLabel(details.currentTier)}
-              </div>
-            )}
 
             {details.price !== null && (
               <div className="fdp-price-row">
@@ -1084,9 +1082,6 @@ function FaceDetailsPanel({
             <span className="chip-name">
               {getFaceName(replacerUp.id, character?.id, replacerUp.name)}
             </span>
-            <span className="chip-tier" title={forgeTierLabel(run.ownedFaceUpgrades[replacerUp.id] ?? 1)}>
-              T{run.ownedFaceUpgrades[replacerUp.id] ?? 1}
-            </span>
             <button
               type="button"
               className="forge-info-btn chip-info"
@@ -1098,8 +1093,8 @@ function FaceDetailsPanel({
                 onOpenDetails({
                   upgrade: replacerUp,
                   displayName: getFaceName(replacerUp.id, character?.id, replacerUp.name),
-                  currentTier: run.ownedFaceUpgrades[replacerUp.id] ?? 1,
-                  nextTier: null,
+                  offerLabel: null,
+                  replacesName: null,
                   price: null,
                   isDefault: isDefaultReplacer,
                   isOffer: false,
@@ -1124,7 +1119,12 @@ function FaceDetailsPanel({
           if (!up) {
             return (
               <div key={i} className="forge-chip is-empty is-sub">
-                <span className="chip-kind-icon" aria-hidden>{KIND_GLYPH.supplement}</span>
+                <div className="forge-chip-sub-lead">
+                  <span className="chip-kind-icon" aria-hidden>
+                    {KIND_GLYPH.supplement}
+                  </span>
+                  <span className="chip-sub-icon-placeholder" aria-hidden />
+                </div>
                 <span className="chip-name">—</span>
               </div>
             );
@@ -1155,13 +1155,17 @@ function FaceDetailsPanel({
               }}
               title={`${up.description} · drag to sell`}
             >
-              <span className="chip-kind-icon" aria-hidden title="Supplement">
-                {KIND_GLYPH.supplement}
-              </span>
+              <div className="forge-chip-sub-lead">
+                <span className="chip-kind-icon" aria-hidden title="Supplement">
+                  {KIND_GLYPH.supplement}
+                </span>
+                <FaceIcon
+                  upgradeId={up.id}
+                  characterId={character?.id ?? null}
+                  size={22}
+                />
+              </div>
               <span className="chip-name">{up.name}</span>
-              <span className="chip-tier" title={forgeTierLabel(run.ownedFaceUpgrades[up.id] ?? 1)}>
-                T{run.ownedFaceUpgrades[up.id] ?? 1}
-              </span>
               <button
                 type="button"
                 className="forge-info-btn chip-info"
@@ -1173,8 +1177,8 @@ function FaceDetailsPanel({
                   onOpenDetails({
                     upgrade: up,
                     displayName: up.name,
-                    currentTier: run.ownedFaceUpgrades[up.id] ?? 1,
-                    nextTier: null,
+                    offerLabel: null,
+                    replacesName: null,
                     price: null,
                     isDefault: false,
                     isOffer: false,
