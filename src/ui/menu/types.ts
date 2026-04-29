@@ -7,7 +7,11 @@ export type Theme =
   | 'enchantedForest'
   | 'volcano'
   | 'wizardTower'
-  | 'skyTemple';
+  | 'skyTemple'
+  | 'ironFoundry'
+  | 'abyssalTrench'
+  | 'sunbleachedDunes'
+  | 'stormBalcony';
 
 export const ALL_THEMES: readonly Theme[] = [
   'castle',
@@ -19,6 +23,10 @@ export const ALL_THEMES: readonly Theme[] = [
   'volcano',
   'wizardTower',
   'skyTemple',
+  'ironFoundry',
+  'abyssalTrench',
+  'sunbleachedDunes',
+  'stormBalcony',
 ] as const;
 
 export interface TorchPalette {
@@ -37,9 +45,16 @@ export interface MenuEngine {
   spawnEmber(x: number, y: number, color: string): void;
 }
 
+export interface TorchMount {
+  x: number;
+  y: number;
+}
+
 export interface ThemeController {
   /** Palette used for the flanking torches. */
   torchPal: TorchPalette;
+  /** Flame-center anchors for theme-specific torch holders. */
+  torchMounts?: readonly TorchMount[];
   /** Whether twinkling stars fill the upper sky. */
   stars: boolean;
   /** Whether occasional shooting stars streak across the sky. */
