@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { epic: prices.premiumEpic };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'impact_smash',
     evolution: 'meteor_crash',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, size: 2 }], damageMul: 3.0 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.9, lifeMul: 1.15, size: 1.35, damageMul: 2.6 }], damageMul: 1.0, timing: tempo.heavy },
+    basePrice,
   },
   {
     id: "lance_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'impact_smash',
     evolution: 'meteor_crash',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 3, size: 2.35 }, { verb: 'pulse', radius: 30, damageMul: 0.3, knockback: 16 }], damageMul: 5.25 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 2, speed: 2.0, lifeMul: 1.2, size: 1.55, damageMul: 3.35 }, { verb: 'pulse', radius: 26, damageMul: 0.25, knockback: 16 }], damageMul: 1.0, timing: tempo.artillery },
+    basePrice,
   },
   {
     id: "lance_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'impact_smash',
     evolution: 'meteor_crash',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 99, size: 2.8, element: 'fire' }, { verb: 'pulse', radius: 60, damageMul: 0.8, element: 'fire', knockback: 35 }, { verb: 'flamePillar', count: 1, radius: 30, damageMul: 0.9, duration: 1.1, burnDps: 8, burnDur: 3 }, { verb: 'pulse', radius: 60, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 3, duration: 3 }], damageMul: 7.5, note: 'Meteor' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 99, speed: 2.1, lifeMul: 1.25, size: 1.85, damageMul: 4.4, element: 'fire' }, { verb: 'pulse', radius: 54, damageMul: 0.55, element: 'fire', knockback: 35 }, { verb: 'flamePillar', count: 1, radius: 28, damageMul: 0.7, duration: 1.1, burnDps: 7, burnDur: 3 }, { verb: 'applyStatus', status: 'burn', power: 3, duration: 3 }], damageMul: 1.0, timing: tempo.legendary, note: 'Meteor' },
+    basePrice,
   }
 ];
 
