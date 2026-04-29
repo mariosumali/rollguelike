@@ -69,6 +69,12 @@ export function HUD({ onPause }: Props) {
         <span className="progress-cap cap-l" aria-hidden />
         <span className="progress-cap cap-r" aria-hidden />
       </div>
+      {(hud.roomLine || hud.encounterLine || hud.omenLine) && (
+        <div className="hud-encounter-line pixel-text">
+          <span>{hud.roomLine || hud.encounterLine}</span>
+          {hud.omenLine && <span className="hud-omen-line">{hud.omenLine}</span>}
+        </div>
+      )}
       <div className="hud-row hud-bottom">
         <div className="hud-hpwrap">
           <div className={`hud-hp hp-${hpState}`} aria-label={`HP ${hud.hp}/${hud.maxHp}`}>
