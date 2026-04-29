@@ -325,6 +325,10 @@ const bossDie = [
   '......................',
 ];
 
+function remapRows(rows: string[], palette: Record<string, string>): string[] {
+  return rows.map((row) => Array.from(row, (ch) => palette[ch] ?? ch).join(''));
+}
+
 function defBoss(id: string, a: string[], b: string[]): void {
   defineSprite({
     id,
@@ -344,4 +348,11 @@ export function defineBossSprites(): void {
   defBoss('boss_nullzone', nullZoneA, nullZoneB);
   defBoss('boss_invertking', invertKingA, invertKingB);
   defBoss('boss_reflector', reflectorBossA, reflectorBossB);
+
+  defBoss('warden_lockkeeper', remapRows(faceLockerA, { F: 'a', G: 'b', H: 'u', I: 'y' }), remapRows(faceLockerB, { F: 'a', G: 'b', H: 'u', I: 'y' }));
+  defBoss('warden_broodmother', remapRows(splitterQueenA, { p: 'P', y: 'Q', o: 'p', I: 'S' }), remapRows(splitterQueenB, { p: 'P', y: 'Q', o: 'p', I: 'S' }));
+  defBoss('warden_glass_twin', remapRows(mirrorTwinA, { H: 'q', I: 'r', c: 'S', d: 'w' }), remapRows(mirrorTwinB, { H: 'q', I: 'r', c: 'S', d: 'w' }));
+  defBoss('warden_null_croupier', remapRows(nullZoneA, { E: '0', F: 'E', G: 'F', H: 'R', I: 'S' }), remapRows(nullZoneB, { E: '0', F: 'E', G: 'F', H: 'R', I: 'S' }));
+  defBoss('warden_invert_king', remapRows(invertKingA, { M: 'O', N: 'v', O: 'u', x: 'y' }), remapRows(invertKingB, { M: 'O', N: 'v', O: 'u', x: 'y' }));
+  defBoss('warden_mirror', remapRows(reflectorBossA, { q: 'S', r: 'q', D: 'r', C: 'I', B: 'H' }), remapRows(reflectorBossB, { q: 'S', r: 'q', D: 'r', C: 'I', B: 'H' }));
 }
