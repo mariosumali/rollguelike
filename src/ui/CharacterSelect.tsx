@@ -7,10 +7,8 @@ import { initEnemyContent } from '../content/enemies';
 import { initUpgradeContent } from '../content/upgrades';
 import { playSfx } from '../audio/sfx';
 import { CharacterPortrait } from './CharacterPortrait';
-import type { Character, Element, Face, FaceKind, Rarity } from '../types';
+import type { Character, Element, Face, FaceKind } from '../types';
 import { BALANCE } from '../config/balance';
-import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
-import { getFaceName } from '../content/upgrades/faceNames';
 
 const FACE_LABEL: Record<FaceKind, string> = {
   SHOT: 'SHOT',
@@ -38,13 +36,6 @@ const FACE_COLOR: Record<FaceKind, string> = {
   RAGE_SMASH: '#ff5c5c',
   CHARGED_BOLT: '#9adcff',
   BOMB: '#ff8c4a',
-};
-
-const RARITY_COLORS: Record<Rarity, string> = {
-  common: 'var(--common)',
-  rare: 'var(--rare)',
-  epic: 'var(--epic)',
-  legendary: 'var(--legendary)',
 };
 
 function fmtMul(m?: number): string {
@@ -87,8 +78,8 @@ function describeFace(face: Face, characterId: string): string {
     case 'BOMB':
       return `Lob ${v} bombs${mul}`;
     case 'BLANK':
-      if (characterId === 'gambler') return 'Dud · +1 shield';
-      return 'Nothing';
+      void characterId;
+      return 'Inactive legacy face';
     default:
       return '';
   }
@@ -106,10 +97,8 @@ interface DossierFaceRow {
 /**
  * Builds the faces shown on the character select dossier.
  *
- * Runtime truth is `character.defaultFaces` (populates `slotLayout[i].replacerId`
- * at run start; `resolveFace` executes the replacer upgrade, not `face.kind`).
- * So prefer that when available, and fall back to `startingDice.faces` for
- * any character without defaults, which still rolls the legacy face-kind path.
+ * Runtime truth is `character.defaultFaces`: these baseline actions execute
+ * whenever a slot does not hold a forge-installed replacer.
  */
 function buildDossierFaces(character: Character): DossierFaceRow[] {
   const dice = character.startingDice[0];
@@ -122,24 +111,16 @@ function buildDossierFaces(character: Character): DossierFaceRow[] {
     const value = face?.value ?? i + 1;
     const gambit = character.id === 'gambler' && gambitExtremes.includes(value);
 
-    if (df && df.upgradeId) {
-      const up = getFaceUpgrade(df.upgradeId);
-      const label = getFaceName(df.upgradeId, character.id, up?.name).toUpperCase();
-      const color = up
-        ? RARITY_COLORS[up.rarity]
-        : face
-          ? FACE_COLOR[face.kind]
-          : 'var(--fg-dim)';
-      const element = df.element ?? face?.element ?? 'none';
-
-      let desc = up?.description ?? '';
-      // Gambler's BLANK faces give +1 shield via the passive even though the
-      // replacer upgrade still fires. Surface that side-effect here.
-      if (character.id === 'gambler' && face?.kind === 'BLANK') {
-        desc = desc ? `${desc} · +1 shield on roll` : '+1 shield on roll';
-      }
-
-      return { value, label, color, element, desc, gambit };
+    if (df) {
+      const baseline: Face = { ...df.face, value };
+      return {
+        value,
+        label: df.name.toUpperCase(),
+        color: FACE_COLOR[baseline.kind],
+        element: baseline.element,
+        desc: df.description || describeFace(baseline, character.id),
+        gambit,
+      };
     }
 
     if (!face) {
@@ -270,7 +251,7 @@ export function CharacterSelect() {
                 <span className="tile-corner tc-br" aria-hidden />
 
                 <div className="char-portrait-wrap">
-                  <CharacterPortrait characterId={c.id} size={72} />
+                  <CharacterPortrait characterId={c.id} size={72} fullBody={false} />
                 </div>
 
                 <div className="char-tile-name">
