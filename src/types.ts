@@ -4,6 +4,28 @@ export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type UpgradeCategory = 'dice' | 'projectile' | 'passive' | 'aoe' | 'landmark';
 
 export type Element = 'none' | 'fire' | 'ice' | 'poison' | 'lightning' | 'arcane';
+export type WaveArchetypeId =
+  | 'mixed'
+  | 'rush'
+  | 'escort'
+  | 'splitterFlood'
+  | 'puzzle'
+  | 'ambush'
+  | 'eliteDuel';
+export type EliteKind = 'swift' | 'armored' | 'volatile' | 'twin' | 'golden';
+export type DamageSourceKind =
+  | 'projectile'
+  | 'orbit'
+  | 'beam'
+  | 'pulse'
+  | 'pull'
+  | 'ground'
+  | 'strike'
+  | 'chain'
+  | 'status'
+  | 'landmark'
+  | 'minion'
+  | 'unknown';
 
 export type FaceKind =
   | 'SHOT'
@@ -97,6 +119,9 @@ export interface Projectile {
   rotation: number;
   tags: Set<string>;
   tagT: number;
+  critChance?: number;
+  burnDps?: number;
+  burnDur?: number;
   orbit?: { angle: number; radius: number; omega: number; cx: number; cy: number; ttl: number; reHitTimers?: Map<number, number> };
   minion?: boolean;
   animTrailId?: string;
@@ -122,6 +147,7 @@ export interface Enemy {
   element: Element;
   hitFlash: number;
   slow: number;
+  slowT: number;
   freeze: number;
   poisonT: number;
   poisonDps: number;
@@ -132,6 +158,7 @@ export interface Enemy {
   radiance: number;
   charged: number;
   elite?: boolean;
+  eliteKind?: EliteKind;
   isBoss?: boolean;
 }
 
@@ -172,6 +199,9 @@ export type VfxKind =
   | 'poison'
   | 'freeze'
   | 'lightning'
+  | 'flamePillar'
+  | 'slow'
+  | 'void'
   | 'slash'
   | 'soul'
   | 'trail'
@@ -243,7 +273,49 @@ export interface EnemyType {
   damageFilter?: (roll: RollResult) => boolean;
   elite?: boolean;
   isBoss?: boolean;
+  mechanicDesc?: string;
   bossMechanic?: (e: Enemy, dt: number) => void;
+}
+
+export interface DamageContext {
+  source: DamageSourceKind;
+  face?: Face;
+  dieId?: string;
+  projectile?: Projectile;
+}
+
+export interface RunMutatorModifiers {
+  enemyHpMul?: number;
+  enemyCountMul?: number;
+  enemySpeedMul?: number;
+  playerDamageMul?: number;
+  playerDamageTakenMul?: number;
+  highRollDamageMul?: number;
+  lowRollCooldownMul?: number;
+  goldMul?: number;
+  forgeRarityBonus?: number;
+  eliteChanceBonus?: number;
+  forceOddEvenEarly?: boolean;
+}
+
+export interface RunMutator {
+  id: string;
+  name: string;
+  shortName: string;
+  desc: string;
+  modifiers: RunMutatorModifiers;
+}
+
+export interface BiomeRule {
+  id: string;
+  name: string;
+  shortName: string;
+  desc: string;
+  enemyHpMul?: number;
+  enemySpeedMul?: number;
+  eliteChanceBonus?: number;
+  archetypeWeights?: Partial<Record<WaveArchetypeId, number>>;
+  enemyWeights?: Record<string, number>;
 }
 
 export interface Character {
@@ -317,6 +389,13 @@ export interface RunState {
 
   // Per-run meta counter (feeds MetaState.maxGoldSpentInRun at run end).
   goldSpent: number;
+
+  // Run identity and encounter pacing.
+  runMutatorId?: string;
+  currentWaveArchetypeId?: WaveArchetypeId;
+  currentBiomeRuleId?: string;
+  nextForgeDiscount?: number;
+  guaranteedForgeRarity?: Rarity;
 }
 
 export interface SpawnEvent {
@@ -324,6 +403,7 @@ export interface SpawnEvent {
   t: number;
   x: number;
   elite?: boolean;
+  eliteKind?: EliteKind;
 }
 
 export interface WaveScript {
@@ -332,4 +412,6 @@ export interface WaveScript {
   events: SpawnEvent[];
   duration: number;
   bossTypeId?: string;
+  archetypeId?: WaveArchetypeId;
+  biomeRuleId?: string;
 }

@@ -7,14 +7,18 @@ export const BALANCE = {
   },
 
   die: {
-    baseRollDuration: 0.6,
-    rollDurationMin: 0.35,
+    baseRollDuration: 0.9,
+    rollDurationMin: 0.525,
     postRollCooldown: 0.25,
   },
 
   enemy: {
-    hpScale: (wave: number) => Math.pow(1.14, wave - 1),
-    speedScale: (wave: number) => Math.min(1 + (wave - 1) * 0.02, 1.75),
+    hpScale: (wave: number) => Math.pow(1.105, wave - 1),
+    speedScale: (wave: number) => Math.min(1 + (wave - 1) * 0.018, 1.65),
+    bossHpMul: (wave: number) => 3.1 + wave * 0.18,
+    eliteHpMul: 1.65,
+    eliteSpeedMul: 1.12,
+    eliteBaseChance: (wave: number) => Math.min(0.18, Math.max(0, (wave - 4) * 0.012)),
     baseSpawnInterval: (wave: number) => Math.max(0.4, 1.3 - wave * 0.035),
     countPerWave: (wave: number, isBoss: boolean) => {
       if (isBoss) return 1 + Math.floor(wave / 10);
@@ -96,7 +100,7 @@ export const BALANCE = {
     slotCapBase: 2,
     slotCapMax: 4,
     ownedT1T2WeightMul: 1.4,
-    ownedT3T4WeightMul: 1.2,
+    ownedT3T4WeightMul: 0.2,
     ownedMaxWeightMul: 0.2,
     maxTierDuplicateRefund: 8,
     // Forge unlocks higher-rarity upgrades as the run progresses. Offers of a
@@ -104,9 +108,9 @@ export const BALANCE = {
     // cannot appear in the forge at all.
     rarityMinWave: {
       common: 1,
-      rare: 9,
-      epic: 18,
-      legendary: 30,
+      rare: 4,
+      epic: 10,
+      legendary: 20,
     } as Record<Rarity, number>,
     // Even after a rarity unlocks, its selection weight ramps up with the wave
     // so early forges lean hard on commons and only gradually broaden out.
@@ -115,13 +119,14 @@ export const BALANCE = {
         case 'common':
           return Math.max(1.2 - wave * 0.01, 0.4);
         case 'rare':
-          return Math.min(0.2 + Math.max(0, wave - 8) * 0.027, 1.0);
+          return Math.min(0.45 + Math.max(0, wave - 3) * 0.04, 1.15);
         case 'epic':
-          return Math.min(0.05 + Math.max(0, wave - 17) * 0.023, 0.8);
+          return Math.min(0.12 + Math.max(0, wave - 9) * 0.035, 0.9);
         case 'legendary':
-          return Math.min(0.02 + Math.max(0, wave - 29) * 0.017, 0.5);
+          return Math.min(0.03 + Math.max(0, wave - 19) * 0.022, 0.55);
       }
     },
+    postBossDiscount: 0.2,
   },
 
   faceUpgrade: {
@@ -131,10 +136,10 @@ export const BALANCE = {
       brightnessPerTier: 0.1,
     },
     basePrices: {
-      common: [12, 22, 38, 60, 90],
-      rare: [24, 42, 72, 115, 175],
-      epic: [48, 88, 150, 240, 360],
-      legendary: [95, 180, 310, 490, 740],
+      common: [12, 38, 90],
+      rare: [24, 72, 175],
+      epic: [48, 150, 360],
+      legendary: [95, 310, 740],
     } as Record<Rarity, number[]>,
   },
 

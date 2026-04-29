@@ -27,10 +27,10 @@ export interface TierIntensity {
 }
 
 export function intensity(tier: number): TierIntensity {
-  const t = Math.max(1, Math.min(5, tier));
+  const t = Math.max(1, Math.min(3, tier));
   return {
-    scale: 1 + 0.2 * (t - 1),
-    particles: 1 + 0.25 * (t - 1),
-    brightness: 1 + 0.1 * (t - 1),
+    scale: 1 + 0.3 * (t - 1),
+    particles: 1 + 0.4 * (t - 1),
+    brightness: 1 + 0.18 * (t - 1),
   };
 }
