@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { epic: prices.standardEpic };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -14,7 +18,8 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'necromancer',
     animation: { cast: 'wraith_bloom', projectile: 'minion_trail', hit: 'wraith_strike', evolution: 'lich_march' },
     icon: ['..............','....HHHHHH....','...HddddddH...','..HddHddHddH..','..HddddddddH..','..HddHHHHddH..','..HddddddddH..','...HddddddH...','....HHHHHH....','......H.......','......H.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 1, hp: 5, duration: 3.2, damagePerHit: 6, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 38, power: 1.1, duration: 2 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 1, hp: 5, duration: 3.2, damagePerHit: 6, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 38, power: 1.1, duration: 2 }], damageMul: 1.0, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "grave_contract_ii",
@@ -30,7 +35,8 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'necromancer',
     animation: { cast: 'wraith_bloom', projectile: 'minion_trail', hit: 'wraith_strike', evolution: 'lich_march' },
     icon: ['..............','....HHHHHH....','...HddddddH...','..HddHddHddH..','..HddddddddH..','..HddHHHHddH..','..HddddddddH..','...HddddddH...','....HHHHHH....','......H.......','......H.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 2, hp: 7, duration: 4.0, damagePerHit: 8, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 52, power: 1.25, duration: 2.5 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 2, hp: 7, duration: 4.0, damagePerHit: 8, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 52, power: 1.25, duration: 2.5 }], damageMul: 1.0, timing: tempo.heavy },
+    basePrice,
   },
   {
     id: "grave_contract_iii",
@@ -45,7 +51,8 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'necromancer',
     animation: { cast: 'wraith_bloom', projectile: 'minion_trail', hit: 'wraith_strike', evolution: 'lich_march' },
     icon: ['..............','....HHHHHH....','...HddddddH...','..HddHddHddH..','..HddddddddH..','..HddHHHHddH..','..HddddddddH..','...HddddddH...','....HHHHHH....','......H.......','......H.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 3, hp: 9, duration: 5.0, damagePerHit: 10, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 70, power: 1.45, duration: 3 }, { verb: 'statusAura', status: 'mark', radius: 70, power: 1.4, duration: 3 }], damageMul: 1.0, note: 'Debt Collector' },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 3, hp: 9, duration: 5.0, damagePerHit: 10, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 70, power: 1.55, duration: 3 }], damageMul: 1.0, timing: tempo.artillery, note: 'Debt Collector' },
+    basePrice,
   }
 ];
 
