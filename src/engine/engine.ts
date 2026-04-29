@@ -13,6 +13,8 @@ import type {
   RollResult,
   Element,
   DamageContext,
+  HouseEnemyFamily,
+  CasinoChestReward,
 } from '../types';
 import { BALANCE } from '../config/balance';
 import {
@@ -94,8 +96,17 @@ import {
   getFaceUpgrade,
 } from '../content/upgrades/faceRegistry';
 import { MAX_TIER } from '../content/upgrades/types';
+import type { FaceUpgradeTiming } from '../content/upgrades/types';
 import { resolveFace, deriveProjectileColor, findNearestEnemyXY, DEFAULT_AIM } from '../systems/faceResolve';
 import { createSlotLayout, canPlaceSupplement, expandSlot, slotAllowedTags, isSlotLocked } from '../systems/slots';
+import { baubleMul, collectBaubleStats } from '../systems/baubles';
+import {
+  adjustChestTier,
+  casinoFaceSlotOptions,
+  createCasinoIntermission,
+  rollCasinoGameResult,
+  rollCasinoRewards,
+} from '../systems/chestRewards';
 import { getAnimationSpec } from '../content/animations/registry';
 import type { TierIntensity } from '../content/animations/types';
 import { DEFAULT_PROJECTILE_ARCHETYPE } from '../content/characters/projectiles';
@@ -109,8 +120,8 @@ import {
   getParticleMultiplier,
   getAutoRollEnabled,
 } from '../state/prefsRuntime';
-import { useStore, setRunState } from '../state/store';
-import { saveRun, incrementRunsCompleted, saveMeta } from '../state/persistence';
+import { useStore, setRunState, type ForgeShopOffer } from '../state/store';
+import { saveRun, incrementRunsCompleted, saveMeta, recordEnemyEncounters } from '../state/persistence';
 import { DIE_THEME_IDS as ALL_DIE_THEME_IDS } from '../sprites/dice';
 import { palHex } from '../sprites/palette';
 import { weighted } from './rng';
@@ -138,6 +149,11 @@ interface PendingAttack {
   t: number;
   delay: number;
 }
+
+const DEFAULT_FACE_TIMING: Required<Pick<FaceUpgradeTiming, 'castDelay' | 'recovery'>> = {
+  castDelay: 0.04,
+  recovery: 0,
+};
 
 interface PendingShot {
   t: number;
@@ -236,6 +252,7 @@ const FRENZY_SPEED_MUL = 2;
 const TWIN_DICE_UPGRADE_ID = 'landmark_twin_dice';
 const TWIN_DICE_SUFFIX = '__twin';
 const TWIN_DICE_DAMAGE_MUL = 0.5;
+let knownEncounteredEnemyIds = new Set<string>();
 
 interface EngineState {
   run: RunState | null;
@@ -285,7 +302,7 @@ interface EngineState {
     wave: number; score: number; hp: number; maxHp: number;
     shield: number; souls: number; rage: number; gold: number; gambitStacks: number; characterId: string;
     isBossWave: boolean; waveProgress: number; runMutatorName: string; runMutatorShortName: string;
-    waveArchetypeName: string; biomeName: string; forgeBonusLabel: string;
+    waveArchetypeName: string; biomeName: string; encounterLine: string; roomLine: string; omenLine: string; forgeBonusLabel: string;
   } | null;
 }
 
@@ -340,6 +357,7 @@ export function initEngine(): void {
   initSprites();
   const themeId = useStore.getState().settings.dieTheme;
   state.dieSprites = buildDieSpriteSet(getDieTheme(themeId));
+  knownEncounteredEnemyIds = new Set(useStore.getState().meta.encounteredEnemyIds ?? []);
 }
 
 export function startRun(characterId: string, resumeRun?: RunState): void {
@@ -363,6 +381,9 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   state.pendingPulses = [];
   state.reflect = null;
   state.lastRolled = null;
+  state.wave = null;
+  state.waveT = 0;
+  state.nextSpawnIdx = 0;
   state.waveClearedT = -1;
   state.spawnedForWave = false;
   state.paused = false;
@@ -403,19 +424,14 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
       waveStartedAt: 0,
       rerolls: 0,
       pickCount: 0,
+      casinoWaveDamageTaken: 0,
+      casinoWaveEliteKills: 0,
       gold: 0,
       ownedFaceUpgrades: {},
       slotLayout: createSlotLayout(ch),
       gambitStacks: 0,
       goldSpent: 0,
     };
-
-  for (const df of ch.defaultFaces ?? []) {
-    if (!df.upgradeId) continue;
-    if (!run.ownedFaceUpgrades[df.upgradeId]) {
-      run.ownedFaceUpgrades[df.upgradeId] = 1;
-    }
-  }
 
   state.run = run;
   setRunState(run);
@@ -432,6 +448,16 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   const env = envFor(run);
   onApply(env);
   syncActiveUpgradesToStore();
+  useStore.getState().setCasinoState(null);
+  if (run.pendingCasino) {
+    normalizeCasinoIntermission(run);
+    state.paused_upgrade = true;
+    state.paused = true;
+    useStore.getState().setCasinoState(run.pendingCasino);
+    useStore.getState().setScreen('casino');
+    syncHudToStore();
+    return;
+  }
   setupWave(run.wave);
   syncHudToStore();
 }
@@ -439,11 +465,18 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
 export function continueRun(run: RunState): void {
   if (state.run === run && state.wave) {
     initEngine();
+    state.paused_upgrade = Boolean(run.pendingCasino) || state.paused_upgrade;
     state.paused = state.paused_upgrade;
     state.tapQueued = false;
     syncActiveUpgradesToStore();
     syncHudToStore();
-    useStore.getState().setScreen('game');
+    if (run.pendingCasino) {
+      normalizeCasinoIntermission(run);
+      useStore.getState().setCasinoState(run.pendingCasino);
+      useStore.getState().setScreen('casino');
+    } else {
+      useStore.getState().setScreen('game');
+    }
     return;
   }
 
@@ -509,6 +542,21 @@ function envFor(run: RunState) {
   };
 }
 
+function baubleHealingAmount(run: RunState, amount: number): number {
+  return Math.max(0, amount * baubleMul(collectBaubleStats(run).healingReceivedMul));
+}
+
+function baubleGoldAmount(
+  run: RunState,
+  amount: number,
+  rounding: 'floor' | 'round' = 'round',
+  min = 0,
+): number {
+  const boosted = amount * baubleMul(collectBaubleStats(run).goldGainMul);
+  const value = rounding === 'floor' ? Math.floor(boosted) : Math.round(boosted);
+  return Math.max(min, value);
+}
+
 function setupWave(waveNum: number): void {
   const isBoss = waveNum % BALANCE.waves.bossEvery === 0;
   const run = state.run!;
@@ -524,7 +572,14 @@ function setupWave(waveNum: number): void {
   state.frenzyActive = false;
   state.frenzyT = 0;
   run.waveStartedAt = state.time;
+  run.casinoWaveDamageTaken = 0;
+  run.casinoWaveEliteKills = 0;
   fireOnWaveStart(envFor(run), waveNum);
+  const baubleShield = Math.floor(collectBaubleStats(run).waveStartShield);
+  if (baubleShield > 0) {
+    run.shield = Math.min(BALANCE.combat.shieldMax, run.shield + baubleShield);
+    spawnShieldVfx();
+  }
 
   const stageIdx = stageIndexForWave(waveNum);
   if (stageIdx !== state.announcedStageIdx) {
@@ -681,6 +736,7 @@ export function update(dt: number): void {
     if (!e.alive) continue;
     updateEnemy(e, dt, run);
   }
+  recordAliveEnemyEncounters();
 
   for (const p of state.projectiles) {
     if (!p.alive) continue;
@@ -762,7 +818,9 @@ function updateDie(die: DieInstance, dt: number, run: RunState): void {
       die.landedAt = state.time;
       const face = pickFace(die, run);
       die.value = face.value;
-      resolveRoll(die, face, run);
+      const timing = getTimingForFace(face, run);
+      die.landedAt += Math.max(0, timing.recovery ?? 0);
+      resolveRoll(die, face, run, timing);
       const lowRollCooldownMul = getRunMutator(run.runMutatorId)?.modifiers.lowRollCooldownMul;
       if (lowRollCooldownMul && face.value <= 2) {
         die.landedAt -= BALANCE.die.postRollCooldown * (1 - lowRollCooldownMul);
@@ -786,7 +844,15 @@ function pickFace(die: DieInstance, run: RunState): Face {
   return pick(state.rng, die.config.faces);
 }
 
-function resolveRoll(die: DieInstance, face: Face, run: RunState): void {
+function getTimingForFace(face: Face, run: RunState): FaceUpgradeTiming {
+  if (face.value < 1) return DEFAULT_FACE_TIMING;
+  const slotIndex = Math.max(0, Math.min(5, face.value - 1));
+  const slot = run.slotLayout?.[slotIndex];
+  const upgrade = slot?.replacerId ? getFaceUpgrade(slot.replacerId) : undefined;
+  return upgrade?.effect.timing ?? DEFAULT_FACE_TIMING;
+}
+
+function resolveRoll(die: DieInstance, face: Face, run: RunState, timing: FaceUpgradeTiming): void {
   state.rollCount++;
   fireOnRoll(envFor(run), face, die.config.id);
   emitEvent('roll-land', { face });
@@ -794,7 +860,7 @@ function resolveRoll(die: DieInstance, face: Face, run: RunState): void {
     face,
     dieId: die.config.id,
     t: 0,
-    delay: 0.04,
+    delay: Math.max(0, timing.castDelay ?? DEFAULT_FACE_TIMING.castDelay),
   });
 
   if (run.characterId === 'alchemist' && state.lastRolled && state.lastRolled.element !== face.element) {
@@ -905,7 +971,8 @@ function announceFace(face: Face): void {
 function executeFace(face: Face, dieId: string, run: RunState): void {
   const slotIndex = Math.max(0, Math.min(5, face.value - 1));
   const slot = face.value >= 1 ? run.slotLayout?.[slotIndex] : undefined;
-  const slotActive = !!(slot && (slot.replacerId || slot.supplementIds.length > 0));
+  const slotActive = !!slot?.replacerId;
+  const baselineActive = !!getCharacter(run.characterId)?.defaultFaces?.[slotIndex];
   // The die renders the slot replacer icon based on face.value, so for BLANK
   // faces where a replacer is installed we must play the active pose and let
   // the upgrade's cast animation speak for itself instead of the BLANK popup.
@@ -915,7 +982,7 @@ function executeFace(face: Face, dieId: string, run: RunState): void {
     triggerPoseForFace(face);
     announceFace(face);
   }
-  if ((face.kind === 'BLANK' || face.value < 1) && !slotActive) {
+  if ((face.kind === 'BLANK' || face.value < 1) && !slotActive && !baselineActive) {
     state.lastRolled = face;
     return;
   }
@@ -941,7 +1008,7 @@ function executeFace(face: Face, dieId: string, run: RunState): void {
       haptic(HAPTIC.shield);
     },
     heal: (amt) => {
-      run.hp = Math.min(run.maxHp, run.hp + amt);
+      run.hp = Math.min(run.maxHp, run.hp + baubleHealingAmount(run, amt));
       for (let i = 0; i < 5; i++) spawnHealParticle();
       playSfx('heal');
       haptic(HAPTIC.shield);
@@ -978,7 +1045,7 @@ function executeFace(face: Face, dieId: string, run: RunState): void {
       }
     },
     addGold: (amount) => {
-      run.gold += Math.max(0, Math.floor(amount));
+      run.gold += baubleGoldAmount(run, amount, 'floor');
     },
     startOrbit: (params) => {
       spawnOrbiters(params);
@@ -1039,9 +1106,10 @@ function executeFace(face: Face, dieId: string, run: RunState): void {
         const dx = e.x - PLAYER_X;
         const dy = e.y - PLAYER_Y;
         if (dx * dx + dy * dy <= params.radius * params.radius) {
-          e.freeze = Math.max(e.freeze, params.freezeDur);
+          const freezeDur = params.freezeDur * baubleMul(collectBaubleStats(run).freezeDurationMul);
+          e.freeze = Math.max(e.freeze, freezeDur);
           e.slow = Math.max(e.slow, params.slow);
-          e.slowT = Math.max(e.slowT, params.freezeDur + 0.8);
+          e.slowT = Math.max(e.slowT, freezeDur + 0.8);
         }
       }
       spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 8, life: 0.55, kind: 'freeze', color: palHex('q')!, size: params.radius });
@@ -1103,6 +1171,10 @@ function playAnimationSpec(animId: string | undefined, x: number, y: number, int
     spawnVfx({ x, y, life, kind: 'spark', color, size: sz });
   }
   if (spec.shake) addTrauma(spec.shake * intens.brightness);
+}
+
+export function playRelicAnimation(animId: string | undefined, x = PLAYER_X, y = PLAYER_Y - 8, scale = 1.8): void {
+  playAnimationSpec(animId, x, y, { scale, particles: 1.5, brightness: 1.25 });
 }
 
 function spawnOrbiters(params: { count: number; radius: number; rpm: number; damage: number; duration: number; pierce: number; element: Element; face: Face }): void {
@@ -1184,7 +1256,9 @@ function doBeam(params: { width: number; dps: number; duration: number; pierce: 
   for (let i = 0; i < hitCount; i++) {
     const e = sortedEnemies[i]!.enemy;
     const damaged = hitEnemy(e, total, params.element, run, undefined, { source: 'beam', face: params.face });
-    if (damaged && params.lifesteal > 0) run.hp = Math.min(run.maxHp, run.hp + params.lifesteal);
+    if (damaged && params.lifesteal > 0) {
+      run.hp = Math.min(run.maxHp, run.hp + baubleHealingAmount(run, params.lifesteal));
+    }
     farthestAlong = Math.max(farthestAlong, sortedEnemies[i]!.along);
   }
 
@@ -1249,6 +1323,7 @@ function tickGroundZones(dt: number, run: RunState): void {
         e.slowT = Math.max(e.slowT, 0.2);
       }
       if (z.burnDps && z.burnDur) {
+        if (z.burnDps >= e.poisonDps) e.data['dotKind'] = 2;
         e.poisonDps = Math.max(e.poisonDps, z.burnDps);
         e.poisonT = Math.max(e.poisonT, z.burnDur);
       }
@@ -1304,7 +1379,9 @@ function strikeAt(x: number, y: number, s: TimedStrike, run: RunState): void {
     const dy = e.y - y;
     if (dx * dx + dy * dy > s.radius * s.radius) continue;
     hitEnemy(e, s.damage, s.element, run, undefined, { source: 'strike' });
-    if (s.stunDur > 0) e.freeze = Math.max(e.freeze, s.stunDur);
+    if (s.stunDur > 0) {
+      e.freeze = Math.max(e.freeze, s.stunDur * baubleMul(collectBaubleStats(run).stunDurationMul));
+    }
     hitCount++;
   }
   if (s.chainToExtra > 0 && hitCount > 0) {
@@ -1340,6 +1417,9 @@ function doChainLightning(
   params: { jumps: number; damage: number; radius: number; stunDur: number; element: Element; fromDie: boolean },
   run: RunState,
 ): void {
+  const stats = collectBaubleStats(run);
+  const radius = params.radius * baubleMul(stats.chainRangeMul);
+  const stunDur = params.stunDur * baubleMul(stats.stunDurationMul);
   const used = new Set<number>();
   let fromX = params.fromDie ? PLAYER_X : PLAYER_X;
   let fromY = params.fromDie ? DIE_Y : PLAYER_Y - 16;
@@ -1348,13 +1428,13 @@ function doChainLightning(
     if (!next) break;
     const dx = next.x - fromX;
     const dy = next.y - fromY;
-    if (dx * dx + dy * dy > params.radius * params.radius && used.size > 0) break;
+    if (dx * dx + dy * dy > radius * radius && used.size > 0) break;
     drawChainLightning(fromX, fromY, next.x, next.y);
     hitEnemy(next, params.damage * Math.pow(0.82, i), params.element, run, undefined, { source: 'chain' });
-    if (params.stunDur > 0) {
-      next.freeze = Math.max(next.freeze, params.stunDur);
+    if (stunDur > 0) {
+      next.freeze = Math.max(next.freeze, stunDur);
       next.slow = Math.max(next.slow, 0.45);
-      next.slowT = Math.max(next.slowT, params.stunDur + 0.3);
+      next.slowT = Math.max(next.slowT, stunDur + 0.3);
     }
     next.charged = Math.max(next.charged, 1.5);
     used.add(next.id);
@@ -1406,12 +1486,19 @@ function applyEnemyStatus(
   power: number,
   duration: number,
 ): void {
+  const stats = collectBaubleStats(state.run);
   if (status === 'burn' || status === 'poison') {
-    e.poisonDps = Math.max(e.poisonDps, power);
-    e.poisonT = Math.max(e.poisonT, duration);
+    const dpsMul = status === 'poison' ? baubleMul(stats.poisonApplicationDpsMul) : 1;
+    const durationMul = status === 'poison' ? baubleMul(stats.poisonDurationMul) : 1;
+    const dps = power * dpsMul;
+    if (dps >= e.poisonDps) e.data['dotKind'] = status === 'burn' ? 2 : 1;
+    e.poisonDps = Math.max(e.poisonDps, dps);
+    e.poisonT = Math.max(e.poisonT, duration * durationMul);
   } else if (status === 'freeze' || status === 'stun') {
-    e.freeze = Math.max(e.freeze, duration);
-    if (status === 'freeze') e.slowT = Math.max(e.slowT, duration + 0.5);
+    const durationMul = baubleMul(status === 'freeze' ? stats.freezeDurationMul : stats.stunDurationMul);
+    const adjustedDuration = duration * durationMul;
+    e.freeze = Math.max(e.freeze, adjustedDuration);
+    if (status === 'freeze') e.slowT = Math.max(e.slowT, adjustedDuration + 0.5);
   } else if (status === 'slow') {
     e.slow = Math.max(e.slow, Math.min(0.85, power));
     e.slowT = Math.max(e.slowT, duration);
@@ -1428,14 +1515,15 @@ function spawnProjectile(x: number, y: number, dx: number, dy: number, damage: n
   const p = acquire(state.projectiles, makeProjectile);
   resetProjectile(p);
   const len = Math.hypot(dx, dy) || 1;
-  const speed = BALANCE.combat.projectileSpeed * (archetype.speedMul ?? 1);
+  const stats = collectBaubleStats(run);
+  const speed = BALANCE.combat.projectileSpeed * (archetype.speedMul ?? 1) * baubleMul(stats.projectileSpeedMul);
   p.x = x;
   p.y = y;
   p.vx = (dx / len) * speed;
   p.vy = (dy / len) * speed;
-  p.radius = archetype.radius;
-  p.damage = damage;
-  p.maxAge = BALANCE.combat.projectileLife * (archetype.lifeMul ?? 1);
+  p.radius = archetype.radius * baubleMul(stats.projectileRadiusMul);
+  p.damage = damage * baubleMul(stats.projectileDamageMul);
+  p.maxAge = BALANCE.combat.projectileLife * (archetype.lifeMul ?? 1) * baubleMul(stats.projectileLifetimeMul);
   p.element = face.element;
   p.color = deriveProjectileColor(face);
   p.sourceFaceValue = face.value;
@@ -1457,6 +1545,8 @@ function spawnProjectile(x: number, y: number, dx: number, dy: number, damage: n
   p.rotation = archetype.rotate === 'velocity' ? Math.atan2(p.vy, p.vx) : state.rng() * Math.PI * 2;
   archetype.onSpawn?.(p, face, run, state.rng);
   onProjectileSpawn(envFor(run), p, face);
+  const baubleCrit = stats.projectileCritChance + (p.element === 'fire' ? stats.fireProjectileCritChance : 0);
+  if (baubleCrit > 0) p.critChance = Math.min(0.85, (p.critChance ?? 0) + baubleCrit);
   const muzAngle = Math.atan2(dy, dx);
   spawnVfx({ x, y, vx: Math.cos(muzAngle) * 40, vy: Math.sin(muzAngle) * 40, life: 0.12, kind: 'muzzle', color: p.color, size: 2, angle: muzAngle });
   return p;
@@ -1596,7 +1686,9 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
       p.hitIds.add(e.id);
       p.archetype?.onHit?.(p, e, run);
       let hitDamage = p.damage;
-      if ((p.critChance ?? 0) > 0 && state.rng() < (p.critChance ?? 0)) {
+      const baubleCrit = e.freeze > 0 ? collectBaubleStats(run).frozenCritChance : 0;
+      const critChance = Math.min(0.85, (p.critChance ?? 0) + baubleCrit);
+      if (critChance > 0 && state.rng() < critChance) {
         hitDamage *= 2.35;
         spawnPopup(e.x, e.y - 18, 'CRIT', palHex('y')!, 9);
         spawnVfx({ x: e.x, y: e.y, life: 0.28, kind: 'reaction', color: palHex('y')!, size: 8 });
@@ -1609,6 +1701,7 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
         continue;
       }
       if ((p.burnDps ?? 0) > 0) {
+        if ((p.burnDps ?? 0) >= e.poisonDps) e.data['dotKind'] = 2;
         e.poisonDps = Math.max(e.poisonDps, p.burnDps ?? 0);
         e.poisonT = Math.max(e.poisonT, p.burnDur ?? 2);
         spawnVfx({ x: e.x, y: e.y, life: 0.35, kind: 'flamePillar', color: palHex('u')!, size: Math.max(8, e.radius) });
@@ -1646,7 +1739,7 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
         p.split = 0;
       }
       if (p.lifesteal > 0) {
-        run.hp = Math.min(run.maxHp, run.hp + p.lifesteal);
+        run.hp = Math.min(run.maxHp, run.hp + baubleHealingAmount(run, p.lifesteal));
         spawnHealParticle();
       }
       if (p.pierce > 0) {
@@ -1659,7 +1752,7 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
   }
 }
 
-function hitEnemy(
+export function hitEnemy(
   e: Enemy,
   damage: number,
   element: string,
@@ -1711,6 +1804,7 @@ function hitEnemy(
     }
   }
   if (e.eliteKind === 'armored' && !e.isBoss) dmg *= 0.85;
+  dmg = applyBaubleDamageModifiers(dmg, e, element, run, damageCtx);
   e.hp -= dmg;
   e.hitFlash = 0.12;
   const trauma = damageTraumaForSource(damageCtx.source);
@@ -1719,18 +1813,25 @@ function hitEnemy(
   spawnPopup(e.x, e.y - 8, Math.floor(dmg).toString(), popupColor(dmg), dmg > 25 ? 10 : 8);
   if (element === 'fire') {
     e.poisonT = Math.max(e.poisonT, 2);
-    e.poisonDps = Math.max(e.poisonDps, elementalDotDps('fire', dmg));
+    const fireDps = elementalDotDps('fire', dmg);
+    if (fireDps >= e.poisonDps) e.data['dotKind'] = 2;
+    e.poisonDps = Math.max(e.poisonDps, fireDps);
   } else if (element === 'poison') {
-    e.poisonT = Math.max(e.poisonT, 3);
-    e.poisonDps = Math.max(e.poisonDps, elementalDotDps('poison', dmg));
+    const stats = collectBaubleStats(run);
+    const poisonDps = elementalDotDps('poison', dmg) * baubleMul(stats.poisonApplicationDpsMul);
+    if (poisonDps >= e.poisonDps) e.data['dotKind'] = 1;
+    e.poisonT = Math.max(e.poisonT, 3 * baubleMul(stats.poisonDurationMul));
+    e.poisonDps = Math.max(e.poisonDps, poisonDps);
   } else if (element === 'ice') {
-    e.freeze = Math.max(e.freeze, 1.2);
+    const freezeDur = 1.2 * baubleMul(collectBaubleStats(run).freezeDurationMul);
+    e.freeze = Math.max(e.freeze, freezeDur);
     e.slow = Math.max(e.slow, 0.5);
-    e.slowT = Math.max(e.slowT, 1.6);
+    e.slowT = Math.max(e.slowT, freezeDur + 0.4);
   } else if (element === 'lightning') {
-    e.freeze = Math.max(e.freeze, BALANCE.combat.lightningStunT);
+    const stunDur = BALANCE.combat.lightningStunT * baubleMul(collectBaubleStats(run).stunDurationMul);
+    e.freeze = Math.max(e.freeze, stunDur);
     e.slow = Math.max(e.slow, 0.6);
-    e.slowT = Math.max(e.slowT, 0.65);
+    e.slowT = Math.max(e.slowT, stunDur + 0.45);
     const exclude = new Set<number>([e.id]);
     const next = findNearestEnemy(e.x, e.y, exclude);
     if (next) {
@@ -1741,9 +1842,10 @@ function hitEnemy(
   }
   if (e.chill >= 2 && e.hp > 0) {
     e.chill = 0;
-    e.freeze = Math.max(e.freeze, 1.5);
+    const freezeDur = 1.5 * baubleMul(collectBaubleStats(run).freezeDurationMul);
+    e.freeze = Math.max(e.freeze, freezeDur);
     e.slow = Math.max(e.slow, 0.65);
-    e.slowT = Math.max(e.slowT, 2);
+    e.slowT = Math.max(e.slowT, freezeDur + 0.5);
     spawnVfx({ x: e.x, y: e.y, life: 0.4, kind: 'freeze', color: palHex('q')!, size: 8 });
   }
   if (e.radiance >= 5 && e.hp > 0) {
@@ -1817,6 +1919,35 @@ function showImmuneFeedback(e: Enemy, ctx: DamageContext): void {
   spawnVfx({ x: e.x, y: e.y, life: 0.2, kind: 'spark', color: '#9fa7bd', size: 1 });
 }
 
+function applyBaubleDamageModifiers(
+  dmg: number,
+  e: Enemy,
+  element: string,
+  run: RunState,
+  damageCtx: DamageContext,
+): number {
+  const stats = collectBaubleStats(run);
+  let additive = stats.allDamageMul;
+  if (e.freeze > 0) additive += stats.damageToFrozenMul;
+  if (e.slow > 0 || e.chill > 0) additive += stats.damageToSlowedMul;
+  if (e.poisonT > 0 && e.poisonDps > 0) {
+    additive += stats.damageToPoisonedMul + stats.damageToBurningMul;
+  }
+  if (e.elite || e.isBoss) additive += stats.damageToEliteBossMul;
+  if (run.hp <= run.maxHp * 0.5) additive += stats.lowHpDamageMul;
+  if (damageCtx.face && damageCtx.face.value <= 2) additive += stats.lowFaceDamageMul;
+  if (damageCtx.face && damageCtx.face.value >= 5) additive += stats.highFaceDamageMul;
+  if (element === 'fire') additive += stats.fireDamageMul;
+  if (element === 'lightning') additive += stats.lightningDamageMul;
+  if (element === 'arcane') additive += stats.arcaneDamageMul;
+  if (damageCtx.source === 'chain') additive += stats.chainDamageMul;
+  if (damageCtx.source === 'pulse') additive += stats.pulseDamageMul;
+  if (damageCtx.source === 'beam') additive += stats.beamDamageMul;
+  if (damageCtx.source === 'orbit') additive += stats.orbitDamageMul;
+  if (damageCtx.source === 'strike') additive += stats.strikeDamageMul;
+  return dmg * baubleMul(additive);
+}
+
 function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   if (e.state === 'die') return;
   e.state = 'die';
@@ -1824,9 +1955,11 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   e.hp = 0;
   e.poisonT = 0;
   e.poisonDps = 0;
+  delete e.data['dotKind'];
   e.hitFlash = 0;
   state.lastKillTime = state.time;
   run.kills++;
+  if (e.elite) run.casinoWaveEliteKills = (run.casinoWaveEliteKills ?? 0) + 1;
   run.score += BALANCE.scoring.perKill(run.wave);
   const mutator = getRunMutator(run.runMutatorId);
   const baseGoldAward = e.isBoss
@@ -1835,7 +1968,7 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
       ? BALANCE.gold.eliteKill(run.wave)
       : BALANCE.gold.perKill(run.wave);
   const eliteGoldMul = e.eliteKind === 'golden' ? 2 : 1;
-  run.gold += Math.max(1, Math.round(baseGoldAward * eliteGoldMul * (mutator?.modifiers.goldMul ?? 1)));
+  run.gold += baubleGoldAmount(run, baseGoldAward * eliteGoldMul * (mutator?.modifiers.goldMul ?? 1), 'round', 1);
   addTrauma(0.08);
   spawnVfx({ x: e.x, y: e.y, life: 0.35, kind: 'ring', color: '#fff', size: 4 });
   for (let i = 0; i < 6; i++) {
@@ -1853,6 +1986,7 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
     });
   }
   const type = getEnemyType(e.typeId);
+  if (type?.family) spawnHouseDeathVfx(e, type.family);
   if (e.eliteKind === 'volatile') {
     doPulseAt(e.x, e.y, 46, Math.max(10, e.maxHp * 0.18), 'fire', run);
   } else if (e.eliteKind === 'twin' && !e.isBoss) {
@@ -1873,11 +2007,25 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   }
 }
 
+function spawnHouseDeathVfx(e: Enemy, family: HouseEnemyFamily): void {
+  const color = houseFamilyColor(family);
+  const kind = family === 'suture' ? 'heal' : family === 'null' ? 'reaction' : family === 'mirror' ? 'ring' : 'spark';
+  spawnVfx({
+    x: e.x,
+    y: e.y,
+    life: e.isBoss ? 0.7 : 0.38,
+    kind,
+    color,
+    size: e.isBoss ? 26 : Math.max(5, e.radius * 0.8),
+  });
+}
+
 function spawnEliteTwinRemnants(parent: Enemy): void {
   for (let i = 0; i < 2; i++) {
     const child = acquire(state.enemies, makeEnemy);
     resetEnemy(child);
     child.typeId = 'swarm';
+    rememberEnemyType(child.typeId);
     child.x = parent.x + (i === 0 ? -10 : 10);
     child.y = parent.y;
     child.vx = i === 0 ? -18 : 18;
@@ -2091,6 +2239,7 @@ function spawnEnemy(ev: SpawnEvent): void {
   const e = acquire(state.enemies, makeEnemy);
   resetEnemy(e);
   e.typeId = type.id;
+  rememberEnemyType(type.id);
   e.x = ev.x;
   e.y = HUD_H - (type.isBoss ? 30 : 12);
   e.vy = 0;
@@ -2104,6 +2253,7 @@ function spawnEnemy(ev: SpawnEvent): void {
   let hpMul = type.isBoss ? BALANCE.enemy.bossHpMul(run.wave) : 1;
   hpMul *= mutator?.modifiers.enemyHpMul ?? 1;
   hpMul *= biome?.enemyHpMul ?? 1;
+  hpMul *= BALANCE.enemy.earlyHpMul(run.wave);
   if (e.elite) {
     hpMul *= BALANCE.enemy.eliteHpMul;
     if (e.eliteKind === 'armored') hpMul *= 1.3;
@@ -2121,6 +2271,19 @@ function spawnEnemy(ev: SpawnEvent): void {
   e.isBoss = type.isBoss ?? false;
 }
 
+function rememberEnemyType(typeId: string): void {
+  if (!typeId || knownEncounteredEnemyIds.has(typeId)) return;
+  knownEncounteredEnemyIds.add(typeId);
+  recordEnemyEncounters([typeId]);
+}
+
+function recordAliveEnemyEncounters(): void {
+  for (const e of state.enemies) {
+    if (!e.alive) continue;
+    rememberEnemyType(e.typeId);
+  }
+}
+
 function updateEnemy(e: Enemy, dt: number, run: RunState): void {
   e.age += dt;
   e.hitFlash = Math.max(0, e.hitFlash - dt);
@@ -2135,7 +2298,10 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
     const nextTickBucket = Math.ceil(Math.max(0, e.poisonT) / POISON_TICK);
     const ticks = Math.max(0, prevTickBucket - nextTickBucket);
     if (ticks > 0 && canDamageEnemy(e, normalizeDamageContext('poison', undefined, { source: 'status' }))) {
-      const tickDmg = e.poisonDps * POISON_TICK * ticks;
+      const stats = collectBaubleStats(run);
+      const dotKind = e.data['dotKind'];
+      const tickMul = dotKind === 2 ? stats.burnTickDamageMul : stats.poisonTickDamageMul;
+      const tickDmg = e.poisonDps * POISON_TICK * ticks * baubleMul(tickMul);
       e.hp -= tickDmg;
       e.hitFlash = Math.max(e.hitFlash, 0.08);
       spawnVfx({ x: e.x + (state.rng() - 0.5) * 6, y: e.y - 2, life: 0.45, kind: 'poison', color: palHex('z')!, size: 2 });
@@ -2220,6 +2386,7 @@ function damagePlayer(raw: number, run: RunState): void {
   let amt = onDamaged(envFor(run), raw * (mutator?.modifiers.playerDamageTakenMul ?? 1));
   if (amt <= 0) return;
   run.hp -= amt;
+  run.casinoWaveDamageTaken = (run.casinoWaveDamageTaken ?? 0) + amt;
   state.iframeT = BALANCE.player.iframeDuration;
   if (getScreenFlashesEnabled()) {
     state.screenFlashT = 0.2;
@@ -2309,7 +2476,7 @@ function endWave(run: RunState): void {
   run.score += BALANCE.scoring.waveClearBonus(run.wave);
   const isBoss = run.wave % BALANCE.waves.bossEvery === 0;
   const mutator = getRunMutator(run.runMutatorId);
-  run.gold += Math.round(BALANCE.gold.waveClearBonus(run.wave) * (mutator?.modifiers.goldMul ?? 1));
+  run.gold += baubleGoldAmount(run, BALANCE.gold.waveClearBonus(run.wave) * (mutator?.modifiers.goldMul ?? 1), 'round');
   fireOnWaveEnd(envFor(run), run.wave);
   playSfx('wave_clear');
   state.paused_upgrade = true;
@@ -2318,7 +2485,7 @@ function endWave(run: RunState): void {
   if (isBoss) {
     run.nextForgeDiscount = BALANCE.shop.postBossDiscount;
     run.guaranteedForgeRarity = run.wave >= BALANCE.shop.rarityMinWave.epic ? 'epic' : 'rare';
-    const offers = generateLandmarkOffers(run);
+    const offers = generateRunRewardOffers(run);
     if (offers.length > 0) {
       run.pickCount = BALANCE.upgrade.picksOnBoss;
       useStore.getState().setUpgradeOffers(offers, run.pickCount);
@@ -2328,13 +2495,16 @@ function endWave(run: RunState): void {
       return;
     }
     // Fallback: no landmark pool available → forge shop with bonus gold.
-    run.gold += BALANCE.gold.bossKill(run.wave);
+    run.gold += baubleGoldAmount(run, BALANCE.gold.bossKill(run.wave), 'round');
   }
 
-  openForge(run);
+  if (isBoss) openForge(run);
+  else openCasinoReward(run);
 }
 
 function openForge(run: RunState): void {
+  run.pendingCasino = undefined;
+  useStore.getState().setCasinoState(null);
   const offers = generateForgeShopOffers(run);
   useStore.getState().setForgeShopOffers(offers);
   useStore.getState().setForgeShopPurchased(false);
@@ -2343,12 +2513,72 @@ function openForge(run: RunState): void {
   saveRun(run);
 }
 
-function generateLandmarkOffers(run: RunState) {
+function openCasinoReward(run: RunState): void {
+  const duration = Math.max(1, state.wave?.duration ?? Math.max(1, state.waveT));
+  const casino = createCasinoIntermission(run, state.rng, {
+    clearRatio: Math.max(0, state.waveT / duration),
+    hpPct: run.maxHp > 0 ? Math.max(0, Math.min(1, run.hp / run.maxHp)) : 0,
+    damageTaken: run.casinoWaveDamageTaken ?? 0,
+    eliteKills: run.casinoWaveEliteKills ?? 0,
+  });
+  run.pendingCasino = casino;
+  useStore.getState().setCasinoState(casino);
+  useStore.getState().setScreen('casino');
+  syncActiveUpgradesToStore();
+  saveRun(run);
+}
+
+function syncCasinoToStore(run: RunState): void {
+  useStore.getState().setCasinoState(run.pendingCasino ? { ...run.pendingCasino } : null);
+}
+
+function normalizeCasinoIntermission(run: RunState): void {
+  const casino = run.pendingCasino;
+  if (!casino) return;
+  if (casino.offeredGames.length === 0) {
+    casino.offeredGames = [...BALANCE.casino.offeredGames];
+  }
+  if (!casino.game || casino.phase === 'choose') {
+    casino.game = casino.offeredGames[Math.floor(state.rng() * casino.offeredGames.length)] ?? 'slots';
+    casino.phase = 'play';
+    saveRun(run);
+  }
+}
+
+export function resolveCasinoGame(choice?: string): void {
+  const run = state.run;
+  const casino = run?.pendingCasino;
+  if (!run || !casino || casino.phase !== 'play' || !casino.game) return;
+  const result = rollCasinoGameResult(casino.game, casino.luckScore, state.rng, choice);
+  casino.result = result;
+  casino.chestTier = adjustChestTier(casino.baseChestTier, result.chestDelta);
+  casino.phase = 'chest';
+  syncCasinoToStore(run);
+  saveRun(run);
+  playSfx(result.outcome === 'miss' ? 'ui_click' : 'upgrade_pick');
+  haptic(result.outcome === 'miss' ? HAPTIC.tap : HAPTIC.upgrade);
+}
+
+export function openCasinoChest(): void {
+  const run = state.run;
+  const casino = run?.pendingCasino;
+  if (!run || !casino || casino.phase !== 'chest') return;
+  casino.rewards = rollCasinoRewards(run, useStore.getState().meta, state.rng, casino.chestTier);
+  casino.reward = casino.rewards[0];
+  casino.phase = 'reward';
+  syncCasinoToStore(run);
+  saveRun(run);
+  playSfx('upgrade_pick');
+  haptic(HAPTIC.upgrade);
+}
+
+function generateRunRewardOffers(run: RunState) {
   const wave = run.wave;
   const weights = BALANCE.upgrade.rarityWeights(wave);
   const meta = useStore.getState().meta;
+  const isBossReward = wave % BALANCE.waves.bossEvery === 0;
   const all = listUpgrades().filter((u) => {
-    if (u.category !== 'landmark') return false;
+    if (u.category !== 'landmark' && u.category !== 'relic' && u.category !== 'bauble') return false;
     if (u.minWave && u.minWave > wave) return false;
     if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
     const ap = run.upgrades.find((a) => a.id === u.id);
@@ -2372,22 +2602,40 @@ function generateLandmarkOffers(run: RunState) {
     if (bucket.length === 0) {
       const fallback = all.filter((u) => !chosen.has(u.id));
       if (fallback.length === 0) break;
-      const u = pick(state.rng, fallback);
+      const u = pickWeightedRunUpgrade(fallback, isBossReward);
       chosen.add(u.id);
       offers.push({ id: u.id, rarity: u.rarity });
       continue;
     }
-    const u = pick(state.rng, bucket);
+    const u = pickWeightedRunUpgrade(bucket, isBossReward);
     chosen.add(u.id);
     offers.push({ id: u.id, rarity: u.rarity });
   }
   return offers;
 }
 
+function pickWeightedRunUpgrade<T extends { category: string }>(pool: T[], isBossReward: boolean): T {
+  const weightedPool = pool.map((u) => ({
+    item: u,
+    weight: u.category === 'relic'
+      ? (isBossReward ? BALANCE.relic.bossRewardWeightMul : BALANCE.bauble.relicNormalRewardWeightMul)
+      : u.category === 'bauble'
+        ? (isBossReward ? BALANCE.bauble.bossRewardWeightMul : BALANCE.bauble.rewardWeightMul)
+        : 1,
+  }));
+  const total = weightedPool.reduce((sum, x) => sum + x.weight, 0);
+  let roll = state.rng() * total;
+  for (const entry of weightedPool) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.item;
+  }
+  return weightedPool[0]!.item;
+}
+
 export function rerollUpgradeOffers(): void {
   const run = state.run;
   if (!run) return;
-  const offers = generateLandmarkOffers(run);
+  const offers = generateRunRewardOffers(run);
   useStore.getState().setUpgradeOffers(offers, run.pickCount);
   playSfx('ui_reroll');
 }
@@ -2401,35 +2649,27 @@ function priceFor(upgrade: ReturnType<typeof getFaceUpgrade>, tier: number): num
   return fallback ?? 10;
 }
 
-function findEquippedFaceUpgrade(run: RunState, upgradeId: string): { slotIndex: number; kind: 'replacer' | 'supplement'; supplementPos?: number } | null {
-  for (let i = 0; i < run.slotLayout.length; i++) {
-    const slot = run.slotLayout[i];
-    if (!slot) continue;
-    if (slot.replacerId === upgradeId) return { slotIndex: i, kind: 'replacer' };
-    const supplementPos = slot.supplementIds.indexOf(upgradeId);
-    if (supplementPos >= 0) return { slotIndex: i, kind: 'supplement', supplementPos };
-  }
-  return null;
+function hasEquippedFaceUpgrade(run: RunState, upgradeId: string): boolean {
+  return run.slotLayout.some((slot) => slot.replacerId === upgradeId || slot.supplementIds.includes(upgradeId));
 }
 
-function hasEquippedFaceChain(run: RunState, chainId: string): boolean {
-  return run.slotLayout.some((slot) => {
+function syncOwnedFaceUpgrades(run: RunState): void {
+  run.ownedFaceUpgrades = {};
+  for (const slot of run.slotLayout) {
     if (slot.replacerId) {
-      const up = getFaceUpgrade(slot.replacerId);
-      if (up && getFaceChainId(up) === chainId) return true;
+      run.ownedFaceUpgrades[slot.replacerId] = (run.ownedFaceUpgrades[slot.replacerId] ?? 0) + 1;
     }
-    return slot.supplementIds.some((id) => {
-      const up = getFaceUpgrade(id);
-      return Boolean(up && getFaceChainId(up) === chainId);
-    });
-  });
+    for (const id of slot.supplementIds) {
+      run.ownedFaceUpgrades[id] = (run.ownedFaceUpgrades[id] ?? 0) + 1;
+    }
+  }
 }
 
 function canOfferFaceUpgrade(run: RunState, upgrade: ReturnType<typeof getFaceUpgrade>): boolean {
   if (!upgrade) return false;
   if (upgrade.characterExclusive && upgrade.characterExclusive !== run.characterId) return false;
-  if (upgrade.upgradesFrom) return findEquippedFaceUpgrade(run, upgrade.upgradesFrom) !== null;
-  return !hasEquippedFaceChain(run, getFaceChainId(upgrade));
+  if (upgrade.upgradesFrom) return hasEquippedFaceUpgrade(run, upgrade.upgradesFrom);
+  return true;
 }
 
 function pickBestSlotFor(
@@ -2440,10 +2680,12 @@ function pickBestSlotFor(
   const ch = getCharacter(run.characterId);
   if (!ch) return -1;
   if (upgrade.upgradesFrom) {
-    const predecessor = findEquippedFaceUpgrade(run, upgrade.upgradesFrom);
-    return predecessor?.slotIndex ?? -1;
+    const candidates = run.slotLayout
+      .filter((slot) => slot.replacerId === upgrade.upgradesFrom)
+      .map((slot) => slot.index)
+      .filter((slotIndex) => canHostUpgrade(run, upgrade, slotIndex));
+    return candidates[Math.floor(state.rng() * candidates.length)] ?? -1;
   }
-  if (hasEquippedFaceChain(run, getFaceChainId(upgrade))) return -1;
   const slots = run.slotLayout;
   const bindsTo = upgrade.bindsTo;
   const tagSet = new Set(upgrade.tags ?? []);
@@ -2463,8 +2705,7 @@ function pickBestSlotFor(
   if (upgrade.kind === 'replacer') {
     const empty = candidates.filter((i) => {
       const slot = slots[i]!;
-      const defaultId = defaults[i]?.upgradeId ?? null;
-      return slot.replacerId === null || slot.replacerId === defaultId;
+      return slot.replacerId === null;
     });
     if (empty.length > 0) {
       return empty[Math.floor(state.rng() * empty.length)] ?? -1;
@@ -2479,7 +2720,7 @@ function pickBestSlotFor(
   return candidates[Math.floor(state.rng() * candidates.length)] ?? -1;
 }
 
-export function generateForgeShopOffers(run: RunState): { id: string; slotIndex: number; rank: number; price: number }[] {
+export function generateForgeShopOffers(run: RunState): ForgeShopOffer[] {
   const count = BALANCE.shop.cardsPerOffer;
   const wave = run.wave;
   const rarityMinWave = BALANCE.shop.rarityMinWave;
@@ -2488,6 +2729,9 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
   // Pre-filter: must be eligible (character, chain prerequisite, has at least
   // one valid slot) AND the rarity must have unlocked by the current wave.
   let all = listFaceUpgrades().filter((u) => {
+    // Supplements are dormant in the relics branch. Keep their content for future reuse,
+    // but never surface them as active forge offers.
+    if (u.kind !== 'replacer') return false;
     if (!canOfferFaceUpgrade(run, u)) return false;
     if (wave < (rarityMinWave[u.rarity] ?? 1)) return false;
     if (pickBestSlotFor(run, u) < 0) return false;
@@ -2498,12 +2742,15 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
   // forge is never empty.
   if (all.length === 0) {
     all = listFaceUpgrades().filter((u) => {
+      if (u.kind !== 'replacer') return false;
       if (!canOfferFaceUpgrade(run, u)) return false;
       if (pickBestSlotFor(run, u) < 0) return false;
       return true;
     });
   }
-  if (all.length === 0) return [];
+  const relicOffer = pickForgeRelicOffer(run);
+  const baubleOffer = pickForgeBaubleOffer(run);
+  if (all.length === 0) return [baubleOffer, relicOffer].filter((offer): offer is ForgeShopOffer => Boolean(offer));
 
   const weights: { id: string; w: number }[] = all.map((u) => {
     const rank = getFaceRank(u);
@@ -2517,7 +2764,7 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
     return { id: u.id, w };
   });
 
-  const offers: { id: string; slotIndex: number; rank: number; price: number }[] = [];
+  const offers: ForgeShopOffer[] = [];
   const chosen = new Set<string>();
   for (let i = 0; i < count; i++) {
     const guaranteed = i === 0 && run.guaranteedForgeRarity
@@ -2542,9 +2789,106 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
     if (slotIndex < 0) continue; // safety: eligibility recheck
     const discount = Math.max(0, Math.min(0.75, run.nextForgeDiscount ?? 0));
     const price = Math.max(1, Math.floor(priceFor(upgrade, rank) * (1 - discount)));
-    offers.push({ id: picked, slotIndex, rank, price });
+    offers.push({ id: picked, kind: 'face', slotIndex, rank, price });
   }
+  if (relicOffer && state.rng() < BALANCE.relic.forgeOfferChance(wave)) addSpecialForgeOffer(offers, relicOffer, count);
+  if (baubleOffer && state.rng() < BALANCE.bauble.forgeOfferChance(wave)) addSpecialForgeOffer(offers, baubleOffer, count);
   return offers;
+}
+
+function addSpecialForgeOffer(offers: ForgeShopOffer[], offer: ForgeShopOffer, maxCount: number): void {
+  if (offers.length < maxCount) {
+    offers.push(offer);
+    return;
+  }
+  for (let i = offers.length - 1; i >= 0; i--) {
+    if (offers[i]?.kind === 'face') {
+      offers[i] = offer;
+      return;
+    }
+  }
+}
+
+function canOfferRunUpgrade(run: RunState, u: ReturnType<typeof getUpgrade>): boolean {
+  if (!u) return false;
+  if (u.minWave && u.minWave > run.wave) return false;
+  if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
+  const ap = run.upgrades.find((a) => a.id === u.id);
+  if (ap && ap.stacks >= u.maxStack) return false;
+  if (u.unlockCondition && !u.unlockCondition(useStore.getState().meta)) return false;
+  return true;
+}
+
+function relicForgePrice(u: NonNullable<ReturnType<typeof getUpgrade>>, run: RunState): number {
+  const base = u.forgePrice ?? (
+    u.category === 'bauble' ? BALANCE.bauble.basePrices[u.rarity] : BALANCE.relic.basePrices[u.rarity]
+  );
+  const discount = Math.max(0, Math.min(0.5, run.nextForgeDiscount ?? 0));
+  return Math.max(1, Math.floor(base * (1 - discount)));
+}
+
+function pickForgeRelicOffer(run: RunState): ForgeShopOffer | null {
+  const pool = listUpgrades().filter((u) => {
+    if (u.category !== 'relic') return false;
+    if (run.wave < (BALANCE.relic.rarityMinWave[u.rarity] ?? 1)) return false;
+    return canOfferRunUpgrade(run, u);
+  });
+  if (pool.length === 0) return null;
+  const weightedPool = pool.map((u) => ({
+    id: u.id,
+    w: BALANCE.shop.rarityWeight(u.rarity, run.wave),
+  }));
+  const totalW = weightedPool.reduce((sum, x) => sum + x.w, 0);
+  let roll = state.rng() * totalW;
+  let picked = weightedPool[0]!.id;
+  for (const entry of weightedPool) {
+    roll -= entry.w;
+    if (roll <= 0) {
+      picked = entry.id;
+      break;
+    }
+  }
+  const relic = getUpgrade(picked);
+  if (!relic) return null;
+  return {
+    id: relic.id,
+    kind: 'relic',
+    slotIndex: -1,
+    rank: 1,
+    price: relicForgePrice(relic, run),
+  };
+}
+
+function pickForgeBaubleOffer(run: RunState): ForgeShopOffer | null {
+  const pool = listUpgrades().filter((u) => {
+    if (u.category !== 'bauble') return false;
+    if (run.wave < (BALANCE.bauble.rarityMinWave[u.rarity] ?? 1)) return false;
+    return canOfferRunUpgrade(run, u);
+  });
+  if (pool.length === 0) return null;
+  const weightedPool = pool.map((u) => ({
+    id: u.id,
+    w: BALANCE.shop.rarityWeight(u.rarity, run.wave),
+  }));
+  const totalW = weightedPool.reduce((sum, x) => sum + x.w, 0);
+  let roll = state.rng() * totalW;
+  let picked = weightedPool[0]!.id;
+  for (const entry of weightedPool) {
+    roll -= entry.w;
+    if (roll <= 0) {
+      picked = entry.id;
+      break;
+    }
+  }
+  const bauble = getUpgrade(picked);
+  if (!bauble) return null;
+  return {
+    id: bauble.id,
+    kind: 'bauble',
+    slotIndex: -1,
+    rank: 1,
+    price: relicForgePrice(bauble, run),
+  };
 }
 
 export function rerollForgeShopOffers(): void {
@@ -2566,8 +2910,49 @@ export function buyForgeShopOffer(offerIndex: number): void {
   const offers = useStore.getState().forgeShopOffers;
   const offer = offers[offerIndex];
   if (!offer) return;
+  if (offer.kind === 'relic' || offer.kind === 'bauble') {
+    buyForgeRunUpgradeOffer(offerIndex);
+    return;
+  }
   if (offer.slotIndex < 0) return;
   placeForgeOfferInSlot(offerIndex, offer.slotIndex);
+}
+
+export function buyForgeRelicOffer(offerIndex: number): boolean {
+  return buyForgeRunUpgradeOffer(offerIndex, 'relic');
+}
+
+export function buyForgeBaubleOffer(offerIndex: number): boolean {
+  return buyForgeRunUpgradeOffer(offerIndex, 'bauble');
+}
+
+function buyForgeRunUpgradeOffer(offerIndex: number, expectedKind?: 'relic' | 'bauble'): boolean {
+  const run = state.run;
+  if (!run) return false;
+  const offers = useStore.getState().forgeShopOffers;
+  const offer = offers[offerIndex];
+  if (!offer || (offer.kind !== 'relic' && offer.kind !== 'bauble')) return false;
+  if (expectedKind && offer.kind !== expectedKind) return false;
+  if (run.gold < offer.price) return false;
+  const upgrade = getUpgrade(offer.id);
+  if (!upgrade || upgrade.category !== offer.kind || !canOfferRunUpgrade(run, upgrade)) return false;
+
+  const existing = run.upgrades.find((a) => a.id === upgrade.id);
+  if (existing) existing.stacks++;
+  else run.upgrades.push({ id: upgrade.id, stacks: 1 });
+  run.gold -= offer.price;
+  run.goldSpent += offer.price;
+  upgrade.hooks?.onApply?.(envFor(run).ctx);
+
+  const remaining = offers.filter((_, i) => i !== offerIndex);
+  useStore.getState().setForgeShopOffers(remaining);
+  useStore.getState().setHud({ gold: run.gold });
+  useStore.getState().setForgeShopPurchased(true);
+  playSfx('upgrade_pick');
+  haptic(HAPTIC.upgrade);
+  syncActiveUpgradesToStore();
+  saveRun(run);
+  return true;
 }
 
 /** Whether a slot can host a given upgrade at all, independent of capacity. */
@@ -2604,11 +2989,10 @@ export function canPlaceOfferInSlot(
   const upgrade = getFaceUpgrade(offer.id);
   if (!upgrade) return false;
   if (upgrade.upgradesFrom) {
-    const predecessor = findEquippedFaceUpgrade(run, upgrade.upgradesFrom);
-    if (!predecessor || predecessor.slotIndex !== slotIndex) return false;
-    return canHostUpgrade(run, upgrade, slotIndex, { ignoreSupplementCap: predecessor.kind === 'supplement' });
+    const slot = run.slotLayout[slotIndex];
+    if (!slot || slot.replacerId !== upgrade.upgradesFrom) return false;
+    return canHostUpgrade(run, upgrade, slotIndex);
   }
-  if (hasEquippedFaceChain(run, getFaceChainId(upgrade))) return false;
   return canHostUpgrade(run, upgrade, slotIndex);
 }
 
@@ -2624,15 +3008,13 @@ export function canMoveReplacer(
   if (!a || !b) return false;
   const ch = getCharacter(run.characterId);
   if (!ch) return false;
-  const aDefault = ch.defaultFaces?.[fromSlot]?.upgradeId ?? null;
-  const bDefault = ch.defaultFaces?.[toSlot]?.upgradeId ?? null;
   const aId = a.replacerId;
-  if (!aId || aId === aDefault) return false;
+  if (!aId) return false;
   const aUp = getFaceUpgrade(aId);
   if (!aUp) return false;
   if (!canHostUpgrade(run, aUp, toSlot)) return false;
   const bId = b.replacerId;
-  if (bId && bId !== bDefault) {
+  if (bId) {
     const bUp = getFaceUpgrade(bId);
     if (!bUp) return false;
     if (!canHostUpgrade(run, bUp, fromSlot)) return false;
@@ -2675,16 +3057,13 @@ export function moveOrSwapReplacer(fromSlot: number, toSlot: number): boolean {
   if (!canMoveReplacer(run, fromSlot, toSlot)) return false;
   const a = run.slotLayout[fromSlot]!;
   const b = run.slotLayout[toSlot]!;
-  const ch = getCharacter(run.characterId)!;
-  const aDefault = ch.defaultFaces?.[fromSlot]?.upgradeId ?? null;
-  const bDefault = ch.defaultFaces?.[toSlot]?.upgradeId ?? null;
   const aId = a.replacerId;
   const bId = b.replacerId;
-  if (bId && bId !== bDefault) {
+  if (bId) {
     a.replacerId = bId;
     b.replacerId = aId;
   } else {
-    a.replacerId = aDefault;
+    a.replacerId = null;
     b.replacerId = aId;
   }
   playSfx('upgrade_pick');
@@ -2727,6 +3106,7 @@ export function placeForgeOfferInSlot(offerIndex: number, slotIndex: number): bo
   const offers = useStore.getState().forgeShopOffers;
   const offer = offers[offerIndex];
   if (!offer) return false;
+  if (offer.kind !== 'face') return false;
   if (run.gold < offer.price) return false;
   if (!canPlaceOfferInSlot(run, offer, slotIndex)) return false;
   const upgrade = getFaceUpgrade(offer.id);
@@ -2735,23 +3115,14 @@ export function placeForgeOfferInSlot(offerIndex: number, slotIndex: number): bo
   if (!slot) return false;
 
   if (upgrade.upgradesFrom) {
-    const predecessor = findEquippedFaceUpgrade(run, upgrade.upgradesFrom);
-    if (!predecessor || predecessor.slotIndex !== slotIndex) return false;
-    if (predecessor.kind === 'replacer') {
-      slot.replacerId = upgrade.id;
-    } else {
-      const pos = predecessor.supplementPos;
-      if (pos == null || pos < 0) return false;
-      slot.supplementIds[pos] = upgrade.id;
-    }
-    delete run.ownedFaceUpgrades[upgrade.upgradesFrom];
+    if (slot.replacerId !== upgrade.upgradesFrom) return false;
+    slot.replacerId = upgrade.id;
   } else if (upgrade.kind === 'replacer') {
-    if (slot.replacerId) delete run.ownedFaceUpgrades[slot.replacerId];
     slot.replacerId = upgrade.id;
   } else {
     slot.supplementIds.push(upgrade.id);
   }
-  run.ownedFaceUpgrades[upgrade.id] = 1;
+  syncOwnedFaceUpgrades(run);
   run.gold -= offer.price;
   run.goldSpent += offer.price;
 
@@ -2772,11 +3143,7 @@ export function forgeSellValue(run: RunState, slotIndex: number, kind: 'replacer
   let id: string | null = null;
   if (kind === 'replacer') {
     id = slot.replacerId;
-    // Never refund a character default replacer that is restricted.
-    const ch = getCharacter(run.characterId);
-    const defaultId = ch?.defaultFaces?.[slotIndex]?.upgradeId ?? null;
     if (id === null) return 0;
-    if (id === defaultId) return 0;
   } else {
     id = slot.supplementIds[supplementPos] ?? null;
     if (!id) return 0;
@@ -2803,18 +3170,14 @@ export function sellFromSlot(
   let removedId: string | null = null;
   if (kind === 'replacer') {
     removedId = slot.replacerId;
-    const ch = getCharacter(run.characterId);
-    const defaultId = ch?.defaultFaces?.[slotIndex]?.upgradeId ?? null;
-    slot.replacerId = defaultId;
+    slot.replacerId = null;
   } else {
     removedId = slot.supplementIds[supplementPos] ?? null;
     if (!removedId) return 0;
     slot.supplementIds.splice(supplementPos, 1);
   }
 
-  if (removedId) {
-    delete run.ownedFaceUpgrades[removedId];
-  }
+  if (removedId) syncOwnedFaceUpgrades(run);
 
   run.gold += refund;
   useStore.getState().setHud({ gold: run.gold });
@@ -2840,6 +3203,117 @@ export function expandSlotCap(slotIndex: number): void {
   saveRun(run);
 }
 
+function casinoRewardList(casino: RunState['pendingCasino']): CasinoChestReward[] {
+  if (!casino) return [];
+  if (casino.rewards && casino.rewards.length > 0) return casino.rewards;
+  return casino.reward ? [casino.reward] : [];
+}
+
+function isCasinoFaceReward(reward: CasinoChestReward): reward is CasinoChestReward & { kind: 'face'; id: string } {
+  return reward.kind === 'face';
+}
+
+export function getCasinoFaceRewardSlots(): number[] {
+  const run = state.run;
+  const reward = casinoRewardList(run?.pendingCasino).find(isCasinoFaceReward);
+  if (!run || !reward) return [];
+  return casinoFaceSlotOptions(run, reward.id);
+}
+
+function finishCasinoReward(run: RunState): void {
+  run.pendingCasino = undefined;
+  useStore.getState().setCasinoState(null);
+  syncActiveUpgradesToStore();
+  syncHudToStore();
+  saveRun(run);
+  proceedToNextWave();
+}
+
+function grantRunUpgradeReward(run: RunState, id: string, expected: 'bauble' | 'relic'): boolean {
+  const upgrade = getUpgrade(id);
+  if (!upgrade || upgrade.category !== expected) return false;
+  const existing = run.upgrades.find((a) => a.id === upgrade.id);
+  if (existing) existing.stacks++;
+  else run.upgrades.push({ id: upgrade.id, stacks: 1 });
+  upgrade.hooks?.onApply?.(envFor(run).ctx);
+  if (ensureTwinDice(run)) state.dice = buildDieInstances(run.dice);
+  return true;
+}
+
+function claimCasinoRewardItem(run: RunState, reward: CasinoChestReward, slotIndex?: number): boolean {
+  if (reward.kind === 'gold') {
+    run.gold += baubleGoldAmount(run, reward.amount, 'round');
+    return true;
+  }
+  if (reward.kind === 'heal') {
+    run.hp = Math.min(run.maxHp, run.hp + Math.floor(baubleHealingAmount(run, reward.amount)));
+    return true;
+  }
+  if (reward.kind === 'forgeDiscount') {
+    run.nextForgeDiscount = Math.max(run.nextForgeDiscount ?? 0, reward.amount);
+    return true;
+  }
+  if (reward.kind === 'bauble' || reward.kind === 'relic') {
+    return grantRunUpgradeReward(run, reward.id, reward.kind);
+  }
+  if (typeof slotIndex !== 'number') return false;
+  if (!casinoFaceSlotOptions(run, reward.id).includes(slotIndex)) return false;
+  const upgrade = getFaceUpgrade(reward.id);
+  const slot = run.slotLayout[slotIndex];
+  if (!upgrade || !slot) return false;
+  if (upgrade.kind === 'replacer') slot.replacerId = upgrade.id;
+  else slot.supplementIds.push(upgrade.id);
+  syncOwnedFaceUpgrades(run);
+  return true;
+}
+
+function casinoRewardGoldValue(reward: CasinoChestReward): number {
+  if ('convertGold' in reward) return reward.convertGold;
+  if (reward.kind === 'forgeDiscount') return Math.max(10, Math.round(reward.amount * 120));
+  if (reward.kind === 'heal') return Math.max(3, Math.floor(reward.amount * 0.5));
+  return reward.amount;
+}
+
+export function claimCasinoReward(slotIndex?: number): boolean {
+  const run = state.run;
+  const casino = run?.pendingCasino;
+  const rewards = casinoRewardList(casino);
+  if (!run || !casino || casino.phase !== 'reward' || rewards.length === 0) return false;
+
+  const faceReward = rewards.find(isCasinoFaceReward);
+  if (faceReward) {
+    if (typeof slotIndex !== 'number') return false;
+    if (!casinoFaceSlotOptions(run, faceReward.id).includes(slotIndex)) return false;
+    const upgrade = getFaceUpgrade(faceReward.id);
+    const slot = run.slotLayout[slotIndex];
+    if (!upgrade || !slot) return false;
+  }
+
+  for (const reward of rewards) {
+    if (!claimCasinoRewardItem(run, reward, reward.kind === 'face' ? slotIndex : undefined)) return false;
+  }
+
+  casino.rewardClaimed = true;
+  playSfx('upgrade_pick');
+  haptic(HAPTIC.upgrade);
+  finishCasinoReward(run);
+  return true;
+}
+
+export function convertCasinoRewardToGold(): boolean {
+  const run = state.run;
+  const casino = run?.pendingCasino;
+  const rewards = casinoRewardList(casino);
+  if (!run || !casino || casino.phase !== 'reward' || rewards.length === 0) return false;
+  const amount = rewards.reduce((sum, reward) => sum + casinoRewardGoldValue(reward), 0);
+  run.gold += baubleGoldAmount(run, amount, 'round');
+  casino.rewardClaimed = true;
+  playSfx('ui_click');
+  haptic(HAPTIC.tap);
+  finishCasinoReward(run);
+  return true;
+}
+
 export function forgeShopDone(): void {
   const run = state.run;
   if (!run) return;
@@ -2858,7 +3332,7 @@ export function forgeShopSkipForHeal(): void {
   run.gold -= cost;
   run.goldSpent += cost;
   const faceTotal = run.slotLayout.reduce((acc, s) => acc + (s.replacerId ? 1 : 0), 0) + 6;
-  const heal = Math.floor(BALANCE.gold.skipHeal(faceTotal));
+  const heal = Math.floor(baubleHealingAmount(run, BALANCE.gold.skipHeal(faceTotal)));
   run.hp = Math.min(run.maxHp, run.hp + heal);
   useStore.getState().setHud({ hp: run.hp, gold: run.gold });
   forgeShopDone();
@@ -2881,7 +3355,7 @@ export function pickUpgrade(id: string): void {
   playSfx('upgrade_pick');
   haptic(HAPTIC.upgrade);
   if (run.pickCount > 0) {
-    const offers = generateLandmarkOffers(run);
+    const offers = generateRunRewardOffers(run);
     useStore.getState().setUpgradeOffers(offers, run.pickCount);
     saveRun(run);
   } else {
@@ -2899,6 +3373,8 @@ export function pickUpgrade(id: string): void {
 function proceedToNextWave(): void {
   const run = state.run;
   if (!run) return;
+  run.pendingCasino = undefined;
+  useStore.getState().setCasinoState(null);
   run.wave++;
   state.paused_upgrade = false;
   state.paused = false;
@@ -2907,7 +3383,8 @@ function proceedToNextWave(): void {
 }
 
 function diceReadyToRoll(): boolean {
-  const cd = BALANCE.die.postRollCooldown;
+  const cooldownReduction = collectBaubleStats(state.run).cooldownReductionMul;
+  const cd = BALANCE.die.postRollCooldown * Math.max(0.7, 1 - cooldownReduction);
   for (const d of state.dice) {
     if (d.landedAt > 0 && state.time - d.landedAt < cd) return false;
   }
@@ -2987,8 +3464,11 @@ function tickProjectileTags(p: Projectile, dt: number, run: RunState): void {
         const dx = e.x - p.x;
         const dy = e.y - p.y;
         if (dx * dx + dy * dy < 14 * 14) {
-          e.poisonT = Math.max(e.poisonT, 0.9);
-          e.poisonDps = Math.max(e.poisonDps, 12);
+          const stats = collectBaubleStats(run);
+          const poisonDps = 12 * baubleMul(stats.poisonApplicationDpsMul);
+          if (poisonDps >= e.poisonDps) e.data['dotKind'] = 1;
+          e.poisonT = Math.max(e.poisonT, 0.9 * baubleMul(stats.poisonDurationMul));
+          e.poisonDps = Math.max(e.poisonDps, poisonDps);
         }
       }
     }
@@ -3153,6 +3633,9 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy): void {
   }
   drawSprite(ctx, sprite, idx, e.x, e.y, false, e.hitFlash > 0 ? '#fff' : undefined, e.hitFlash > 0 ? 0.7 : 0);
   ctx.globalAlpha = 1;
+  if (type?.family && e.state !== 'die') {
+    drawHouseFamilyMark(ctx, type.family, e.x, e.y - e.radius - 3, e.isBoss ? 1.35 : 1);
+  }
 
   if (e.freeze > 0) {
     drawFreezeCrystal(ctx, e.x, e.y, e.radius * 1.05, 0.68 + Math.sin(e.age * 10) * 0.1);
@@ -3192,6 +3675,112 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy): void {
     ctx.fillStyle = palHex('m')!;
     const hpFrac = e.maxHp > 0 ? Math.max(0, Math.min(1, e.hp / e.maxHp)) : 0;
     ctx.fillRect(barX, barY, Math.round(hpFrac * barW), 1);
+  }
+}
+
+function drawHouseFamilyMark(
+  ctx: CanvasRenderingContext2D,
+  family: HouseEnemyFamily,
+  x: number,
+  y: number,
+  scale: number,
+): void {
+  const color = houseFamilyColor(family);
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.scale(scale, scale);
+  ctx.globalAlpha = 0.78;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1;
+  switch (family) {
+    case 'debt':
+      ctx.beginPath();
+      ctx.arc(0, 0, 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillRect(-1, -2, 2, 4);
+      break;
+    case 'vault':
+      ctx.strokeRect(-3, -3, 6, 6);
+      ctx.fillRect(-1, -1, 2, 2);
+      break;
+    case 'brood':
+      ctx.beginPath();
+      ctx.arc(-3, 1, 2, 0, Math.PI * 2);
+      ctx.arc(2, 1, 2, 0, Math.PI * 2);
+      ctx.arc(0, -2, 2, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'mirror':
+      ctx.beginPath();
+      ctx.moveTo(0, -4);
+      ctx.lineTo(4, 0);
+      ctx.lineTo(0, 4);
+      ctx.lineTo(-4, 0);
+      ctx.closePath();
+      ctx.stroke();
+      break;
+    case 'null':
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillRect(-1, -1, 2, 2);
+      break;
+    case 'grave':
+      ctx.fillRect(-1, -4, 2, 8);
+      ctx.fillRect(-4, -1, 8, 2);
+      break;
+    case 'court':
+      ctx.beginPath();
+      ctx.moveTo(-4, 2);
+      ctx.lineTo(-3, -3);
+      ctx.lineTo(0, 1);
+      ctx.lineTo(3, -3);
+      ctx.lineTo(4, 2);
+      ctx.closePath();
+      ctx.stroke();
+      break;
+    case 'suture':
+      ctx.beginPath();
+      ctx.moveTo(-4, 3);
+      ctx.lineTo(4, -3);
+      ctx.stroke();
+      ctx.fillRect(-3, -2, 1, 4);
+      ctx.fillRect(2, -2, 1, 4);
+      break;
+    case 'furnace':
+      ctx.beginPath();
+      ctx.moveTo(0, -5);
+      ctx.lineTo(4, 3);
+      ctx.lineTo(-4, 3);
+      ctx.closePath();
+      ctx.stroke();
+      break;
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function houseFamilyColor(family: HouseEnemyFamily): string {
+  switch (family) {
+    case 'debt':
+      return palHex('y')!;
+    case 'vault':
+      return palHex('u')!;
+    case 'brood':
+      return palHex('P')!;
+    case 'mirror':
+      return palHex('S')!;
+    case 'null':
+      return palHex('E')!;
+    case 'grave':
+      return palHex('T')!;
+    case 'court':
+      return palHex('O')!;
+    case 'suture':
+      return palHex('L')!;
+    case 'furnace':
+      return palHex('K')!;
   }
 }
 
@@ -3441,7 +4030,11 @@ function syncHudToStore(): void {
   const runMutatorName = mutator?.name ?? '';
   const runMutatorShortName = mutator?.shortName ?? '';
   const waveArchetypeName = run.currentWaveArchetypeId ? waveArchetypeLabel(run.currentWaveArchetypeId) : '';
-  const biomeName = getBiomeRule(run.currentBiomeRuleId)?.shortName ?? '';
+  const biome = getBiomeRule(run.currentBiomeRuleId);
+  const biomeName = biome?.shortName ?? '';
+  const encounterLine = run.currentWaveArchetypeId ? waveArchetypeLine(run.currentWaveArchetypeId) : '';
+  const roomLine = biome?.roomLine ?? biome?.desc ?? '';
+  const omenLine = mutator?.entryLine ?? mutator?.premise ?? '';
   const forgeBonusLabel = run.nextForgeDiscount
     ? `-${Math.round(run.nextForgeDiscount * 100)}% FORGE`
     : run.guaranteedForgeRarity
@@ -3466,6 +4059,9 @@ function syncHudToStore(): void {
     last.runMutatorShortName === runMutatorShortName &&
     last.waveArchetypeName === waveArchetypeName &&
     last.biomeName === biomeName &&
+    last.encounterLine === encounterLine &&
+    last.roomLine === roomLine &&
+    last.omenLine === omenLine &&
     last.forgeBonusLabel === forgeBonusLabel
   ) {
     return;
@@ -3487,6 +4083,9 @@ function syncHudToStore(): void {
     runMutatorShortName,
     waveArchetypeName,
     biomeName,
+    encounterLine,
+    roomLine,
+    omenLine,
     forgeBonusLabel,
   });
   state.lastHud = {
@@ -3506,6 +4105,9 @@ function syncHudToStore(): void {
     runMutatorShortName,
     waveArchetypeName,
     biomeName,
+    encounterLine,
+    roomLine,
+    omenLine,
     forgeBonusLabel,
   };
 }
@@ -3526,6 +4128,25 @@ function waveArchetypeLabel(id: NonNullable<RunState['currentWaveArchetypeId']>)
       return 'ELITE';
     case 'mixed':
       return 'MIXED';
+  }
+}
+
+function waveArchetypeLine(id: NonNullable<RunState['currentWaveArchetypeId']>): string {
+  switch (id) {
+    case 'rush':
+      return 'Debt hounds pour through the door.';
+    case 'escort':
+      return 'A House escort protects its collector.';
+    case 'splitterFlood':
+      return 'Loaded brood are hatching in the lanes.';
+    case 'puzzle':
+      return 'Sealed enemies test your pips.';
+    case 'ambush':
+      return 'Mirrors and shadows leave the side doors open.';
+    case 'eliteDuel':
+      return 'A decorated servant of the House steps forward.';
+    case 'mixed':
+      return 'The House antes a mixed hand.';
   }
 }
 
@@ -3594,6 +4215,7 @@ export function quitRun(): void {
   state.deathT = 0;
   state.bossWarnT = 0;
   state.lastHud = null;
+  useStore.getState().setCasinoState(null);
   useStore.getState().setScreen('menu');
 }
 
@@ -3622,6 +4244,8 @@ export function debugJumpToWave(waveNum: number): boolean {
   useStore.getState().setUpgradeOffers([], 0);
   useStore.getState().setForgeShopOffers([]);
   useStore.getState().setForgeShopPurchased(false);
+  useStore.getState().setCasinoState(null);
+  run.pendingCasino = undefined;
   setupWave(target);
   syncHudToStore();
   return true;
@@ -3651,7 +4275,7 @@ export function debugGrantUpgradePick(count = 1): boolean {
   const run = state.run;
   if (!run) return false;
   run.pickCount += Math.max(1, Math.floor(count));
-  const offers = generateLandmarkOffers(run);
+  const offers = generateRunRewardOffers(run);
   useStore.getState().setUpgradeOffers(offers, run.pickCount);
   useStore.getState().setScreen('upgrade');
   state.paused_upgrade = true;
@@ -3659,7 +4283,7 @@ export function debugGrantUpgradePick(count = 1): boolean {
   return true;
 }
 
-/** Directly grant a landmark upgrade (applies its onApply hook). */
+/** Directly grant a run upgrade/relic (applies its onApply hook). */
 export function debugGrantLandmarkUpgrade(id: string): boolean {
   const run = state.run;
   if (!run) return false;
@@ -3691,8 +4315,11 @@ export function debugGrantFaceUpgrade(id: string, tier = 1): boolean {
     ? listFaceUpgrades().find((u) => getFaceChainId(u) === getFaceChainId(baseUpgrade) && getFaceRank(u) === targetRank) ?? baseUpgrade
     : undefined;
   if (!upgrade) return false;
-  run.ownedFaceUpgrades[upgrade.id] = 1;
-
+  if (upgrade.kind !== 'replacer') {
+    // Supplements are dormant on the relics branch; keep content listed elsewhere
+    // for future design work, but do not install them into active runs.
+    return false;
+  }
   const character = getCharacter(run.characterId);
   if (!character) return true;
 
@@ -3704,25 +4331,13 @@ export function debugGrantFaceUpgrade(id: string, tier = 1): boolean {
       if (allowed && upgrade.tags && !upgrade.tags.some((t) => allowed.includes(t))) continue;
       const slot = run.slotLayout[i];
       if (!slot) continue;
-      const defaultId = character.defaultFaces?.[i]?.upgradeId ?? null;
-      if (slot.replacerId !== null && slot.replacerId !== defaultId) continue;
+      if (slot.replacerId !== null) continue;
       slot.replacerId = upgrade.id;
       installed = true;
       break;
     }
-  } else {
-    for (let i = 0; i < run.slotLayout.length; i++) {
-      if (isSlotLocked(character, i)) continue;
-      const allowed = slotAllowedTags(character, i);
-      if (allowed && upgrade.tags && !upgrade.tags.some((t) => allowed.includes(t))) continue;
-      const slot = run.slotLayout[i];
-      if (!slot) continue;
-      if (!canPlaceSupplement(slot)) continue;
-      slot.supplementIds.push(upgrade.id);
-      installed = true;
-      break;
-    }
   }
+  syncOwnedFaceUpgrades(run);
   syncHudToStore();
   return installed;
 }
@@ -3752,10 +4367,24 @@ export function debugUnlockEverything(): void {
 /** Convenience list exporters for the debug UI. */
 export function debugListLandmarkUpgrades(): { id: string; name: string }[] {
   return listUpgrades()
-    .filter((u) => !u.id.startsWith('ars_'))
+    .filter((u) => u.category === 'landmark')
+    .map((u) => ({ id: u.id, name: u.name }));
+}
+
+export function debugListRelicUpgrades(): { id: string; name: string }[] {
+  return listUpgrades()
+    .filter((u) => u.category === 'relic')
+    .map((u) => ({ id: u.id, name: u.name }));
+}
+
+export function debugListBaubleUpgrades(): { id: string; name: string }[] {
+  return listUpgrades()
+    .filter((u) => u.category === 'bauble')
     .map((u) => ({ id: u.id, name: u.name }));
 }
 
 export function debugListFaceUpgrades(): { id: string; name: string; kind: string }[] {
-  return listFaceUpgrades().map((u) => ({ id: u.id, name: u.name, kind: u.kind }));
+  return listFaceUpgrades()
+    .filter((u) => u.kind === 'replacer')
+    .map((u) => ({ id: u.id, name: u.name, kind: u.kind }));
 }
