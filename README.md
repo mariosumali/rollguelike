@@ -26,8 +26,8 @@ After each normal wave: **forge** (faces, gold, free rerolls). On **boss** waves
 
 - **Themed main menu** — canvas backdrop (sky temple, vault, cove, …) re-rolls when you re-enter; die altar, flavor ticker, v2 layout.
 - **Character select** — chalice grid, portrait frame, per-hero identity and **Roll** / **Sealed** flow.
-- **In-run** — face bar + HUD strip; **forge** with drag–drop offers, **supplements**, sell, slot expansion, optional skip-for-heal.
-- **Landmarks** (boss waves) — card draft with rarity; two picks on a boss clear when the pool is available.
+- **In-run** — face bar + HUD strip; **forge** with drag–drop face offers, rare expensive **relics**, sell, optional skip-for-heal.
+- **Landmarks & relics** (boss waves) — card draft with rarity; two picks on a boss clear when the pool is available.
 - **Settings** — audio, haptics, motion, **accessibility** (contrast, large text, reduce motion, damage numbers, HP bar mode, auto-roll, …).
 
 ---
@@ -36,8 +36,8 @@ After each normal wave: **forge** (faces, gold, free rerolls). On **boss** waves
 
 1. **Roll** — Tap the die (or hold, for **Clockmaker**). Each result fires the **face** slotted in that position — multishot, elements, turrets, novas, depending on your forge choices.
 2. **Clear** — Auto-targeting keeps focus on play; you’re reading patterns and economy, not aiming.
-3. **Forge** (most waves) — Spend **gold** on offers: replace a face, attach **supplement** passives, tier up, rearrange slots, or sell. **Rerolls are free.**
-4. **Boss interlude** — On boss waves, pick **landmarks** (turrets, beacons, wall tricks, …) with **two** selections when the draft fires; then the next wave starts.
+3. **Forge** (most waves) — Spend **gold** on offers: replace a face, buy rare global **relics**, tier up face chains, rearrange slots, or sell. **Rerolls are free.**
+4. **Boss interlude** — On boss waves, pick **landmarks** or mythic **relics** with **two** selections when the draft fires; then the next wave starts.
 5. **Meta** — **Die themes** unlock from in-run challenges; pick them on the title screen. **Runs**, **waves**, **high score**, **heroes**, and **codex** progress save in the browser.
 
 ---
@@ -64,7 +64,7 @@ You’re not shopping abstract “+damage” rows anymore — you’re **composi
 | Layer | What it is | Examples / notes |
 |--------|------------|------------------|
 | **Face replacers** | Replace default pips with named attacks, heals, or utilities | Shots, novas, **lances**, familiars, **transmute**, … |
-| **Supplements** | Extra passives that sit with a face | Tip effects, auras, on-kill rules — gated by **tags** and slot rules |
+| **Relics** | Rare global passives that reshape the whole run | Excalibur, Holy Grail, Mjolnir, Necronomicon — expensive and highly visible |
 | **Gold** | Dropped in combat and from wave clear; spent in the **forge** | Price scales with **tier** and **rarity**; sell/trade off bad rolls |
 | **Landmarks** | **Boss** draft pool — map furniture on your side of the wall | Turrets, beacons, time tricks — `maxStack` and unlock rules apply |
 | **Meta** (title) | Stats, **codex** coverage, **dice look** | Saved locally; challenges unlock **die themes** |
