@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { Screen, RunState, MetaState } from '../types';
+import type { Screen, RunState, MetaState, CasinoIntermissionState } from '../types';
 import { DIE_THEME_DEFAULT_UNLOCKS, DIE_THEME_IDS, type DieThemeId } from '../sprites/dice';
 import type { MenuTrackId } from '../audio/bgmPatterns';
 import type { Theme as MenuTheme } from '../ui/menu/types';
@@ -12,6 +12,7 @@ interface UpgradeOffer {
 
 export interface ForgeShopOffer {
   id: string;
+  kind: 'face' | 'relic' | 'bauble';
   slotIndex: number;
   rank: number;
   price: number;
@@ -19,6 +20,7 @@ export interface ForgeShopOffer {
 
 export const BGM_TRACK_IDS = [
   'overworld',
+  'overture',
   'ancient',
   'courage',
   'omen',
@@ -30,6 +32,7 @@ export type BgmTrackId = (typeof BGM_TRACK_IDS)[number];
 /** Short labels in Settings; long descriptions for testing picks. */
 export const BGM_TRACK_CHOICES: { id: BgmTrackId; label: string; blurb: string }[] = [
   { id: 'overworld', label: 'Overworld', blurb: 'Hyrule Field–style sky & rolling hills' },
+  { id: 'overture', label: 'Dice Overture', blurb: 'Orchestral title motif — harp, horns, and heroic D minor' },
   { id: 'ancient', label: 'Ancient path', blurb: 'Kokiri / forest quest — mysterious woodwind & harp' },
   { id: 'courage', label: 'Gold & steel', blurb: 'Castle + fanfare — brass, strings, heroic D major' },
   { id: 'omen', label: 'Omen', blurb: 'Grave D minor: drums of fate, sombre brass & string cantus' },
@@ -150,6 +153,9 @@ interface StoreState {
     runMutatorShortName: string;
     waveArchetypeName: string;
     biomeName: string;
+    encounterLine: string;
+    roomLine: string;
+    omenLine: string;
     forgeBonusLabel: string;
   };
 
@@ -159,6 +165,7 @@ interface StoreState {
 
   forgeShopOffers: ForgeShopOffer[];
   forgeShopPurchased: boolean;
+  casinoState: CasinoIntermissionState | null;
 
   bossWarnTypeId: string | null;
 
@@ -178,6 +185,7 @@ interface StoreState {
   setUpgradeOffers: (offers: UpgradeOffer[], picksRemaining: number) => void;
   setForgeShopOffers: (offers: ForgeShopOffer[]) => void;
   setForgeShopPurchased: (v: boolean) => void;
+  setCasinoState: (v: CasinoIntermissionState | null) => void;
   setActiveUpgrades: (u: { id: string; stacks: number }[]) => void;
   setBossWarn: (id: string | null) => void;
   setMeta: (meta: MetaState) => void;
@@ -210,6 +218,9 @@ export const useStore = create<StoreState>()(
       runMutatorShortName: '',
       waveArchetypeName: '',
       biomeName: '',
+      encounterLine: '',
+      roomLine: '',
+      omenLine: '',
       forgeBonusLabel: '',
     },
     upgradeOffers: [],
@@ -217,6 +228,7 @@ export const useStore = create<StoreState>()(
     activeUpgrades: [],
     forgeShopOffers: [],
     forgeShopPurchased: false,
+    casinoState: null,
     bossWarnTypeId: null,
     meta: {
       highScores: {},
@@ -225,6 +237,7 @@ export const useStore = create<StoreState>()(
       totalRunsCompleted: 0,
       totalWavesCleared: 0,
       unlockedArsenal: ['ars_firebolt', 'ars_arc_bolt', 'ars_frost_shard', 'ars_pulse_shot', 'ars_aqua_bolt'],
+      encounteredEnemyIds: [],
       totalKills: 0,
       maxWaveReached: 0,
       pendingArsenalUnlocks: [],
@@ -244,6 +257,7 @@ export const useStore = create<StoreState>()(
       set({ upgradeOffers: offers, upgradePicksRemaining: picksRemaining }),
     setForgeShopOffers: (offers) => set({ forgeShopOffers: offers }),
     setForgeShopPurchased: (forgeShopPurchased) => set({ forgeShopPurchased }),
+    setCasinoState: (casinoState) => set({ casinoState }),
     setActiveUpgrades: (activeUpgrades) => set({ activeUpgrades }),
     setBossWarn: (id) => set({ bossWarnTypeId: id }),
     setMeta: (meta) => set({ meta }),
