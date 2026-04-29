@@ -33,6 +33,7 @@ export interface EffectContext {
   intensity: TierIntensity;
   upgradeId: string;
   animation: FaceUpgrade['animation'];
+  timing: NonNullable<FaceUpgrade['effect']['timing']>;
   pendingMods: PendingMods;
 }
 
@@ -49,9 +50,8 @@ export function resolveSlot(
   if (replacerId) {
     executeUpgrade(replacerId, 1, face, baseDamage, run, ops, shared);
   }
-  for (const suppId of slot.supplementIds) {
-    executeUpgrade(suppId, 1, face, baseDamage, run, ops, shared);
-  }
+  // Per-face supplements are dormant while global relics handle run-wide passive effects.
+  void slot.supplementIds;
 }
 
 export function executeUpgrade(
@@ -84,6 +84,7 @@ export function executeUpgrade(
     intensity: intens,
     upgradeId,
     animation: upgrade.animation,
+    timing: tierData.timing ?? {},
     pendingMods: sharedMods ?? {},
   };
 
@@ -205,7 +206,7 @@ function verbFireProjectile(
   ctx: EffectContext,
 ): void {
   const count = Math.max(1, effect.count + Math.floor(ctx.pendingMods.extra ?? 0));
-  const delayStep = BALANCE.combat.shotSequenceDelay;
+  const delayStep = ctx.timing.shotInterval ?? BALANCE.combat.shotSequenceDelay;
   const dmg = ctx.baseDamage * (effect.damageMul ?? 1);
   const mods = ctx.pendingMods;
   for (let i = 0; i < count; i++) {
@@ -219,6 +220,7 @@ function verbFireProjectile(
         p.vx *= effect.speed;
         p.vy *= effect.speed;
       }
+      if (effect.lifeMul !== undefined) p.maxAge *= effect.lifeMul;
       applyPendingTo(p, mods);
       if (effect.spread && count > 1) {
         const spreadRad = effect.spread > Math.PI * 2 ? (effect.spread * Math.PI) / 180 : effect.spread;
