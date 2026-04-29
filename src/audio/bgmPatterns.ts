@@ -2,8 +2,8 @@ import type { BgmTrackId } from '../state/store';
 
 /**
  * Non-selectable tracks played on non-gameplay screens (menu / select / gameover).
- * Several genre variants exist — one is chosen at random on each menu entry so the
- * landing theme feels fresh between runs.
+ * The default menu now stays on the title leitmotif so the game has a memorable
+ * musical identity; legacy variants remain available through the debug menu.
  */
 export const MENU_TRACK_IDS = [
   'menu',
@@ -17,17 +17,9 @@ export type MenuTrackId = (typeof MENU_TRACK_IDS)[number];
 /** Stable default used as a fallback; prefer `pickRandomMenuTrack()` for actual playback. */
 export const MENU_TRACK_ID: MenuTrackId = 'menu';
 
-let lastMenuPick: MenuTrackId | null = null;
-/** Pick a random menu variant, avoiding an immediate repeat of the previous pick. */
+/** Pick the title motif; kept as a function so callers do not care about policy. */
 export function pickRandomMenuTrack(): MenuTrackId {
-  const ids = MENU_TRACK_IDS;
-  if (ids.length <= 1) return ids[0];
-  let pick: MenuTrackId;
-  do {
-    pick = ids[Math.floor(Math.random() * ids.length)];
-  } while (pick === lastMenuPick);
-  lastMenuPick = pick;
-  return pick;
+  return MENU_TRACK_ID;
 }
 
 export type BgmPatternKey = BgmTrackId | MenuTrackId;
@@ -35,6 +27,8 @@ export type BgmPatternKey = BgmTrackId | MenuTrackId;
 export type BgmLayerPattern = {
   bpm: number;
   stepMul: number;
+  /** Arrangement color; orchestral tracks use softer lead and stronger pads/brass. */
+  tone?: 'orchestral';
   /** Triangle: roots */
   bass: number[];
   /** Square: main “theme” (catchy) */
@@ -86,7 +80,8 @@ function fillEnd(snare: boolean[]): boolean[] {
  * ④ Omen — D minor, half-time, grave.
  * ⑤ Stormwall — E minor, driving kit.
  * ⑥ Throne — G minor, slow & wide, coronation weight.
- * + `menu` — non-selectable title-screen theme (plays on menu/select/gameover).
+ * ⑦ Overture — the title leitmotif in playable adventure form.
+ * + `menu` — non-selectable title-screen arrangement of the same leitmotif.
  *
  * These are the 16-step *seed* phrases; `BGM_SETS` (exported below) expands
  * them into full 64-step songs so the landing page and gameplay don't hammer
@@ -480,30 +475,98 @@ const BGM_SEEDS: Record<
       ],
     },
   },
-  // Title-screen theme: D minor / F major gleam. Slow, stately, hopeful.
-  // Motif: F–A–C–D rising harp with a sparse bell-like lead; warm string pad.
+  // Dice Overture: D minor / F major title leitmotif in playable adventure form.
+  // Hook: D-F-A-C | Bb-A-F-D | C-D-F-G | A-G-E-D, with harp sparkle and horn answers.
+  overture: {
+    normal: {
+      bpm: 148,
+      stepMul: 1,
+      tone: 'orchestral',
+      bass: [
+        38, 0, 45, 0, 34, 0, 41, 0, 36, 0, 43, 0, 33, 0, 40, 0,
+      ],
+      lead: [
+        74, 77, 81, 84, 82, 81, 77, 74, 72, 74, 77, 79, 81, 79, 76, 74,
+      ],
+      counter: [
+        0, 65, 0, 69, 0, 70, 0, 65, 0, 67, 0, 72, 0, 69, 0, 64,
+      ],
+      arp: [
+        62, 65, 69, 74, 58, 62, 65, 70, 60, 64, 67, 72, 57, 61, 64, 69,
+      ],
+      strings: [
+        50, 50, 50, 50, 46, 46, 46, 46, 48, 48, 48, 48, 45, 45, 45, 45,
+      ],
+      brass: [
+        50, 0, 0, 57, 46, 0, 0, 53, 48, 0, 0, 55, 45, 0, 52, 0,
+      ],
+      kick: [
+        true, false, false, false, true, false, true, false, true, false, false, false, true, false, true, false,
+      ],
+      snare: [
+        false, false, false, false, true, false, false, true, false, false, true, false, true, false, false, true,
+      ],
+      hihat: [
+        true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false,
+      ],
+    },
+    boss: {
+      bpm: 154,
+      stepMul: 0.9,
+      tone: 'orchestral',
+      bass: [
+        38, 38, 45, 38, 34, 34, 41, 34, 36, 36, 43, 36, 33, 33, 40, 33,
+      ],
+      lead: [
+        74, 0, 77, 0, 81, 0, 84, 0, 82, 81, 77, 74, 76, 77, 79, 81,
+      ],
+      counter: [
+        62, 0, 65, 0, 58, 0, 65, 0, 60, 0, 67, 0, 61, 0, 64, 0,
+      ],
+      arp: [
+        62, 65, 69, 74, 58, 62, 65, 70, 60, 64, 67, 72, 57, 61, 64, 69,
+      ],
+      strings: [
+        50, 50, 50, 50, 46, 46, 46, 46, 48, 48, 48, 48, 45, 45, 45, 45,
+      ],
+      brass: [
+        38, 0, 50, 0, 34, 0, 46, 0, 36, 0, 48, 0, 33, 0, 45, 52,
+      ],
+      kick: [
+        true, false, true, false, true, false, true, true, true, false, true, false, true, false, true, true,
+      ],
+      snare: [
+        false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true,
+      ],
+      hihat: [
+        true, true, false, true, true, true, false, true, true, true, false, true, true, true, false, true,
+      ],
+    },
+  },
+  // Title-screen arrangement: same hook as `overture`, slower and more ceremonial.
   // Boss layer reused as an identical copy (no boss state on menu).
   menu: {
     normal: {
-      bpm: 126,
-      stepMul: 1.1,
+      bpm: 104,
+      stepMul: 1.15,
+      tone: 'orchestral',
       bass: [
-        41, 0, 0, 0, 36, 0, 0, 0, 43, 0, 0, 0, 38, 0, 0, 0,
+        38, 0, 0, 0, 34, 0, 0, 0, 36, 0, 0, 0, 33, 0, 0, 0,
       ],
       lead: [
-        77, 0, 0, 0, 74, 0, 72, 0, 70, 0, 0, 0, 74, 0, 72, 0,
+        74, 0, 77, 0, 81, 0, 84, 0, 82, 0, 81, 0, 77, 76, 74, 0,
       ],
       counter: [
-        0, 0, 65, 0, 0, 0, 0, 60, 0, 0, 67, 0, 0, 0, 0, 62,
+        0, 65, 0, 0, 0, 70, 0, 0, 0, 67, 0, 0, 0, 64, 0, 0,
       ],
       arp: [
-        65, 69, 72, 77, 60, 65, 69, 72, 67, 72, 74, 79, 62, 67, 70, 74,
+        62, 65, 69, 74, 58, 62, 65, 70, 60, 64, 67, 72, 57, 61, 64, 69,
       ],
       strings: [
-        53, 53, 53, 53, 48, 48, 48, 48, 55, 55, 55, 55, 50, 50, 50, 50,
+        50, 50, 50, 50, 46, 46, 46, 46, 48, 48, 48, 48, 45, 45, 45, 45,
       ],
       brass: [
-        41, 0, 0, 0, 36, 0, 0, 0, 43, 0, 0, 0, 38, 0, 0, 0,
+        50, 0, 0, 0, 46, 0, 0, 0, 48, 0, 0, 0, 45, 0, 52, 0,
       ],
       kick: [
         true, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false,
@@ -516,25 +579,26 @@ const BGM_SEEDS: Record<
       ],
     },
     boss: {
-      bpm: 126,
-      stepMul: 1.1,
+      bpm: 104,
+      stepMul: 1.15,
+      tone: 'orchestral',
       bass: [
-        41, 0, 0, 0, 36, 0, 0, 0, 43, 0, 0, 0, 38, 0, 0, 0,
+        38, 0, 0, 0, 34, 0, 0, 0, 36, 0, 0, 0, 33, 0, 0, 0,
       ],
       lead: [
-        77, 0, 0, 0, 74, 0, 72, 0, 70, 0, 0, 0, 74, 0, 72, 0,
+        74, 0, 77, 0, 81, 0, 84, 0, 82, 0, 81, 0, 77, 76, 74, 0,
       ],
       counter: [
-        0, 0, 65, 0, 0, 0, 0, 60, 0, 0, 67, 0, 0, 0, 0, 62,
+        0, 65, 0, 0, 0, 70, 0, 0, 0, 67, 0, 0, 0, 64, 0, 0,
       ],
       arp: [
-        65, 69, 72, 77, 60, 65, 69, 72, 67, 72, 74, 79, 62, 67, 70, 74,
+        62, 65, 69, 74, 58, 62, 65, 70, 60, 64, 67, 72, 57, 61, 64, 69,
       ],
       strings: [
-        53, 53, 53, 53, 48, 48, 48, 48, 55, 55, 55, 55, 50, 50, 50, 50,
+        50, 50, 50, 50, 46, 46, 46, 46, 48, 48, 48, 48, 45, 45, 45, 45,
       ],
       brass: [
-        41, 0, 0, 0, 36, 0, 0, 0, 43, 0, 0, 0, 38, 0, 0, 0,
+        50, 0, 0, 0, 46, 0, 0, 0, 48, 0, 0, 0, 45, 0, 52, 0,
       ],
       kick: [
         true, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false,
@@ -950,6 +1014,7 @@ function expandSong(seed: BgmLayerPattern): BgmLayerPattern {
   return {
     bpm: seed.bpm,
     stepMul: seed.stepMul,
+    tone: seed.tone,
     ...concatPhrases([a, aPrime, b, aFinal]),
   };
 }
