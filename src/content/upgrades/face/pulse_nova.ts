@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { epic: prices.standardEpic };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -16,7 +20,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pulse_ring',
     evolution: 'supernova_ring',
   },
-    effect: { effects: [{ verb: 'pulse', radius: 45, damageMul: 1.0 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'pulse', radius: 45, damageMul: 0.9 }], damageMul: 1.0, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "pulse_nova_ii",
@@ -34,7 +39,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pulse_ring',
     evolution: 'supernova_ring',
   },
-    effect: { effects: [{ verb: 'pulse', radius: 65, damageMul: 1.4, knockback: 20 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'pulse', radius: 65, damageMul: 1.2, knockback: 20 }], damageMul: 1.0, timing: tempo.heavy },
+    basePrice,
   },
   {
     id: "pulse_nova_iii",
@@ -51,7 +57,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pulse_ring',
     evolution: 'supernova_ring',
   },
-    effect: { effects: [{ verb: 'pulse', radius: 90, damageMul: 2.0, knockback: 40, repeat: 2, delay: 0.5 }, { verb: 'pulse', radius: 90, damageMul: 1.0, delay: 0.5 }], damageMul: 1.0, note: 'Supernova' },
+    effect: { effects: [{ verb: 'pulse', radius: 88, damageMul: 1.55, knockback: 40, repeat: 2, delay: 0.45 }], damageMul: 1.0, timing: tempo.artillery, note: 'Supernova' },
+    basePrice,
   }
 ];
 
