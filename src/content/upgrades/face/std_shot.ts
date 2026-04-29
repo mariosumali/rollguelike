@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { common: prices.standardCommon };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'std_burst',
     evolution: 'volley_burst',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.05 }], damageMul: 0.95, timing: tempo.quick },
+    basePrice,
   },
   {
     id: "std_shot_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'std_burst',
     evolution: 'volley_burst',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 4 }], damageMul: 1.1 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 4, speed: 1.05, spread: Math.PI / 12 }], damageMul: 1.0, timing: tempo.quick },
+    basePrice,
   },
   {
     id: "std_shot_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'std_burst',
     evolution: 'volley_burst',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 6, spread: Math.PI / 2 }, { verb: 'fireProjectile', count: 0, spread: Math.PI / 2 }], damageMul: 1.25, note: 'Volley' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 6, speed: 1.05, spread: Math.PI / 2 }], damageMul: 1.08, timing: tempo.standard, note: 'Volley' },
+    basePrice,
   }
 ];
 
