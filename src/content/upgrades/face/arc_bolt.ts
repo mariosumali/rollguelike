@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { rare: prices.standardRare };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'arc_chain',
     evolution: 'storm_chain',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, element: 'lightning' }, { verb: 'chain', maxChains: 2, decay: 0.5 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.25, element: 'lightning' }, { verb: 'chain', maxChains: 2, decay: 0.5 }], damageMul: 0.95, timing: tempo.standard },
+    basePrice,
   },
   {
     id: "arc_bolt_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'arc_chain',
     evolution: 'storm_chain',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, element: 'lightning' }, { verb: 'chainLightning', jumps: 3, damageMul: 0.55, radius: 95, stunDur: 0.2 }], damageMul: 1.1 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.3, element: 'lightning' }, { verb: 'chainLightning', jumps: 3, damageMul: 0.5, radius: 95, stunDur: 0.18 }], damageMul: 1.0, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "arc_bolt_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'arc_chain',
     evolution: 'storm_chain',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, element: 'lightning', spread: Math.PI / 14 }, { verb: 'chainLightning', jumps: 5, damageMul: 0.7, radius: 120, stunDur: 0.35, fromDie: true }, { verb: 'chainLightning', jumps: 5, damageMul: 0.75, radius: 120, stunDur: 0.35, fromDie: true }], damageMul: 1.25, note: 'Storm Call' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.3, element: 'lightning', spread: Math.PI / 14 }, { verb: 'chainLightning', jumps: 5, damageMul: 0.58, radius: 115, stunDur: 0.3, fromDie: true }], damageMul: 1.12, timing: tempo.heavy, note: 'Storm Call' },
+    basePrice,
   }
 ];
 
