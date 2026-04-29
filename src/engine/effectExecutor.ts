@@ -1,8 +1,7 @@
 import type { Effect, FaceUpgrade, SlotState } from '../content/upgrades/types';
-import { MAX_TIER } from '../content/upgrades/types';
 import type { Face, RunState, Element } from '../types';
 import type { FaceOps } from '../systems/faceResolve';
-import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
+import { getFaceRank, getFaceUpgrade } from '../content/upgrades/faceRegistry';
 import { getAnimationSpec } from '../content/animations/registry';
 import { intensity, type TierIntensity } from '../content/animations/types';
 import { BALANCE } from '../config/balance';
@@ -57,7 +56,7 @@ export function resolveSlot(
 
 export function executeUpgrade(
   upgradeId: string,
-  tier: number,
+  _tier: number,
   face: Face,
   baseDamage: number,
   run: RunState,
@@ -71,8 +70,8 @@ export function executeUpgrade(
     }
     return;
   }
-  const safeTier = Math.max(1, Math.min(MAX_TIER, tier));
-  const tierData = upgrade.tiers[safeTier - 1];
+  const safeTier = getFaceRank(upgrade);
+  const tierData = upgrade.effect;
   if (!tierData) return;
 
   const intens = intensity(safeTier);
@@ -94,9 +93,6 @@ export function executeUpgrade(
   }
 
   const effects: Effect[] = [...tierData.effects];
-  if (safeTier === MAX_TIER && upgrade.evolution?.extraEffects) {
-    effects.push(...upgrade.evolution.extraEffects);
-  }
 
   for (const effect of effects) {
     if (isModifierVerb(effect.verb)) executeEffect(effect, ctx);
@@ -463,9 +459,9 @@ function verbReflect(effect: Extract<Effect, { verb: 'reflect' }>, ctx: EffectCo
 
 export function getTieredAnimationIds(
   upgrade: FaceUpgrade,
-  tier: number,
+  _tier: number,
 ): { cast?: string; projectile?: string; hit?: string; evolution?: string } {
-  const useEvolution = tier === MAX_TIER && upgrade.animation.evolution;
+  const useEvolution = getFaceRank(upgrade) >= 3 && upgrade.animation.evolution;
   return {
     cast: upgrade.animation.cast,
     projectile: upgrade.animation.projectile,

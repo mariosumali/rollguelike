@@ -68,12 +68,10 @@ export function resolveFace(face: Face, baseDmg: number, roll: RollResult, run: 
   if (slot && (slot.replacerId || slot.supplementIds.length > 0)) {
     const shared: PendingMods = {};
     for (const suppId of slot.supplementIds) {
-      const tier = run.ownedFaceUpgrades[suppId] ?? 1;
-      executeUpgrade(suppId, tier, face, baseDmg, run, ops, shared);
+      executeUpgrade(suppId, 1, face, baseDmg, run, ops, shared);
     }
     if (slot.replacerId) {
-      const tier = run.ownedFaceUpgrades[slot.replacerId] ?? 1;
-      executeUpgrade(slot.replacerId, tier, face, baseDmg, run, ops, shared);
+      executeUpgrade(slot.replacerId, 1, face, baseDmg, run, ops, shared);
     } else {
       resolveLegacyFace(face, baseDmg, roll, run, ops);
     }

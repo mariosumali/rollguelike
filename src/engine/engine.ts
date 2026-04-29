@@ -87,7 +87,12 @@ import { makeAnimState, setAnim, stepAnim, type AnimState } from '../sprites/ani
 import { getCharacter, listCharacters } from '../content/characters/registry';
 import { getEnemyType } from '../content/enemies/registry';
 import { listUpgrades, getUpgrade } from '../content/upgrades/registry';
-import { listFaceUpgrades, getFaceUpgrade } from '../content/upgrades/faceRegistry';
+import {
+  getFaceChainId,
+  getFaceRank,
+  listFaceUpgrades,
+  getFaceUpgrade,
+} from '../content/upgrades/faceRegistry';
 import { MAX_TIER } from '../content/upgrades/types';
 import { resolveFace, deriveProjectileColor, findNearestEnemyXY, DEFAULT_AIM } from '../systems/faceResolve';
 import { createSlotLayout, canPlaceSupplement, expandSlot, slotAllowedTags, isSlotLocked } from '../systems/slots';
@@ -2387,18 +2392,44 @@ export function rerollUpgradeOffers(): void {
   playSfx('ui_reroll');
 }
 
-function nextTierFor(run: RunState, upgradeId: string): number {
-  const owned = run.ownedFaceUpgrades[upgradeId] ?? 0;
-  return Math.min(owned + 1, MAX_TIER);
-}
-
 function priceFor(upgrade: ReturnType<typeof getFaceUpgrade>, tier: number): number {
   if (!upgrade) return 0;
-  const t = Math.max(1, Math.min(MAX_TIER, tier));
+  const t = Math.max(1, Math.min(MAX_TIER, tier || getFaceRank(upgrade)));
   const custom = upgrade.basePrice?.[upgrade.rarity]?.[t - 1];
   if (typeof custom === 'number') return custom;
   const fallback = BALANCE.faceUpgrade.basePrices[upgrade.rarity]?.[t - 1];
   return fallback ?? 10;
+}
+
+function findEquippedFaceUpgrade(run: RunState, upgradeId: string): { slotIndex: number; kind: 'replacer' | 'supplement'; supplementPos?: number } | null {
+  for (let i = 0; i < run.slotLayout.length; i++) {
+    const slot = run.slotLayout[i];
+    if (!slot) continue;
+    if (slot.replacerId === upgradeId) return { slotIndex: i, kind: 'replacer' };
+    const supplementPos = slot.supplementIds.indexOf(upgradeId);
+    if (supplementPos >= 0) return { slotIndex: i, kind: 'supplement', supplementPos };
+  }
+  return null;
+}
+
+function hasEquippedFaceChain(run: RunState, chainId: string): boolean {
+  return run.slotLayout.some((slot) => {
+    if (slot.replacerId) {
+      const up = getFaceUpgrade(slot.replacerId);
+      if (up && getFaceChainId(up) === chainId) return true;
+    }
+    return slot.supplementIds.some((id) => {
+      const up = getFaceUpgrade(id);
+      return Boolean(up && getFaceChainId(up) === chainId);
+    });
+  });
+}
+
+function canOfferFaceUpgrade(run: RunState, upgrade: ReturnType<typeof getFaceUpgrade>): boolean {
+  if (!upgrade) return false;
+  if (upgrade.characterExclusive && upgrade.characterExclusive !== run.characterId) return false;
+  if (upgrade.upgradesFrom) return findEquippedFaceUpgrade(run, upgrade.upgradesFrom) !== null;
+  return !hasEquippedFaceChain(run, getFaceChainId(upgrade));
 }
 
 function pickBestSlotFor(
@@ -2408,6 +2439,11 @@ function pickBestSlotFor(
   if (!upgrade) return -1;
   const ch = getCharacter(run.characterId);
   if (!ch) return -1;
+  if (upgrade.upgradesFrom) {
+    const predecessor = findEquippedFaceUpgrade(run, upgrade.upgradesFrom);
+    return predecessor?.slotIndex ?? -1;
+  }
+  if (hasEquippedFaceChain(run, getFaceChainId(upgrade))) return -1;
   const slots = run.slotLayout;
   const bindsTo = upgrade.bindsTo;
   const tagSet = new Set(upgrade.tags ?? []);
@@ -2443,18 +2479,16 @@ function pickBestSlotFor(
   return candidates[Math.floor(state.rng() * candidates.length)] ?? -1;
 }
 
-export function generateForgeShopOffers(run: RunState): { id: string; slotIndex: number; nextTier: number; price: number }[] {
+export function generateForgeShopOffers(run: RunState): { id: string; slotIndex: number; rank: number; price: number }[] {
   const count = BALANCE.shop.cardsPerOffer;
   const wave = run.wave;
   const rarityMinWave = BALANCE.shop.rarityMinWave;
   const mutator = getRunMutator(run.runMutatorId);
   const rarityBonus = mutator?.modifiers.forgeRarityBonus ?? 0;
-  // Pre-filter: must be eligible (character, max tier, has at least one valid
-  // slot) AND the rarity must have unlocked by the current wave.
+  // Pre-filter: must be eligible (character, chain prerequisite, has at least
+  // one valid slot) AND the rarity must have unlocked by the current wave.
   let all = listFaceUpgrades().filter((u) => {
-    if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
-    const owned = run.ownedFaceUpgrades[u.id] ?? 0;
-    if (owned >= MAX_TIER) return false;
+    if (!canOfferFaceUpgrade(run, u)) return false;
     if (wave < (rarityMinWave[u.rarity] ?? 1)) return false;
     if (pickBestSlotFor(run, u) < 0) return false;
     return true;
@@ -2464,9 +2498,7 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
   // forge is never empty.
   if (all.length === 0) {
     all = listFaceUpgrades().filter((u) => {
-      if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
-      const owned = run.ownedFaceUpgrades[u.id] ?? 0;
-      if (owned >= MAX_TIER) return false;
+      if (!canOfferFaceUpgrade(run, u)) return false;
       if (pickBestSlotFor(run, u) < 0) return false;
       return true;
     });
@@ -2474,18 +2506,18 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
   if (all.length === 0) return [];
 
   const weights: { id: string; w: number }[] = all.map((u) => {
-    const owned = run.ownedFaceUpgrades[u.id] ?? 0;
+    const rank = getFaceRank(u);
     let w = 1;
-    if (owned === 0) w *= 1;
-    else if (owned <= 2) w *= BALANCE.shop.ownedT1T2WeightMul;
-    else if (owned < MAX_TIER) w *= BALANCE.shop.ownedT3T4WeightMul;
+    if (!u.upgradesFrom) w *= 1;
+    else if (rank <= 2) w *= BALANCE.shop.ownedT1T2WeightMul;
+    else if (rank < MAX_TIER) w *= BALANCE.shop.ownedT3T4WeightMul;
     else w *= BALANCE.shop.ownedMaxWeightMul;
     w *= BALANCE.shop.rarityWeight(u.rarity, wave);
     if (u.rarity !== 'common') w *= 1 + rarityBonus;
     return { id: u.id, w };
   });
 
-  const offers: { id: string; slotIndex: number; nextTier: number; price: number }[] = [];
+  const offers: { id: string; slotIndex: number; rank: number; price: number }[] = [];
   const chosen = new Set<string>();
   for (let i = 0; i < count; i++) {
     const guaranteed = i === 0 && run.guaranteedForgeRarity
@@ -2505,12 +2537,12 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
     }
     chosen.add(picked);
     const upgrade = getFaceUpgrade(picked);
-    const nextTier = nextTierFor(run, picked);
+    const rank = getFaceRank(upgrade);
     const slotIndex = pickBestSlotFor(run, upgrade);
     if (slotIndex < 0) continue; // safety: eligibility recheck
     const discount = Math.max(0, Math.min(0.75, run.nextForgeDiscount ?? 0));
-    const price = Math.max(1, Math.floor(priceFor(upgrade, nextTier) * (1 - discount)));
-    offers.push({ id: picked, slotIndex, nextTier, price });
+    const price = Math.max(1, Math.floor(priceFor(upgrade, rank) * (1 - discount)));
+    offers.push({ id: picked, slotIndex, rank, price });
   }
   return offers;
 }
@@ -2555,9 +2587,10 @@ function canHostUpgrade(
   const tagSet = new Set(upgrade.tags ?? []);
   if (allowed && allowed.length > 0 && ![...allowed].some((t) => tagSet.has(t))) return false;
   const defaults = ch.defaultFaces ?? [];
-  if (upgrade.kind === 'replacer' && defaults[slotIndex]?.restrictedReplacement) return false;
   const slot = run.slotLayout[slotIndex];
   if (!slot) return false;
+  const replacesCurrentReplacer = Boolean(upgrade.upgradesFrom && slot.replacerId === upgrade.upgradesFrom);
+  if (upgrade.kind === 'replacer' && defaults[slotIndex]?.restrictedReplacement && !replacesCurrentReplacer) return false;
   if (upgrade.kind === 'supplement' && !opts?.ignoreSupplementCap && !canPlaceSupplement(slot)) return false;
   return true;
 }
@@ -2565,10 +2598,17 @@ function canHostUpgrade(
 /** Whether an offer can legally be placed into a specific slot for this run. */
 export function canPlaceOfferInSlot(
   run: RunState,
-  offer: { id: string; nextTier: number; price: number },
+  offer: { id: string; rank: number; price: number },
   slotIndex: number,
 ): boolean {
   const upgrade = getFaceUpgrade(offer.id);
+  if (!upgrade) return false;
+  if (upgrade.upgradesFrom) {
+    const predecessor = findEquippedFaceUpgrade(run, upgrade.upgradesFrom);
+    if (!predecessor || predecessor.slotIndex !== slotIndex) return false;
+    return canHostUpgrade(run, upgrade, slotIndex, { ignoreSupplementCap: predecessor.kind === 'supplement' });
+  }
+  if (hasEquippedFaceChain(run, getFaceChainId(upgrade))) return false;
   return canHostUpgrade(run, upgrade, slotIndex);
 }
 
@@ -2694,12 +2734,24 @@ export function placeForgeOfferInSlot(offerIndex: number, slotIndex: number): bo
   const slot = run.slotLayout[slotIndex];
   if (!slot) return false;
 
-  if (upgrade.kind === 'replacer') {
+  if (upgrade.upgradesFrom) {
+    const predecessor = findEquippedFaceUpgrade(run, upgrade.upgradesFrom);
+    if (!predecessor || predecessor.slotIndex !== slotIndex) return false;
+    if (predecessor.kind === 'replacer') {
+      slot.replacerId = upgrade.id;
+    } else {
+      const pos = predecessor.supplementPos;
+      if (pos == null || pos < 0) return false;
+      slot.supplementIds[pos] = upgrade.id;
+    }
+    delete run.ownedFaceUpgrades[upgrade.upgradesFrom];
+  } else if (upgrade.kind === 'replacer') {
+    if (slot.replacerId) delete run.ownedFaceUpgrades[slot.replacerId];
     slot.replacerId = upgrade.id;
   } else {
     slot.supplementIds.push(upgrade.id);
   }
-  run.ownedFaceUpgrades[upgrade.id] = offer.nextTier;
+  run.ownedFaceUpgrades[upgrade.id] = 1;
   run.gold -= offer.price;
   run.goldSpent += offer.price;
 
@@ -2731,8 +2783,7 @@ export function forgeSellValue(run: RunState, slotIndex: number, kind: 'replacer
   }
   const upgrade = getFaceUpgrade(id);
   if (!upgrade) return 0;
-  const tier = run.ownedFaceUpgrades[id] ?? 1;
-  const price = priceFor(upgrade, tier);
+  const price = priceFor(upgrade, getFaceRank(upgrade));
   return Math.max(1, Math.floor(price * 0.5));
 }
 
@@ -2762,9 +2813,7 @@ export function sellFromSlot(
   }
 
   if (removedId) {
-    const cur = run.ownedFaceUpgrades[removedId] ?? 0;
-    if (cur <= 1) delete run.ownedFaceUpgrades[removedId];
-    else run.ownedFaceUpgrades[removedId] = cur - 1;
+    delete run.ownedFaceUpgrades[removedId];
   }
 
   run.gold += refund;
@@ -3630,17 +3679,19 @@ export function debugGrantLandmarkUpgrade(id: string): boolean {
 }
 
 /**
- * Grant a face upgrade. Increments ownedFaceUpgrades tier and — when possible —
- * auto-installs it into the first valid slot so the effect is visible in-run.
+ * Grant a concrete face upgrade. When a rank is provided, the matching chain
+ * member is installed into the first valid slot so the effect is visible in-run.
  */
 export function debugGrantFaceUpgrade(id: string, tier = 1): boolean {
   const run = state.run;
   if (!run) return false;
-  const upgrade = getFaceUpgrade(id);
+  const baseUpgrade = getFaceUpgrade(id);
+  const targetRank = Math.max(1, Math.min(MAX_TIER, Math.floor(tier)));
+  const upgrade = baseUpgrade
+    ? listFaceUpgrades().find((u) => getFaceChainId(u) === getFaceChainId(baseUpgrade) && getFaceRank(u) === targetRank) ?? baseUpgrade
+    : undefined;
   if (!upgrade) return false;
-  const clampedTier = Math.max(1, Math.min(tier, upgrade.tiers.length));
-  const currentTier = run.ownedFaceUpgrades[id] ?? 0;
-  run.ownedFaceUpgrades[id] = Math.max(currentTier, clampedTier);
+  run.ownedFaceUpgrades[upgrade.id] = 1;
 
   const character = getCharacter(run.characterId);
   if (!character) return true;
