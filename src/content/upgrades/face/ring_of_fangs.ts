@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { epic: prices.premiumEpic };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'fang_bite',
     evolution: 'eternal_circle',
   },
-    effect: { effects: [{ verb: 'orbit', count: 3, radius: 28, rpm: 120, damageMul: 0.8, duration: 3, pierce: 1 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'orbit', count: 3, radius: 28, rpm: 115, damageMul: 0.65, duration: 3.2, pierce: 1 }], damageMul: 1.0, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "ring_of_fangs_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'fang_bite',
     evolution: 'eternal_circle',
   },
-    effect: { effects: [{ verb: 'orbit', count: 4, radius: 32, rpm: 150, damageMul: 1.0, duration: 4, pierce: 1 }], damageMul: 1.1 },
+    effect: { effects: [{ verb: 'orbit', count: 4, radius: 32, rpm: 145, damageMul: 0.8, duration: 4.2, pierce: 1 }], damageMul: 1.05, timing: tempo.heavy },
+    basePrice,
   },
   {
     id: "ring_of_fangs_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'fang_bite',
     evolution: 'eternal_circle',
   },
-    effect: { effects: [{ verb: 'orbit', count: 6, radius: 36, rpm: 180, damageMul: 1.25, duration: 5, pierce: 2 }, { verb: 'orbit', count: 6, radius: 36, rpm: 180, damageMul: 1.2, duration: 8, pierce: 2 }], damageMul: 1.2, note: 'Eternal Circle' },
+    effect: { effects: [{ verb: 'orbit', count: 6, radius: 38, rpm: 170, damageMul: 0.95, duration: 6.5, pierce: 2 }], damageMul: 1.12, timing: tempo.artillery, note: 'Eternal Circle' },
+    basePrice,
   }
 ];
 
