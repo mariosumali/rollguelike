@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { rare: prices.standardRare };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'splash_ring',
     evolution: 'tide_pool',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, bounce: 1 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 0.95, bounce: 1 }], damageMul: 0.95, timing: tempo.standard },
+    basePrice,
   },
   {
     id: "aqua_bolt_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'splash_ring',
     evolution: 'tide_pool',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, bounce: 2 }, { verb: 'modifyProjectile', lifesteal: 0.05 }], damageMul: 1.1 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 0.95, bounce: 2, spread: Math.PI / 14 }, { verb: 'modifyProjectile', lifesteal: 0.05 }], damageMul: 1.0, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "aqua_bolt_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'splash_ring',
     evolution: 'tide_pool',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, bounce: 5 }, { verb: 'modifyProjectile', lifesteal: 0.15 }, { verb: 'spawnPickup', kind: 'heal', amount: 1, chance: 0.5 }, { verb: 'spawnPickup', kind: 'heal', amount: 1, chance: 1 }], damageMul: 1.25, note: 'Tide Caller' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.0, bounce: 4, spread: Math.PI / 12 }, { verb: 'modifyProjectile', lifesteal: 0.12 }, { verb: 'spawnPickup', kind: 'heal', amount: 1, chance: 0.5 }, { verb: 'spawnPickup', kind: 'heal', amount: 1, chance: 1 }], damageMul: 1.12, timing: tempo.heavy, note: 'Tide Caller' },
+    basePrice,
   }
 ];
 
