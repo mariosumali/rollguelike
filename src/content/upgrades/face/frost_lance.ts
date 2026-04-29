@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { rare: prices.premiumRare };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'frost_shatter',
     evolution: 'zero_freeze',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, element: 'ice', pierce: 1 }, { verb: 'applyStatus', status: 'slow', power: 0.35, duration: 1.4 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.25, element: 'ice', pierce: 1 }, { verb: 'applyStatus', status: 'slow', power: 0.35, duration: 1.4 }], damageMul: 0.95, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "frost_lance_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'frost_shatter',
     evolution: 'zero_freeze',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, element: 'ice', pierce: 1, spread: Math.PI / 16 }, { verb: 'applyStatus', status: 'slow', power: 0.5, duration: 2.4 }, { verb: 'frostBurst', radius: 38, damageMul: 0.45, freezeDur: 0.55, slow: 0.55 }], damageMul: 1.1 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.25, element: 'ice', pierce: 1, spread: Math.PI / 16 }, { verb: 'applyStatus', status: 'slow', power: 0.5, duration: 2.4 }, { verb: 'frostBurst', radius: 36, damageMul: 0.38, freezeDur: 0.55, slow: 0.55 }], damageMul: 1.0, timing: tempo.heavy },
+    basePrice,
   },
   {
     id: "frost_lance_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'frost_shatter',
     evolution: 'zero_freeze',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, element: 'ice', pierce: 2, spread: Math.PI / 12 }, { verb: 'frostBurst', radius: 62, damageMul: 0.75, freezeDur: 1.2, slow: 0.7 }, { verb: 'frostBurst', radius: 70, damageMul: 0.85, freezeDur: 1.4, slow: 0.65 }], damageMul: 1.2, note: 'Absolute Zero' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.35, element: 'ice', pierce: 2, spread: Math.PI / 12 }, { verb: 'frostBurst', radius: 58, damageMul: 0.6, freezeDur: 1.1, slow: 0.7 }, { verb: 'frostBurst', radius: 66, damageMul: 0.65, freezeDur: 1.25, slow: 0.65 }], damageMul: 1.08, timing: tempo.artillery, note: 'Absolute Zero' },
+    basePrice,
   }
 ];
 
