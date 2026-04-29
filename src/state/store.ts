@@ -146,6 +146,11 @@ interface StoreState {
     characterId: string;
     isBossWave: boolean;
     waveProgress: number;
+    runMutatorName: string;
+    runMutatorShortName: string;
+    waveArchetypeName: string;
+    biomeName: string;
+    forgeBonusLabel: string;
   };
 
   upgradeOffers: UpgradeOffer[];
@@ -201,6 +206,11 @@ export const useStore = create<StoreState>()(
       characterId: 'soldier',
       isBossWave: false,
       waveProgress: 0,
+      runMutatorName: '',
+      runMutatorShortName: '',
+      waveArchetypeName: '',
+      biomeName: '',
+      forgeBonusLabel: '',
     },
     upgradeOffers: [],
     upgradePicksRemaining: 0,

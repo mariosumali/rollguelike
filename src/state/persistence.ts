@@ -18,6 +18,7 @@ import type {
   DieThemeId,
 } from './store';
 import { listUpgrades } from '../content/upgrades/registry';
+import { MAX_TIER } from '../content/upgrades/types';
 import { DIE_THEME_DEFAULT_UNLOCKS, DIE_THEME_UNLOCKS } from '../sprites/dice';
 
 const KEY_META = 'rollguelike.meta.v1';
@@ -73,6 +74,11 @@ export function loadRun(): RunState | null {
 }
 
 function migrateRun(parsed: Partial<RunState>): RunState {
+  const ownedFaceUpgrades: Record<string, number> = {};
+  for (const [id, tier] of Object.entries(parsed.ownedFaceUpgrades ?? {})) {
+    if (typeof tier !== 'number' || !Number.isFinite(tier)) continue;
+    ownedFaceUpgrades[id] = Math.max(1, Math.min(MAX_TIER, Math.floor(tier)));
+  }
   return {
     characterId: parsed.characterId ?? 'soldier',
     wave: parsed.wave ?? 1,
@@ -94,10 +100,15 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     momentum: parsed.momentum,
     momentumT: parsed.momentumT,
     gold: parsed.gold ?? 0,
-    ownedFaceUpgrades: parsed.ownedFaceUpgrades ?? {},
+    ownedFaceUpgrades,
     slotLayout: parsed.slotLayout ?? [],
     gambitStacks: parsed.gambitStacks ?? 0,
     goldSpent: parsed.goldSpent ?? 0,
+    runMutatorId: parsed.runMutatorId,
+    currentWaveArchetypeId: parsed.currentWaveArchetypeId,
+    currentBiomeRuleId: parsed.currentBiomeRuleId,
+    nextForgeDiscount: parsed.nextForgeDiscount,
+    guaranteedForgeRarity: parsed.guaranteedForgeRarity,
   };
 }
 
