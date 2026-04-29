@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { common: prices.standardCommon };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'toxin_drip',
     evolution: 'plague_cloud',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, element: 'poison' }, { verb: 'applyStatus', status: 'poison', power: 2, duration: 3 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.25, element: 'poison' }, { verb: 'applyStatus', status: 'poison', power: 2, duration: 3 }], damageMul: 0.9, timing: tempo.quick },
+    basePrice,
   },
   {
     id: "poison_dart_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'toxin_drip',
     evolution: 'plague_cloud',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, element: 'poison', spread: Math.PI / 12 }, { verb: 'applyStatus', status: 'poison', power: 4, duration: 4 }, { verb: 'groundZone', radius: 30, dps: 4, duration: 1.4, element: 'poison', slow: 0.15 }], damageMul: 1.1 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.25, element: 'poison', spread: Math.PI / 12 }, { verb: 'applyStatus', status: 'poison', power: 4, duration: 4 }, { verb: 'groundZone', radius: 28, dps: 3, duration: 1.2, element: 'poison', slow: 0.15 }], damageMul: 0.98, timing: tempo.standard },
+    basePrice,
   },
   {
     id: "poison_dart_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'toxin_drip',
     evolution: 'plague_cloud',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 3, element: 'poison', spread: Math.PI / 8 }, { verb: 'applyStatus', status: 'poison', power: 7, duration: 5 }, { verb: 'groundZone', radius: 48, dps: 7, duration: 2.2, element: 'poison', slow: 0.25 }, { verb: 'groundZone', radius: 52, dps: 8, duration: 2.2, element: 'poison', slow: 0.2 }], damageMul: 1.2, note: 'Plague Carrier' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 3, speed: 1.2, element: 'poison', spread: Math.PI / 8 }, { verb: 'applyStatus', status: 'poison', power: 7, duration: 5 }, { verb: 'groundZone', radius: 46, dps: 6, duration: 2.0, element: 'poison', slow: 0.25 }], damageMul: 1.06, timing: tempo.deliberate, note: 'Plague Carrier' },
+    basePrice,
   }
 ];
 
