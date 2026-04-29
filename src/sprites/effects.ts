@@ -318,7 +318,7 @@ export function drawLightningBolt(ctx: CanvasRenderingContext2D, x1: number, y1:
   ctx.lineWidth = 2;
   const dx = x2 - x1;
   const dy = y2 - y1;
-  const len = Math.hypot(dx, dy);
+  const len = Math.hypot(dx, dy) || 1;
   const nx = -dy / len;
   const ny = dx / len;
   ctx.beginPath();
@@ -326,7 +326,7 @@ export function drawLightningBolt(ctx: CanvasRenderingContext2D, x1: number, y1:
   const segs = 4;
   for (let i = 1; i < segs; i++) {
     const t = i / segs;
-    const j = (Math.random() - 0.5) * 4;
+    const j = Math.sin((x1 + y1 + x2 + y2) * 0.17 + i * 4.7) * 3.5;
     ctx.lineTo(x1 + dx * t + nx * j, y1 + dy * t + ny * j);
   }
   ctx.lineTo(x2, y2);
@@ -365,6 +365,77 @@ export function drawFreezeCrystal(ctx: CanvasRenderingContext2D, x: number, y: n
   ctx.fillRect(Math.round(x + r * 0.7), Math.round(y - r * 0.7), 1, 1);
   ctx.fillStyle = palHex('D')!;
   ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+  ctx.restore();
+}
+
+export function drawFlamePillar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, progress: number, alpha: number): void {
+  ctx.save();
+  const h = Math.max(10, r * (1.8 + Math.sin(progress * Math.PI) * 0.8));
+  const baseY = Math.round(y + r * 0.35);
+  ctx.globalAlpha = alpha * 0.35;
+  ctx.fillStyle = palHex('v')!;
+  ctx.beginPath();
+  ctx.arc(Math.round(x), baseY, Math.round(r * 1.25), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = alpha;
+  for (let i = 0; i < 5; i++) {
+    const off = (i - 2) * Math.max(2, r * 0.18);
+    const flick = Math.sin(progress * 18 + i * 1.7) * 2;
+    const w = Math.max(2, r * (0.42 - i * 0.035));
+    const ph = h * (0.65 + i * 0.08);
+    ctx.fillStyle = i % 2 === 0 ? palHex('u')! : palHex('h')!;
+    ctx.fillRect(Math.round(x + off + flick - w / 2), Math.round(baseY - ph), Math.round(w), Math.round(ph));
+  }
+  ctx.globalAlpha = alpha * 0.9;
+  ctx.fillStyle = palHex('y')!;
+  ctx.fillRect(Math.round(x) - 1, Math.round(baseY - h * 0.85), 2, Math.round(h * 0.55));
+  ctx.restore();
+}
+
+export function drawSlowAura(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t: number, alpha: number): void {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = palHex('q')!;
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const yy = y + Math.sin(t * 3 + i) * r * 0.25;
+    ctx.beginPath();
+    ctx.ellipse(Math.round(x), Math.round(yy), Math.round(r * (0.65 + i * 0.15)), Math.max(1, Math.round(r * 0.22)), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+export function drawVoidRune(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t: number, alpha: number): void {
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.rotate(t * 1.2);
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = palHex('H')!;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.round(r), 0, Math.PI * 2);
+  ctx.stroke();
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 0.35, Math.sin(a) * r * 0.35);
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+export function drawStatusEmbers(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t: number, alpha: number): void {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = palHex('u')!;
+  for (let i = 0; i < 4; i++) {
+    const a = t * 4 + i * Math.PI * 0.5;
+    const px = x + Math.cos(a) * r * 0.7;
+    const py = y - r * 0.4 + Math.sin(a * 1.7) * r * 0.4;
+    ctx.fillRect(Math.round(px), Math.round(py), 1, 2);
+  }
   ctx.restore();
 }
 

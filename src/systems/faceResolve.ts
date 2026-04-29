@@ -16,16 +16,23 @@ export interface FaceOps {
     face: Face,
     postSpawn?: (p: Projectile) => void,
   ) => void;
-  pulse: (radius: number, damage: number, element: string) => void;
+  pulse: (radius: number, damage: number, element: string, knockback?: number) => void;
+  delayedPulse?: (params: { delay: number; radius: number; damage: number; element: Element; knockback: number }) => void;
   addShield: (count: number) => void;
   heal: (amount: number) => void;
   consumeSouls: (n: number) => boolean;
   repeatPrev: () => void;
   applyStatusNearest?: (status: 'burn' | 'poison' | 'slow' | 'freeze' | 'stun' | 'mark', power: number, duration: number) => void;
+  applyStatusArea?: (status: 'burn' | 'poison' | 'slow' | 'freeze' | 'stun' | 'mark', power: number, duration: number, radius: number) => void;
   addGold?: (amount: number) => void;
   startOrbit?: (params: { count: number; radius: number; rpm: number; damage: number; duration: number; pierce: number; element: Element; face: Face }) => void;
   startBeam?: (params: { width: number; dps: number; duration: number; pierce: number; element: Element; lifesteal: number; face: Face; baseDamage: number }) => void;
   startPull?: (params: { radius: number; strength: number; dps: number; duration: number; destroyProjectiles: boolean; element: Element }) => void;
+  startGroundZone?: (params: { radius: number; dps: number; duration: number; element: Element; slow: number }) => void;
+  strikeColumn?: (params: { delay: number; damage: number; element: Element; radius: number; stunDur: number; chainToExtra: number }) => void;
+  flamePillar?: (params: { delay: number; radius: number; damage: number; duration: number; burnDps: number; burnDur: number }) => void;
+  frostBurst?: (params: { radius: number; damage: number; freezeDur: number; slow: number }) => void;
+  chainLightning?: (params: { jumps: number; damage: number; radius: number; stunDur: number; element: Element; fromDie: boolean }) => void;
   summonMinion?: (params: { kind: 'bone' | 'wraith' | 'spirit' | 'ember'; count: number; hp: number; duration: number; damagePerHit: number; face: Face; baseDamage: number; trigger: 'onResolve' | 'onKill' | 'onProjectileExpire' }) => void;
   startReflect?: (params: { duration: number; multiplier: number; radius: number }) => void;
   playAnim?: (animId: string | undefined, x: number, y: number, intensity: TierIntensity) => void;
@@ -60,15 +67,15 @@ export function resolveFace(face: Face, baseDmg: number, roll: RollResult, run: 
   const slot = face.value >= 1 ? run.slotLayout?.[slotIndex] : undefined;
   if (slot && (slot.replacerId || slot.supplementIds.length > 0)) {
     const shared: PendingMods = {};
+    for (const suppId of slot.supplementIds) {
+      const tier = run.ownedFaceUpgrades[suppId] ?? 1;
+      executeUpgrade(suppId, tier, face, baseDmg, run, ops, shared);
+    }
     if (slot.replacerId) {
       const tier = run.ownedFaceUpgrades[slot.replacerId] ?? 1;
       executeUpgrade(slot.replacerId, tier, face, baseDmg, run, ops, shared);
     } else {
       resolveLegacyFace(face, baseDmg, roll, run, ops);
-    }
-    for (const suppId of slot.supplementIds) {
-      const tier = run.ownedFaceUpgrades[suppId] ?? 1;
-      executeUpgrade(suppId, tier, face, baseDmg, run, ops, shared);
     }
     return;
   }

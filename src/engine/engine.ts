@@ -12,6 +12,7 @@ import type {
   SpawnEvent,
   RollResult,
   Element,
+  DamageContext,
 } from '../types';
 import { BALANCE } from '../config/balance';
 import {
@@ -72,6 +73,10 @@ import {
   drawSoulPickup,
   drawSpark,
   drawFreezeCrystal,
+  drawFlamePillar,
+  drawSlowAura,
+  drawVoidRune,
+  drawStatusEmbers,
   ELEMENT_COLORS,
 } from '../sprites/effects';
 import { buildDieSpriteSet, drawDie, getDieTheme, buildFaceIconCanvas, type DieSpriteSet, type DieFaceIcons } from '../sprites/dice';
@@ -83,6 +88,7 @@ import { getCharacter, listCharacters } from '../content/characters/registry';
 import { getEnemyType } from '../content/enemies/registry';
 import { listUpgrades, getUpgrade } from '../content/upgrades/registry';
 import { listFaceUpgrades, getFaceUpgrade } from '../content/upgrades/faceRegistry';
+import { MAX_TIER } from '../content/upgrades/types';
 import { resolveFace, deriveProjectileColor, findNearestEnemyXY, DEFAULT_AIM } from '../systems/faceResolve';
 import { createSlotLayout, canPlaceSupplement, expandSlot, slotAllowedTags, isSlotLocked } from '../systems/slots';
 import { getAnimationSpec } from '../content/animations/registry';
@@ -105,6 +111,8 @@ import { palHex } from '../sprites/palette';
 import { weighted } from './rng';
 import { generateWave } from '../content/waves/generator';
 import { pick } from './rng';
+import { getRunMutator, pickRunMutator } from '../content/runMutators';
+import { getBiomeRule } from '../content/stages/biomeRules';
 
 export interface DieInstance {
   config: DieConfig;
@@ -167,6 +175,43 @@ interface PullZone {
   element: string;
 }
 
+interface GroundZone {
+  x: number;
+  y: number;
+  radius: number;
+  dps: number;
+  t: number;
+  duration: number;
+  element: Element;
+  slow: number;
+  kind: 'ground' | 'flame' | 'frost';
+  burnDps?: number;
+  burnDur?: number;
+}
+
+interface TimedStrike {
+  t: number;
+  delay: number;
+  damage: number;
+  element: Element;
+  radius: number;
+  stunDur: number;
+  chainToExtra: number;
+  kind: 'column' | 'flame';
+  duration?: number;
+  burnDps?: number;
+  burnDur?: number;
+}
+
+interface PendingPulse {
+  t: number;
+  delay: number;
+  radius: number;
+  damage: number;
+  element: Element;
+  knockback: number;
+}
+
 interface ReflectState {
   t: number;
   duration: number;
@@ -183,6 +228,9 @@ interface ReflectState {
 const FRENZY_TRIGGER_DELAY = 8;
 const FRENZY_DURATION = 6;
 const FRENZY_SPEED_MUL = 2;
+const TWIN_DICE_UPGRADE_ID = 'landmark_twin_dice';
+const TWIN_DICE_SUFFIX = '__twin';
+const TWIN_DICE_DAMAGE_MUL = 0.5;
 
 interface EngineState {
   run: RunState | null;
@@ -207,6 +255,9 @@ interface EngineState {
   pendingAttacks: PendingAttack[];
   pendingShots: PendingShot[];
   pullZones: PullZone[];
+  groundZones: GroundZone[];
+  timedStrikes: TimedStrike[];
+  pendingPulses: PendingPulse[];
   reflect: ReflectState | null;
   lastRolled: Face | null;
   spawnedForWave: boolean;
@@ -228,7 +279,8 @@ interface EngineState {
   lastHud: {
     wave: number; score: number; hp: number; maxHp: number;
     shield: number; souls: number; rage: number; gold: number; gambitStacks: number; characterId: string;
-    isBossWave: boolean; waveProgress: number;
+    isBossWave: boolean; waveProgress: number; runMutatorName: string; runMutatorShortName: string;
+    waveArchetypeName: string; biomeName: string; forgeBonusLabel: string;
   } | null;
 }
 
@@ -255,6 +307,9 @@ const state: EngineState = {
   pendingAttacks: [],
   pendingShots: [],
   pullZones: [],
+  groundZones: [],
+  timedStrikes: [],
+  pendingPulses: [],
   reflect: null,
   lastRolled: null,
   spawnedForWave: false,
@@ -298,6 +353,9 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   state.pendingAttacks = [];
   state.pendingShots = [];
   state.pullZones = [];
+  state.groundZones = [];
+  state.timedStrikes = [];
+  state.pendingPulses = [];
   state.reflect = null;
   state.lastRolled = null;
   state.waveClearedT = -1;
@@ -357,7 +415,11 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   state.run = run;
   setRunState(run);
   state.rng = mulberry32(run.seed);
-  state.dice = run.dice.map((d) => createDieInstance(d, run.dice.length));
+  if (!run.runMutatorId) {
+    run.runMutatorId = pickRunMutator(state.rng).id;
+  }
+  ensureTwinDice(run);
+  state.dice = buildDieInstances(run.dice);
 
   setAnim(state.playerAnim, 'idle');
   state.playerPose = { kind: 'none', t: 0, dur: 0 };
@@ -369,6 +431,20 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   syncHudToStore();
 }
 
+export function continueRun(run: RunState): void {
+  if (state.run === run && state.wave) {
+    initEngine();
+    state.paused = state.paused_upgrade;
+    state.tapQueued = false;
+    syncActiveUpgradesToStore();
+    syncHudToStore();
+    useStore.getState().setScreen('game');
+    return;
+  }
+
+  startRun(run.characterId, run);
+}
+
 function cloneDie(d: DieConfig): DieConfig {
   return {
     id: d.id,
@@ -378,8 +454,11 @@ function cloneDie(d: DieConfig): DieConfig {
   };
 }
 
-function createDieInstance(d: DieConfig, total: number): DieInstance {
-  const idx = state.dice.length;
+function buildDieInstances(dice: DieConfig[]): DieInstance[] {
+  return dice.map((d, idx) => createDieInstance(d, dice.length, idx));
+}
+
+function createDieInstance(d: DieConfig, total: number, idx = state.dice.length): DieInstance {
   const spacing = 24;
   const ox = total === 1 ? 0 : (idx - (total - 1) / 2) * spacing;
   return {
@@ -396,6 +475,27 @@ function createDieInstance(d: DieConfig, total: number): DieInstance {
   };
 }
 
+function hasUpgrade(run: RunState, id: string): boolean {
+  return run.upgrades.some((u) => u.id === id && u.stacks > 0);
+}
+
+function makeTwinDie(source: DieConfig): DieConfig {
+  const die = cloneDie(source);
+  die.id = source.id.endsWith(TWIN_DICE_SUFFIX)
+    ? source.id
+    : `${source.id}${TWIN_DICE_SUFFIX}`;
+  return die;
+}
+
+function ensureTwinDice(run: RunState): boolean {
+  if (!hasUpgrade(run, TWIN_DICE_UPGRADE_ID)) return false;
+  if (run.dice.length !== 1) return false;
+  const source = run.dice[0];
+  if (!source) return false;
+  run.dice.push(makeTwinDie(source));
+  return true;
+}
+
 function envFor(run: RunState) {
   return {
     run,
@@ -407,7 +507,9 @@ function envFor(run: RunState) {
 function setupWave(waveNum: number): void {
   const isBoss = waveNum % BALANCE.waves.bossEvery === 0;
   const run = state.run!;
-  state.wave = generateWave(waveNum, state.rng, isBoss);
+  state.wave = generateWave(waveNum, state.rng, isBoss, run);
+  run.currentWaveArchetypeId = state.wave.archetypeId;
+  run.currentBiomeRuleId = state.wave.biomeRuleId;
   state.waveT = 0;
   state.nextSpawnIdx = 0;
   state.spawnedForWave = false;
@@ -562,6 +664,9 @@ export function update(dt: number): void {
   }
 
   tickPullZones(dt, run);
+  tickGroundZones(dt, run);
+  tickTimedStrikes(dt, run);
+  tickPendingPulses(dt, run);
   if (state.reflect) {
     state.reflect.t += dt;
     if (state.reflect.t >= state.reflect.duration) state.reflect = null;
@@ -653,6 +758,10 @@ function updateDie(die: DieInstance, dt: number, run: RunState): void {
       const face = pickFace(die, run);
       die.value = face.value;
       resolveRoll(die, face, run);
+      const lowRollCooldownMul = getRunMutator(run.runMutatorId)?.modifiers.lowRollCooldownMul;
+      if (lowRollCooldownMul && face.value <= 2) {
+        die.landedAt -= BALANCE.die.postRollCooldown * (1 - lowRollCooldownMul);
+      }
       playSfx('roll_land');
       haptic(HAPTIC.land);
     }
@@ -808,14 +917,18 @@ function executeFace(face: Face, dieId: string, run: RunState): void {
   const baseDmg =
     (BALANCE.combat.baseFaceDamage[face.value] ?? 10) *
     gambitDamageMul(run) *
-    (face.damageMul ?? 1);
+    (face.damageMul ?? 1) *
+    (hasUpgrade(run, TWIN_DICE_UPGRADE_ID) ? TWIN_DICE_DAMAGE_MUL : 1);
   const roll: RollResult = { face, dieId };
   resolveFace(face, baseDmg, roll, run, {
     spawnProjectile,
     queueShot: (delay, x, y, damage, f, postSpawn) => {
       state.pendingShots.push({ t: 0, delay, x, y, damage, face: f, postSpawn });
     },
-    pulse: (r, dmg, el) => doPulse(r, dmg, el, run),
+    pulse: (r, dmg, el, knockback) => doPulse(r, dmg, el, run, knockback ?? 0),
+    delayedPulse: (params) => {
+      state.pendingPulses.push({ ...params, t: 0 });
+    },
     addShield: (n) => {
       run.shield = Math.min(BALANCE.combat.shieldMax, run.shield + n);
       spawnShieldVfx();
@@ -846,19 +959,17 @@ function executeFace(face: Face, dieId: string, run: RunState): void {
       for (const e of state.enemies) {
         if (!e.alive || e.state === 'die') continue;
         if (e.x !== target.x || e.y !== target.y) continue;
-        if (status === 'burn' || status === 'poison') {
-          e.poisonDps = Math.max(e.poisonDps, power);
-          e.poisonT = Math.max(e.poisonT, duration);
-        } else if (status === 'freeze' || status === 'stun') {
-          e.freeze = Math.max(e.freeze, duration);
-        } else if (status === 'slow') {
-          e.slow = Math.max(e.slow, duration);
-        } else if (status === 'mark') {
-          e.voidMark = Math.max(e.voidMark, duration);
-        }
-        void power;
-        e.hitFlash = Math.max(e.hitFlash, 0.15);
+        applyEnemyStatus(e, status, power, duration);
         break;
+      }
+    },
+    applyStatusArea: (status, power, duration, radius) => {
+      const r2 = radius * radius;
+      for (const e of state.enemies) {
+        if (!e.alive || e.state === 'die') continue;
+        const dx = e.x - PLAYER_X;
+        const dy = e.y - PLAYER_Y;
+        if (dx * dx + dy * dy <= r2) applyEnemyStatus(e, status, power, duration);
       }
     },
     addGold: (amount) => {
@@ -882,6 +993,56 @@ function executeFace(face: Face, dieId: string, run: RunState): void {
         element: params.element,
       });
       spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 8, life: 0.35, kind: 'ring', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: params.radius });
+    },
+    startGroundZone: (params) => {
+      const target = findNearestEnemyXY(state.enemies) ?? { x: PLAYER_X, y: PLAYER_Y - 28 };
+      state.groundZones.push({
+        x: target.x,
+        y: target.y,
+        radius: params.radius,
+        dps: params.dps,
+        t: 0,
+        duration: params.duration,
+        element: params.element,
+        slow: params.slow,
+        kind: params.element === 'fire' ? 'flame' : params.element === 'ice' ? 'frost' : 'ground',
+      });
+      spawnVfx({ x: target.x, y: target.y, life: 0.35, kind: 'ring', color: ELEMENT_COLORS[params.element], size: params.radius });
+    },
+    strikeColumn: (params) => {
+      state.timedStrikes.push({ ...params, t: 0, kind: 'column' });
+    },
+    flamePillar: (params) => {
+      state.timedStrikes.push({
+        t: 0,
+        delay: params.delay,
+        damage: params.damage,
+        element: 'fire',
+        radius: params.radius,
+        stunDur: 0,
+        chainToExtra: 0,
+        kind: 'flame',
+        duration: params.duration,
+        burnDps: params.burnDps,
+        burnDur: params.burnDur,
+      });
+    },
+    frostBurst: (params) => {
+      doPulse(params.radius, params.damage, 'ice', run, 20);
+      for (const e of state.enemies) {
+        if (!e.alive || e.state === 'die') continue;
+        const dx = e.x - PLAYER_X;
+        const dy = e.y - PLAYER_Y;
+        if (dx * dx + dy * dy <= params.radius * params.radius) {
+          e.freeze = Math.max(e.freeze, params.freezeDur);
+          e.slow = Math.max(e.slow, params.slow);
+          e.slowT = Math.max(e.slowT, params.freezeDur + 0.8);
+        }
+      }
+      spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 8, life: 0.55, kind: 'freeze', color: palHex('q')!, size: params.radius });
+    },
+    chainLightning: (params) => {
+      doChainLightning(params, run);
     },
     summonMinion: (params) => {
       spawnMinions(params);
@@ -930,7 +1091,8 @@ function playAnimationSpec(animId: string | undefined, x: number, y: number, int
   } else if (kinds === 'columns') {
     for (let i = 0; i < 3; i++) {
       const ox = (i - 1) * 18;
-      spawnVfx({ x: x + ox, y, life, kind: 'explosion', color, size: sz });
+      spawnVfx({ x: x + ox, y, life, kind: 'lightning', color, size: sz, data: encodePos(x + ox, HUD_H + 2) });
+      spawnVfx({ x: x + ox, y, life: life * 0.7, kind: 'explosion', color, size: sz });
     }
   } else {
     spawnVfx({ x, y, life, kind: 'spark', color, size: sz });
@@ -975,23 +1137,59 @@ function spawnOrbiters(params: { count: number; radius: number; rpm: number; dam
 
 function doBeam(params: { width: number; dps: number; duration: number; pierce: number; element: Element; lifesteal: number; face: Face; baseDamage: number }, run: RunState): void {
   const total = params.dps * params.duration + params.baseDamage;
-  let pierced = 0;
-  let farthestY = 0;
+  const originX = PLAYER_X;
+  const originY = PROJECTILE_SPAWN_Y;
+  const topY = HUD_H + 4;
+  const target = findNearestEnemyXY(state.enemies);
+  let dirX = 0;
+  let dirY = -1;
+  if (target) {
+    const dx = target.x - originX;
+    const dy = target.y - originY;
+    const len = Math.hypot(dx, dy);
+    if (len > 0.001) {
+      dirX = dx / len;
+      dirY = dy / len;
+    }
+  }
+
+  const reachCandidates: number[] = [];
+  if (dirY < -0.001) reachCandidates.push((topY - originY) / dirY);
+  if (dirX > 0.001) reachCandidates.push((ARENA_W - originX) / dirX);
+  else if (dirX < -0.001) reachCandidates.push((0 - originX) / dirX);
+  const maxReach = Math.min(...reachCandidates.filter((t) => t > 0));
+  const beamReach = Number.isFinite(maxReach) ? maxReach : originY - topY;
   const sortedEnemies = state.enemies
-    .filter((e) => e.alive && e.state !== 'die' && Math.abs(e.x - PLAYER_X) <= params.width / 2 + e.radius)
-    .sort((a, b) => b.y - a.y);
-  for (const e of sortedEnemies) {
-    if (pierced > params.pierce) break;
-    hitEnemy(e, total, params.element, run);
-    if (params.lifesteal > 0) run.hp = Math.min(run.maxHp, run.hp + params.lifesteal);
-    farthestY = Math.min(farthestY === 0 ? e.y : farthestY, e.y);
-    pierced++;
+    .filter((e) => e.alive && e.state !== 'die')
+    .map((enemy) => {
+      const dx = enemy.x - originX;
+      const dy = enemy.y - originY;
+      const along = dx * dirX + dy * dirY;
+      const closestX = originX + dirX * along;
+      const closestY = originY + dirY * along;
+      const dist = Math.hypot(enemy.x - closestX, enemy.y - closestY);
+      return { enemy, along, dist };
+    })
+    .filter(({ enemy, along, dist }) => along >= -enemy.radius && along <= beamReach + enemy.radius && dist <= params.width / 2 + enemy.radius)
+    .sort((a, b) => a.along - b.along);
+
+  const maxHits = Math.max(1, Math.floor(params.pierce) + 1);
+  const hitCount = Math.min(maxHits, sortedEnemies.length);
+  let farthestAlong = 0;
+  for (let i = 0; i < hitCount; i++) {
+    const e = sortedEnemies[i]!.enemy;
+    const damaged = hitEnemy(e, total, params.element, run, undefined, { source: 'beam', face: params.face });
+    if (damaged && params.lifesteal > 0) run.hp = Math.min(run.maxHp, run.hp + params.lifesteal);
+    farthestAlong = Math.max(farthestAlong, sortedEnemies[i]!.along);
   }
-  const endY = farthestY !== 0 ? farthestY : HUD_H + 4;
-  for (let yy = PROJECTILE_SPAWN_Y; yy > endY; yy -= 12) {
-    spawnVfx({ x: PLAYER_X, y: yy, life: params.duration * 0.8, kind: 'spark', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: Math.max(2, params.width / 4) });
+
+  const endAlong = Math.max(farthestAlong, Math.min(beamReach, target ? Math.hypot(target.x - originX, target.y - originY) : beamReach));
+  const endX = originX + dirX * endAlong;
+  const endY = originY + dirY * endAlong;
+  for (let t = 0; t < endAlong; t += 12) {
+    spawnVfx({ x: originX + dirX * t, y: originY + dirY * t, life: params.duration * 0.8, kind: 'spark', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: Math.max(2, params.width / 4) });
   }
-  spawnVfx({ x: PLAYER_X, y: (PROJECTILE_SPAWN_Y + endY) / 2, life: params.duration, kind: 'lightning', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: 0, data: encodePos(PLAYER_X, Math.max(0, endY)) });
+  spawnVfx({ x: originX, y: originY, life: params.duration, kind: 'lightning', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: 0, data: encodePos(endX, Math.max(0, endY)) });
   addTrauma(0.1);
   playSfx('pulse');
 }
@@ -1017,12 +1215,150 @@ function tickPullZones(dt: number, run: RunState): void {
       e.x += (dx / d) * pull;
       e.y += (dy / d) * pull;
       if (pz.dps > 0) {
-        hitEnemy(e, pz.dps * dt, pz.element, run);
+        hitEnemy(e, pz.dps * dt, pz.element, run, undefined, { source: 'pull' });
       }
     }
     if (Math.floor(pz.t * 8) !== Math.floor((pz.t - dt) * 8)) {
       spawnVfx({ x: pz.x, y: pz.y, life: 0.2, kind: 'ring', color: ELEMENT_COLORS[pz.element as 'none'] ?? '#fff', size: pz.radius * (0.6 + state.rng() * 0.4) });
     }
+  }
+}
+
+function tickGroundZones(dt: number, run: RunState): void {
+  for (let i = state.groundZones.length - 1; i >= 0; i--) {
+    const z = state.groundZones[i]!;
+    z.t += dt;
+    if (z.t >= z.duration) {
+      state.groundZones.splice(i, 1);
+      continue;
+    }
+    const r2 = z.radius * z.radius;
+    for (const e of state.enemies) {
+      if (!e.alive || e.state === 'die') continue;
+      const dx = e.x - z.x;
+      const dy = e.y - z.y;
+      if (dx * dx + dy * dy > r2) continue;
+      if (z.dps > 0) hitEnemy(e, z.dps * dt, z.element, run, undefined, { source: 'ground' });
+      if (z.slow > 0) {
+        e.slow = Math.max(e.slow, z.slow);
+        e.slowT = Math.max(e.slowT, 0.2);
+      }
+      if (z.burnDps && z.burnDur) {
+        e.poisonDps = Math.max(e.poisonDps, z.burnDps);
+        e.poisonT = Math.max(e.poisonT, z.burnDur);
+      }
+    }
+    const waveRate = z.kind === 'ground' ? 3 : 10;
+    const waveLife = z.kind === 'ground' ? 0.45 : 0.28;
+    if (Math.floor(z.t * waveRate) !== Math.floor((z.t - dt) * waveRate)) {
+      spawnVfx({
+        x: z.x,
+        y: z.y,
+        life: waveLife,
+        kind: z.kind === 'flame' ? 'flamePillar' : z.kind === 'frost' ? 'freeze' : 'ring',
+        color: ELEMENT_COLORS[z.element],
+        size: z.radius,
+      });
+    }
+  }
+}
+
+function tickTimedStrikes(dt: number, run: RunState): void {
+  for (let i = state.timedStrikes.length - 1; i >= 0; i--) {
+    const s = state.timedStrikes[i]!;
+    s.t += dt;
+    if (s.t < s.delay) continue;
+    state.timedStrikes.splice(i, 1);
+    const target = findNearestEnemyXY(state.enemies) ?? { x: PLAYER_X, y: PLAYER_Y - 34 };
+    if (s.kind === 'flame') {
+      spawnFlameZone(target.x, target.y, s, run);
+    } else {
+      strikeAt(target.x, target.y, s, run);
+    }
+  }
+}
+
+function tickPendingPulses(dt: number, run: RunState): void {
+  for (let i = state.pendingPulses.length - 1; i >= 0; i--) {
+    const p = state.pendingPulses[i]!;
+    p.t += dt;
+    if (p.t < p.delay) continue;
+    doPulse(p.radius, p.damage, p.element, run, p.knockback);
+    state.pendingPulses.splice(i, 1);
+  }
+}
+
+function strikeAt(x: number, y: number, s: TimedStrike, run: RunState): void {
+  spawnVfx({ x, y, life: 0.35, kind: 'lightning', color: ELEMENT_COLORS[s.element], size: s.radius, data: encodePos(x, HUD_H + 2) });
+  spawnVfx({ x, y, life: 0.3, kind: 'explosion', color: ELEMENT_COLORS[s.element], size: s.radius * 1.5 });
+  addTrauma(0.12);
+  let hitCount = 0;
+  for (const e of state.enemies) {
+    if (!e.alive || e.state === 'die') continue;
+    const dx = e.x - x;
+    const dy = e.y - y;
+    if (dx * dx + dy * dy > s.radius * s.radius) continue;
+    hitEnemy(e, s.damage, s.element, run, undefined, { source: 'strike' });
+    if (s.stunDur > 0) e.freeze = Math.max(e.freeze, s.stunDur);
+    hitCount++;
+  }
+  if (s.chainToExtra > 0 && hitCount > 0) {
+    doChainLightning({ jumps: s.chainToExtra, damage: s.damage * 0.35, radius: 70, stunDur: s.stunDur, element: s.element, fromDie: false }, run);
+  }
+  playSfx('pulse');
+}
+
+function spawnFlameZone(x: number, y: number, s: TimedStrike, run: RunState): void {
+  spawnVfx({ x, y, life: Math.max(0.35, s.duration ?? 0.6), kind: 'flamePillar', color: palHex('u')!, size: s.radius });
+  state.groundZones.push({
+    x,
+    y,
+    radius: s.radius,
+    dps: s.duration && s.duration > 0 ? s.damage / s.duration : s.damage,
+    t: 0,
+    duration: s.duration ?? 0.8,
+    element: 'fire',
+    slow: 0,
+    kind: 'flame',
+    burnDps: s.burnDps,
+    burnDur: s.burnDur,
+  });
+  for (const e of state.enemies) {
+    if (!e.alive || e.state === 'die') continue;
+    const dx = e.x - x;
+    const dy = e.y - y;
+    if (dx * dx + dy * dy <= s.radius * s.radius) hitEnemy(e, s.damage, 'fire', run, undefined, { source: 'strike' });
+  }
+}
+
+function doChainLightning(
+  params: { jumps: number; damage: number; radius: number; stunDur: number; element: Element; fromDie: boolean },
+  run: RunState,
+): void {
+  const used = new Set<number>();
+  let fromX = params.fromDie ? PLAYER_X : PLAYER_X;
+  let fromY = params.fromDie ? DIE_Y : PLAYER_Y - 16;
+  for (let i = 0; i < params.jumps; i++) {
+    const next = findNearestEnemy(fromX, fromY, used);
+    if (!next) break;
+    const dx = next.x - fromX;
+    const dy = next.y - fromY;
+    if (dx * dx + dy * dy > params.radius * params.radius && used.size > 0) break;
+    drawChainLightning(fromX, fromY, next.x, next.y);
+    hitEnemy(next, params.damage * Math.pow(0.82, i), params.element, run, undefined, { source: 'chain' });
+    if (params.stunDur > 0) {
+      next.freeze = Math.max(next.freeze, params.stunDur);
+      next.slow = Math.max(next.slow, 0.45);
+      next.slowT = Math.max(next.slowT, params.stunDur + 0.3);
+    }
+    next.charged = Math.max(next.charged, 1.5);
+    used.add(next.id);
+    fromX = next.x;
+    fromY = next.y;
+  }
+  if (used.size > 0) {
+    addTrauma(0.08);
+    playSfx('hit');
   }
 }
 
@@ -1057,6 +1393,27 @@ function spawnMinions(params: { kind: 'bone' | 'wraith' | 'spirit' | 'ember'; co
     p.minion = true;
     p.rotation = ang;
   }
+}
+
+function applyEnemyStatus(
+  e: Enemy,
+  status: 'burn' | 'poison' | 'slow' | 'freeze' | 'stun' | 'mark',
+  power: number,
+  duration: number,
+): void {
+  if (status === 'burn' || status === 'poison') {
+    e.poisonDps = Math.max(e.poisonDps, power);
+    e.poisonT = Math.max(e.poisonT, duration);
+  } else if (status === 'freeze' || status === 'stun') {
+    e.freeze = Math.max(e.freeze, duration);
+    if (status === 'freeze') e.slowT = Math.max(e.slowT, duration + 0.5);
+  } else if (status === 'slow') {
+    e.slow = Math.max(e.slow, Math.min(0.85, power));
+    e.slowT = Math.max(e.slowT, duration);
+  } else if (status === 'mark') {
+    e.voidMark = Math.max(e.voidMark, power);
+  }
+  e.hitFlash = Math.max(e.hitFlash, 0.15);
 }
 
 function spawnProjectile(x: number, y: number, dx: number, dy: number, damage: number, face: Face): Projectile {
@@ -1131,7 +1488,7 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
       const dy = e.y - p.y;
       const r = e.radius + p.radius;
       if (dx * dx + dy * dy <= r * r) {
-        hitEnemy(e, p.damage, p.element, run, p);
+        hitEnemy(e, p.damage, p.element, run, p, { source: 'orbit', projectile: p });
         ob.reHitTimers?.set(e.id, 0.35);
       }
     }
@@ -1205,6 +1562,16 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
       if (e.typeId === 'absorber') {
         const extra = p.damage;
         e.absorbed += extra;
+        if (e.absorbed >= 45 + run.wave * 4) {
+          e.hp -= e.absorbed * 0.75;
+          e.hitFlash = 0.2;
+          spawnPopup(e.x, e.y - 8, 'OVERLOAD', palHex('y')!, 9);
+          spawnVfx({ x: e.x, y: e.y, life: 0.45, kind: 'explosion', color: palHex('y')!, size: 18 });
+          doPulseAt(e.x, e.y, 42, e.absorbed * 0.35, 'arcane', run);
+          p.alive = false;
+          if (e.hp <= 0) killEnemy(e, run, p);
+          return;
+        }
         e.hp = Math.min(e.maxHp + 40, e.hp + extra * 0.5);
         e.maxHp = Math.max(e.maxHp, e.hp);
         e.hitFlash = 0.1;
@@ -1222,20 +1589,25 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
         continue;
       }
       p.hitIds.add(e.id);
-      const type = getEnemyType(e.typeId);
-      if (type?.damageFilter) {
-        const ok = type.damageFilter({ face: { value: p.sourceFaceValue, kind: 'SHOT', element: p.element }, dieId: '' });
-        if (!ok) {
-          spawnPopup(e.x, e.y - 6, 'IMM', '#9fa7bd', 8);
-          spawnVfx({ x: e.x, y: e.y, life: 0.2, kind: 'spark', color: '#9fa7bd', size: 1 });
-          if (p.pierce > 0) p.pierce--;
-          else p.alive = false;
-          if (!p.alive) return;
-          continue;
-        }
-      }
       p.archetype?.onHit?.(p, e, run);
-      hitEnemy(e, p.damage, p.element, run, p);
+      let hitDamage = p.damage;
+      if ((p.critChance ?? 0) > 0 && state.rng() < (p.critChance ?? 0)) {
+        hitDamage *= 2.35;
+        spawnPopup(e.x, e.y - 18, 'CRIT', palHex('y')!, 9);
+        spawnVfx({ x: e.x, y: e.y, life: 0.28, kind: 'reaction', color: palHex('y')!, size: 8 });
+      }
+      const damaged = hitEnemy(e, hitDamage, p.element, run, p, { source: 'projectile', projectile: p });
+      if (!damaged) {
+        if (p.pierce > 0) p.pierce--;
+        else p.alive = false;
+        if (!p.alive) return;
+        continue;
+      }
+      if ((p.burnDps ?? 0) > 0) {
+        e.poisonDps = Math.max(e.poisonDps, p.burnDps ?? 0);
+        e.poisonT = Math.max(e.poisonT, p.burnDur ?? 2);
+        spawnVfx({ x: e.x, y: e.y, life: 0.35, kind: 'flamePillar', color: palHex('u')!, size: Math.max(8, e.radius) });
+      }
       onProjectileHit(envFor(run), p, e);
       if (p.aoeOnHit > 0) {
         doPulseAt(p.x, p.y, p.aoeOnHit, p.damage * 0.6, p.element, run);
@@ -1282,8 +1654,24 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
   }
 }
 
-function hitEnemy(e: Enemy, damage: number, element: string, run: RunState, p?: Projectile): void {
+function hitEnemy(
+  e: Enemy,
+  damage: number,
+  element: string,
+  run: RunState,
+  p?: Projectile,
+  ctx?: DamageContext,
+): boolean {
+  const damageCtx = normalizeDamageContext(element, p, ctx);
+  if (!canDamageEnemy(e, damageCtx)) {
+    showImmuneFeedback(e, damageCtx);
+    return false;
+  }
   let dmg = damage * BALANCE.combat.globalDamageMul;
+  const mutator = getRunMutator(run.runMutatorId);
+  dmg *= mutator?.modifiers.playerDamageMul ?? 1;
+  const faceValue = damageCtx.face?.value ?? 0;
+  if (faceValue >= 5) dmg *= mutator?.modifiers.highRollDamageMul ?? 1;
   const mom = run.momentum ?? 0;
   if (mom > 0) dmg *= 1 + Math.min(0.6, mom * 0.04);
   if (e.corrode > 0) dmg *= 1 + Math.min(0.75, e.corrode * 0.12);
@@ -1295,9 +1683,33 @@ function hitEnemy(e: Enemy, damage: number, element: string, run: RunState, p?: 
     spawnPopup(e.x, e.y - 18, `VOID +${bonus | 0}`, palHex('v')!, 9);
     e.voidMark = 0;
   }
+  const type = getEnemyType(e.typeId);
+  if (e.typeId === 'tank') {
+    if ((damageCtx.source === 'projectile' || damageCtx.source === 'orbit') && faceValue < 5) {
+      dmg *= 0.68;
+    } else if (damageCtx.source === 'pulse' || damageCtx.source === 'beam') {
+      dmg *= 1.15;
+    }
+  }
+  if (e.typeId === 'reflectorboss' && e.data['mirrorShield']) {
+    if (damageCtx.source === 'pulse' || damageCtx.source === 'beam') {
+      dmg *= 1.25;
+      spawnPopup(e.x, e.y - 18, 'CRACK', palHex('q')!, 9);
+    } else {
+      dmg *= 0.25;
+      spawnPopup(e.x, e.y - 18, 'MIRROR', palHex('C')!, 9);
+      if (p) {
+        p.vx = -p.vx;
+        p.vy = Math.abs(p.vy);
+        p.hitIds.add(-3);
+      }
+    }
+  }
+  if (e.eliteKind === 'armored' && !e.isBoss) dmg *= 0.85;
   e.hp -= dmg;
   e.hitFlash = 0.12;
-  addTrauma(0.06);
+  const trauma = damageTraumaForSource(damageCtx.source);
+  if (trauma > 0) addTrauma(trauma);
   spawnVfx({ x: e.x, y: e.y, life: 0.24, kind: 'spark', color: ELEMENT_COLORS[element as 'none'] ?? '#fff', size: 2 });
   spawnPopup(e.x, e.y - 8, Math.floor(dmg).toString(), popupColor(dmg), dmg > 25 ? 10 : 8);
   if (element === 'fire') {
@@ -1309,21 +1721,24 @@ function hitEnemy(e: Enemy, damage: number, element: string, run: RunState, p?: 
   } else if (element === 'ice') {
     e.freeze = Math.max(e.freeze, 1.2);
     e.slow = Math.max(e.slow, 0.5);
+    e.slowT = Math.max(e.slowT, 1.6);
   } else if (element === 'lightning') {
     e.freeze = Math.max(e.freeze, BALANCE.combat.lightningStunT);
     e.slow = Math.max(e.slow, 0.6);
+    e.slowT = Math.max(e.slowT, 0.65);
     const exclude = new Set<number>([e.id]);
     const next = findNearestEnemy(e.x, e.y, exclude);
     if (next) {
       drawChainLightning(e.x, e.y, next.x, next.y);
       const chainDmg = dmg * BALANCE.combat.lightningChainDamageMul;
-      hitEnemy(next, chainDmg, 'none', run);
+      hitEnemy(next, chainDmg, 'none', run, undefined, { source: 'chain', face: damageCtx.face });
     }
   }
   if (e.chill >= 2 && e.hp > 0) {
     e.chill = 0;
     e.freeze = Math.max(e.freeze, 1.5);
     e.slow = Math.max(e.slow, 0.65);
+    e.slowT = Math.max(e.slowT, 2);
     spawnVfx({ x: e.x, y: e.y, life: 0.4, kind: 'freeze', color: palHex('q')!, size: 8 });
   }
   if (e.radiance >= 5 && e.hp > 0) {
@@ -1333,8 +1748,68 @@ function hitEnemy(e: Enemy, damage: number, element: string, run: RunState, p?: 
     spawnVfx({ x: e.x, y: e.y, life: 0.45, kind: 'ring', color: palHex('y')!, size: 14 });
     e.radiance = 0;
   }
-  playSfx('hit');
+  if (p) type?.onHit?.(e, p);
+  if (shouldPlayHitSfx(damageCtx.source)) playSfx('hit');
   if (e.hp <= 0) killEnemy(e, run, p);
+  return true;
+}
+
+function damageTraumaForSource(source: DamageContext['source']): number {
+  switch (source) {
+    case 'ground':
+    case 'pull':
+    case 'status':
+      return 0;
+    default:
+      return 0.06;
+  }
+}
+
+function shouldPlayHitSfx(source: DamageContext['source']): boolean {
+  switch (source) {
+    case 'ground':
+    case 'pull':
+    case 'status':
+      return false;
+    default:
+      return true;
+  }
+}
+
+function normalizeDamageContext(element: string, p?: Projectile, ctx?: DamageContext): DamageContext {
+  if (ctx?.face) return ctx;
+  if (p) {
+    return {
+      ...ctx,
+      source: ctx?.source ?? (p.orbit ? 'orbit' : p.minion ? 'minion' : 'projectile'),
+      projectile: p,
+      face: {
+        value: p.sourceFaceValue,
+        kind: 'SHOT',
+        element: (p.element as Element) ?? 'none',
+      },
+    };
+  }
+  if (state.lastRolled) {
+    return { ...ctx, source: ctx?.source ?? 'unknown', face: state.lastRolled };
+  }
+  return {
+    ...ctx,
+    source: ctx?.source ?? 'unknown',
+    face: { value: 3, kind: 'SHOT', element: (element as Element) ?? 'none' },
+  };
+}
+
+function canDamageEnemy(e: Enemy, ctx: DamageContext): boolean {
+  const type = getEnemyType(e.typeId);
+  if (!type?.damageFilter || !ctx.face) return true;
+  return type.damageFilter({ face: ctx.face, dieId: ctx.dieId ?? '' });
+}
+
+function showImmuneFeedback(e: Enemy, ctx: DamageContext): void {
+  if (ctx.source === 'status') return;
+  spawnPopup(e.x, e.y - 6, 'IMM', '#9fa7bd', 8);
+  spawnVfx({ x: e.x, y: e.y, life: 0.2, kind: 'spark', color: '#9fa7bd', size: 1 });
 }
 
 function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
@@ -1348,10 +1823,14 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   state.lastKillTime = state.time;
   run.kills++;
   run.score += BALANCE.scoring.perKill(run.wave);
-  const goldAward = e.isBoss
+  const mutator = getRunMutator(run.runMutatorId);
+  const baseGoldAward = e.isBoss
     ? BALANCE.gold.bossKill(run.wave)
-    : BALANCE.gold.perKill(run.wave);
-  run.gold += goldAward;
+    : e.elite
+      ? BALANCE.gold.eliteKill(run.wave)
+      : BALANCE.gold.perKill(run.wave);
+  const eliteGoldMul = e.eliteKind === 'golden' ? 2 : 1;
+  run.gold += Math.max(1, Math.round(baseGoldAward * eliteGoldMul * (mutator?.modifiers.goldMul ?? 1)));
   addTrauma(0.08);
   spawnVfx({ x: e.x, y: e.y, life: 0.35, kind: 'ring', color: '#fff', size: 4 });
   for (let i = 0; i < 6; i++) {
@@ -1369,6 +1848,11 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
     });
   }
   const type = getEnemyType(e.typeId);
+  if (e.eliteKind === 'volatile') {
+    doPulseAt(e.x, e.y, 46, Math.max(10, e.maxHp * 0.18), 'fire', run);
+  } else if (e.eliteKind === 'twin' && !e.isBoss) {
+    spawnEliteTwinRemnants(e);
+  }
   type?.onDeath?.(e);
   fireOnKill(envFor(run), e);
   if (run.characterId === 'necromancer') spawnSoul(e.x, e.y);
@@ -1381,6 +1865,24 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
     state.hitStopT = 0.18;
     haptic(HAPTIC.bossKill);
     addTrauma(0.35);
+  }
+}
+
+function spawnEliteTwinRemnants(parent: Enemy): void {
+  for (let i = 0; i < 2; i++) {
+    const child = acquire(state.enemies, makeEnemy);
+    resetEnemy(child);
+    child.typeId = 'swarm';
+    child.x = parent.x + (i === 0 ? -10 : 10);
+    child.y = parent.y;
+    child.vx = i === 0 ? -18 : 18;
+    child.vy = Math.max(20, parent.speed * 1.15);
+    child.maxHp = Math.max(8, Math.round(parent.maxHp * 0.18));
+    child.hp = child.maxHp;
+    child.radius = 5;
+    child.speed = Math.max(18, parent.speed * 1.1);
+    child.data = { split: 1 };
+    child.element = 'none';
   }
 }
 
@@ -1427,19 +1929,24 @@ function decodePos(v: number): { x: number; y: number } {
   return { x: v & 0x3ff, y: (v >> 10) & 0x3ff };
 }
 
-function doPulse(radius: number, damage: number, element: string, run: RunState): void {
-  doPulseAt(PLAYER_X, PLAYER_Y - 6, radius, damage, element, run);
+function doPulse(radius: number, damage: number, element: string, run: RunState, knockback = 0): void {
+  doPulseAt(PLAYER_X, PLAYER_Y - 6, radius, damage, element, run, knockback);
   spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 6, life: 0.45, kind: 'ring', color: ELEMENT_COLORS[element as 'none'] ?? '#fff', size: radius });
   playSfx('pulse');
 }
 
-function doPulseAt(cx: number, cy: number, radius: number, damage: number, element: string, run: RunState): void {
+function doPulseAt(cx: number, cy: number, radius: number, damage: number, element: string, run: RunState, knockback = 0): void {
   for (const e of state.enemies) {
     if (!e.alive || e.state === 'die') continue;
     const dx = e.x - cx;
     const dy = e.y - cy;
     if (dx * dx + dy * dy <= radius * radius) {
-      hitEnemy(e, damage, element, run);
+      hitEnemy(e, damage, element, run, undefined, { source: 'pulse' });
+      if (knockback > 0) {
+        const d = Math.hypot(dx, dy) || 1;
+        e.x += (dx / d) * knockback;
+        e.y += (dy / d) * knockback;
+      }
     }
   }
   spawnVfx({ x: cx, y: cy, life: 0.35, kind: 'explosion', color: ELEMENT_COLORS[element as 'none'] ?? '#fff', size: radius });
@@ -1584,11 +2091,28 @@ function spawnEnemy(ev: SpawnEvent): void {
   e.vy = 0;
   e.vx = 0;
   e.radius = type.radius;
-  const hpMul = type.isBoss ? 8 + state.run!.wave * 0.6 : 1;
-  e.maxHp = Math.round(type.baseHp * BALANCE.enemy.hpScale(state.run!.wave) * hpMul);
+  e.elite = !!ev.elite && !type.isBoss;
+  e.eliteKind = e.elite ? ev.eliteKind ?? 'swift' : undefined;
+  const run = state.run!;
+  const mutator = getRunMutator(run.runMutatorId);
+  const biome = getBiomeRule(run.currentBiomeRuleId);
+  let hpMul = type.isBoss ? BALANCE.enemy.bossHpMul(run.wave) : 1;
+  hpMul *= mutator?.modifiers.enemyHpMul ?? 1;
+  hpMul *= biome?.enemyHpMul ?? 1;
+  if (e.elite) {
+    hpMul *= BALANCE.enemy.eliteHpMul;
+    if (e.eliteKind === 'armored') hpMul *= 1.3;
+    if (e.eliteKind === 'volatile') hpMul *= 0.82;
+  }
+  e.maxHp = Math.round(type.baseHp * BALANCE.enemy.hpScale(run.wave) * hpMul);
   e.hp = e.maxHp;
-  e.speed = type.baseSpeed * BALANCE.enemy.speedScale(state.run!.wave);
-  e.elite = ev.elite;
+  let speedMul = (mutator?.modifiers.enemySpeedMul ?? 1) * (biome?.enemySpeedMul ?? 1);
+  if (e.elite) {
+    speedMul *= BALANCE.enemy.eliteSpeedMul;
+    if (e.eliteKind === 'swift') speedMul *= 1.28;
+    if (e.eliteKind === 'armored') speedMul *= 0.88;
+  }
+  e.speed = type.baseSpeed * BALANCE.enemy.speedScale(run.wave) * speedMul;
   e.isBoss = type.isBoss ?? false;
 }
 
@@ -1605,7 +2129,7 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
     e.poisonT -= dt;
     const nextTickBucket = Math.ceil(Math.max(0, e.poisonT) / POISON_TICK);
     const ticks = Math.max(0, prevTickBucket - nextTickBucket);
-    if (ticks > 0) {
+    if (ticks > 0 && canDamageEnemy(e, normalizeDamageContext('poison', undefined, { source: 'status' }))) {
       const tickDmg = e.poisonDps * POISON_TICK * ticks;
       e.hp -= tickDmg;
       e.hitFlash = Math.max(e.hitFlash, 0.08);
@@ -1620,6 +2144,10 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
     e.freeze -= dt;
     if (e.freeze <= 0) e.slow = Math.max(0, e.slow - 0.5);
   }
+  if (e.slowT > 0) {
+    e.slowT = Math.max(0, e.slowT - dt);
+    if (e.slowT <= 0 && e.freeze <= 0) e.slow = 0;
+  }
   if (e.charged > 0) e.charged = Math.max(0, e.charged - dt);
   if (e.chill > 0) e.chill = Math.max(0, e.chill - dt * 0.5);
   if (e.corrode > 0) e.corrode = Math.max(0, e.corrode - dt * 0.3);
@@ -1629,7 +2157,7 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
     return;
   }
   const type = getEnemyType(e.typeId);
-  const freezeMul = e.freeze > 0 ? 0.15 : 1 - e.slow;
+  const freezeMul = e.freeze > 0 ? 0.15 : Math.max(0.15, 1 - e.slow);
   if (type?.behavior) type.behavior(e, dt);
   if (type?.bossMechanic) type.bossMechanic(e, dt);
   e.y += e.vy * freezeMul * dt;
@@ -1683,7 +2211,8 @@ function damagePlayer(raw: number, run: RunState): void {
     state.iframeT = 0.3;
     return;
   }
-  let amt = onDamaged(envFor(run), raw);
+  const mutator = getRunMutator(run.runMutatorId);
+  let amt = onDamaged(envFor(run), raw * (mutator?.modifiers.playerDamageTakenMul ?? 1));
   if (amt <= 0) return;
   run.hp -= amt;
   state.iframeT = BALANCE.player.iframeDuration;
@@ -1735,7 +2264,7 @@ function allEnemiesDead(): boolean {
  */
 function tickFrenzy(realDt: number, run: RunState): void {
   const waveOngoing =
-    state.spawnedForWave && state.waveClearedT < 0 && !allEnemiesDead();
+    state.spawnedForWave && !state.wave?.isBoss && state.waveClearedT < 0 && !allEnemiesDead();
   if (!waveOngoing) {
     state.frenzyActive = false;
     state.frenzyT = 0;
@@ -1774,13 +2303,16 @@ function tickFrenzy(realDt: number, run: RunState): void {
 function endWave(run: RunState): void {
   run.score += BALANCE.scoring.waveClearBonus(run.wave);
   const isBoss = run.wave % BALANCE.waves.bossEvery === 0;
-  run.gold += BALANCE.gold.waveClearBonus(run.wave);
+  const mutator = getRunMutator(run.runMutatorId);
+  run.gold += Math.round(BALANCE.gold.waveClearBonus(run.wave) * (mutator?.modifiers.goldMul ?? 1));
   fireOnWaveEnd(envFor(run), run.wave);
   playSfx('wave_clear');
   state.paused_upgrade = true;
   state.paused = true;
 
   if (isBoss) {
+    run.nextForgeDiscount = BALANCE.shop.postBossDiscount;
+    run.guaranteedForgeRarity = run.wave >= BALANCE.shop.rarityMinWave.epic ? 'epic' : 'rare';
     const offers = generateLandmarkOffers(run);
     if (offers.length > 0) {
       run.pickCount = BALANCE.upgrade.picksOnBoss;
@@ -1794,6 +2326,10 @@ function endWave(run: RunState): void {
     run.gold += BALANCE.gold.bossKill(run.wave);
   }
 
+  openForge(run);
+}
+
+function openForge(run: RunState): void {
   const offers = generateForgeShopOffers(run);
   useStore.getState().setForgeShopOffers(offers);
   useStore.getState().setForgeShopPurchased(false);
@@ -1853,12 +2389,12 @@ export function rerollUpgradeOffers(): void {
 
 function nextTierFor(run: RunState, upgradeId: string): number {
   const owned = run.ownedFaceUpgrades[upgradeId] ?? 0;
-  return Math.min(owned + 1, 5);
+  return Math.min(owned + 1, MAX_TIER);
 }
 
 function priceFor(upgrade: ReturnType<typeof getFaceUpgrade>, tier: number): number {
   if (!upgrade) return 0;
-  const t = Math.max(1, Math.min(5, tier));
+  const t = Math.max(1, Math.min(MAX_TIER, tier));
   const custom = upgrade.basePrice?.[upgrade.rarity]?.[t - 1];
   if (typeof custom === 'number') return custom;
   const fallback = BALANCE.faceUpgrade.basePrices[upgrade.rarity]?.[t - 1];
@@ -1911,12 +2447,14 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
   const count = BALANCE.shop.cardsPerOffer;
   const wave = run.wave;
   const rarityMinWave = BALANCE.shop.rarityMinWave;
+  const mutator = getRunMutator(run.runMutatorId);
+  const rarityBonus = mutator?.modifiers.forgeRarityBonus ?? 0;
   // Pre-filter: must be eligible (character, max tier, has at least one valid
   // slot) AND the rarity must have unlocked by the current wave.
   let all = listFaceUpgrades().filter((u) => {
     if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
     const owned = run.ownedFaceUpgrades[u.id] ?? 0;
-    if (owned >= 5) return false;
+    if (owned >= MAX_TIER) return false;
     if (wave < (rarityMinWave[u.rarity] ?? 1)) return false;
     if (pickBestSlotFor(run, u) < 0) return false;
     return true;
@@ -1928,7 +2466,7 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
     all = listFaceUpgrades().filter((u) => {
       if (u.characterExclusive && u.characterExclusive !== run.characterId) return false;
       const owned = run.ownedFaceUpgrades[u.id] ?? 0;
-      if (owned >= 5) return false;
+      if (owned >= MAX_TIER) return false;
       if (pickBestSlotFor(run, u) < 0) return false;
       return true;
     });
@@ -1940,16 +2478,20 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
     let w = 1;
     if (owned === 0) w *= 1;
     else if (owned <= 2) w *= BALANCE.shop.ownedT1T2WeightMul;
-    else if (owned <= 4) w *= BALANCE.shop.ownedT3T4WeightMul;
+    else if (owned < MAX_TIER) w *= BALANCE.shop.ownedT3T4WeightMul;
     else w *= BALANCE.shop.ownedMaxWeightMul;
     w *= BALANCE.shop.rarityWeight(u.rarity, wave);
+    if (u.rarity !== 'common') w *= 1 + rarityBonus;
     return { id: u.id, w };
   });
 
   const offers: { id: string; slotIndex: number; nextTier: number; price: number }[] = [];
   const chosen = new Set<string>();
   for (let i = 0; i < count; i++) {
-    const pool = weights.filter((x) => !chosen.has(x.id));
+    const guaranteed = i === 0 && run.guaranteedForgeRarity
+      ? weights.filter((x) => !chosen.has(x.id) && getFaceUpgrade(x.id)?.rarity === run.guaranteedForgeRarity)
+      : [];
+    const pool = guaranteed.length > 0 ? guaranteed : weights.filter((x) => !chosen.has(x.id));
     if (pool.length === 0) break;
     const totalW = pool.reduce((a, b) => a + b.w, 0);
     let roll = state.rng() * totalW;
@@ -1966,7 +2508,8 @@ export function generateForgeShopOffers(run: RunState): { id: string; slotIndex:
     const nextTier = nextTierFor(run, picked);
     const slotIndex = pickBestSlotFor(run, upgrade);
     if (slotIndex < 0) continue; // safety: eligibility recheck
-    const price = priceFor(upgrade, nextTier);
+    const discount = Math.max(0, Math.min(0.75, run.nextForgeDiscount ?? 0));
+    const price = Math.max(1, Math.floor(priceFor(upgrade, nextTier) * (1 - discount)));
     offers.push({ id: picked, slotIndex, nextTier, price });
   }
   return offers;
@@ -2252,6 +2795,8 @@ export function forgeShopDone(): void {
   const run = state.run;
   if (!run) return;
   useStore.getState().setForgeShopOffers([]);
+  run.nextForgeDiscount = undefined;
+  run.guaranteedForgeRarity = undefined;
   proceedToNextWave();
 }
 
@@ -2280,17 +2825,26 @@ export function pickUpgrade(id: string): void {
   else run.upgrades.push({ id, stacks: 1 });
   const env = envFor(run);
   u.hooks?.onApply?.(env.ctx);
+  if (ensureTwinDice(run)) {
+    state.dice = buildDieInstances(run.dice);
+  }
   run.pickCount--;
   playSfx('upgrade_pick');
   haptic(HAPTIC.upgrade);
   if (run.pickCount > 0) {
     const offers = generateLandmarkOffers(run);
     useStore.getState().setUpgradeOffers(offers, run.pickCount);
+    saveRun(run);
   } else {
     useStore.getState().setUpgradeOffers([], 0);
-    proceedToNextWave();
+    if (run.nextForgeDiscount || run.guaranteedForgeRarity) {
+      openForge(run);
+    } else {
+      proceedToNextWave();
+    }
   }
   syncActiveUpgradesToStore();
+  saveRun(run);
 }
 
 function proceedToNextWave(): void {
@@ -2403,7 +2957,7 @@ function tickProjectileTags(p: Projectile, dt: number, run: RunState): void {
         if (dx * dx + dy * dy < 48 * 48) {
           drawChainLightning(p.x, p.y, e.x, e.y);
           e.charged = Math.max(e.charged, 1.5);
-          hitEnemy(e, zapDmg, 'lightning', run);
+          hitEnemy(e, zapDmg, 'lightning', run, p, { source: 'chain', projectile: p });
           count++;
         }
       }
@@ -2459,6 +3013,10 @@ export function render(ctx: CanvasRenderingContext2D): void {
 
   const theme = stageForWave(run?.wave ?? 1);
   drawArenaBackground(ctx, ARENA_W, HUD_H, ARENA_H, state.time * 4, theme);
+
+  for (const z of state.groundZones) {
+    drawGroundZone(ctx, z);
+  }
 
   for (const e of state.enemies) {
     if (!e.alive) continue;
@@ -2519,13 +3077,27 @@ export function render(ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
+function drawGroundZone(ctx: CanvasRenderingContext2D, z: GroundZone): void {
+  const progress = Math.max(0, Math.min(1, z.t / z.duration));
+  const alpha = 0.45 * (1 - progress);
+  if (z.kind === 'flame') {
+    drawFlamePillar(ctx, z.x, z.y, z.radius, progress, alpha);
+  } else if (z.kind === 'frost') {
+    drawFreezeCrystal(ctx, z.x, z.y, z.radius * 0.8, alpha);
+    drawRing(ctx, z.x, z.y, z.radius, ELEMENT_COLORS.ice, alpha);
+  } else {
+    drawRing(ctx, z.x, z.y, z.radius, ELEMENT_COLORS[z.element], alpha);
+  }
+}
+
 function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy): void {
   const type = getEnemyType(e.typeId);
   const spriteId = type?.spriteId ?? 'enemy_rusher';
   const sprite = getSprite(spriteId);
   if (!sprite) return;
   const anim = e.state === 'die' ? 'die' : 'walk';
-  const idx = anim === 'die' ? 2 : Math.floor(e.age * 4) % 2;
+  const animRate = e.freeze > 0 ? 1 : e.slow > 0 ? 2 : 4;
+  const idx = anim === 'die' ? 2 : Math.floor(e.age * animRate) % 2;
   const invisible = e.typeId === 'invisible' && e.y < WALL_Y - 100;
   if (invisible) {
     ctx.globalAlpha = 0.2 + Math.sin(e.age * 3) * 0.1;
@@ -2534,10 +3106,22 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy): void {
   ctx.globalAlpha = 1;
 
   if (e.freeze > 0) {
-    drawFreezeCrystal(ctx, e.x, e.y, e.radius * 0.7, 0.5 + Math.sin(e.age * 10) * 0.1);
+    drawFreezeCrystal(ctx, e.x, e.y, e.radius * 1.05, 0.68 + Math.sin(e.age * 10) * 0.1);
+  } else if (e.slow > 0) {
+    drawSlowAura(ctx, e.x, e.y, e.radius * 1.1, e.age, Math.min(0.45, e.slow));
+  }
+  if (e.poisonT > 0 && e.poisonDps > 0) {
+    drawStatusEmbers(ctx, e.x, e.y, e.radius * 0.8, e.age, e.poisonDps > 10 ? 0.35 : 0.2);
   }
   if (e.poisonT > 0) {
     drawPoisonCloud(ctx, e.x, e.y, e.radius * 0.8, e.age, 0.4);
+  }
+  if (e.charged > 0) {
+    const ox = Math.sin(e.age * 18) * e.radius;
+    drawLightningBolt(ctx, e.x - ox, e.y - e.radius, e.x + ox, e.y + e.radius, 0.5);
+  }
+  if (e.voidMark > 0) {
+    drawVoidRune(ctx, e.x, e.y, e.radius * 1.25, e.age, 0.65);
   }
 
   // Bosses always show a bar; regular enemies follow the user pref
@@ -2594,6 +3178,15 @@ function drawVfx(ctx: CanvasRenderingContext2D, v: VfxParticle): void {
         const { x, y } = decodePos(v.data);
         drawLightningBolt(ctx, v.x, v.y, x, y, a);
       }
+      break;
+    case 'flamePillar':
+      drawFlamePillar(ctx, v.x, v.y, v.size, v.age / v.life, a);
+      break;
+    case 'slow':
+      drawSlowAura(ctx, v.x, v.y, v.size, v.age, a);
+      break;
+    case 'void':
+      drawVoidRune(ctx, v.x, v.y, v.size, v.age, a);
       break;
     case 'soul':
       drawSoulPickup(ctx, v.x, v.y, v.age);
@@ -2795,6 +3388,16 @@ function syncHudToStore(): void {
   const characterId = run.characterId;
   const isBossWave = wave % BALANCE.waves.bossEvery === 0;
   const waveProgress = computeWaveProgress();
+  const mutator = getRunMutator(run.runMutatorId);
+  const runMutatorName = mutator?.name ?? '';
+  const runMutatorShortName = mutator?.shortName ?? '';
+  const waveArchetypeName = run.currentWaveArchetypeId ? waveArchetypeLabel(run.currentWaveArchetypeId) : '';
+  const biomeName = getBiomeRule(run.currentBiomeRuleId)?.shortName ?? '';
+  const forgeBonusLabel = run.nextForgeDiscount
+    ? `-${Math.round(run.nextForgeDiscount * 100)}% FORGE`
+    : run.guaranteedForgeRarity
+      ? `${run.guaranteedForgeRarity.toUpperCase()} FORGE`
+      : '';
   const last = state.lastHud;
   if (
     last &&
@@ -2809,7 +3412,12 @@ function syncHudToStore(): void {
     last.gambitStacks === gambitStacks &&
     last.characterId === characterId &&
     last.isBossWave === isBossWave &&
-    Math.abs(last.waveProgress - waveProgress) < 0.005
+    Math.abs(last.waveProgress - waveProgress) < 0.005 &&
+    last.runMutatorName === runMutatorName &&
+    last.runMutatorShortName === runMutatorShortName &&
+    last.waveArchetypeName === waveArchetypeName &&
+    last.biomeName === biomeName &&
+    last.forgeBonusLabel === forgeBonusLabel
   ) {
     return;
   }
@@ -2826,8 +3434,50 @@ function syncHudToStore(): void {
     characterId,
     isBossWave,
     waveProgress,
+    runMutatorName,
+    runMutatorShortName,
+    waveArchetypeName,
+    biomeName,
+    forgeBonusLabel,
   });
-  state.lastHud = { wave, score, hp, maxHp, shield, souls, rage, gold, gambitStacks, characterId, isBossWave, waveProgress };
+  state.lastHud = {
+    wave,
+    score,
+    hp,
+    maxHp,
+    shield,
+    souls,
+    rage,
+    gold,
+    gambitStacks,
+    characterId,
+    isBossWave,
+    waveProgress,
+    runMutatorName,
+    runMutatorShortName,
+    waveArchetypeName,
+    biomeName,
+    forgeBonusLabel,
+  };
+}
+
+function waveArchetypeLabel(id: NonNullable<RunState['currentWaveArchetypeId']>): string {
+  switch (id) {
+    case 'rush':
+      return 'RUSH';
+    case 'escort':
+      return 'ESCORT';
+    case 'splitterFlood':
+      return 'SPLITTERS';
+    case 'puzzle':
+      return 'RIDDLE';
+    case 'ambush':
+      return 'AMBUSH';
+    case 'eliteDuel':
+      return 'ELITE';
+    case 'mixed':
+      return 'MIXED';
+  }
 }
 
 function computeWaveProgress(): number {
@@ -2866,6 +3516,19 @@ export function resumeGame(): void {
   useStore.getState().setScreen('game');
 }
 
+export function returnToMainMenu(): void {
+  if (!state.run) {
+    useStore.getState().setScreen('menu');
+    return;
+  }
+  state.paused = true;
+  state.tapQueued = false;
+  syncActiveUpgradesToStore();
+  syncHudToStore();
+  saveRun(state.run);
+  useStore.getState().setScreen('menu');
+}
+
 export function quitRun(): void {
   state.run = null;
   setRunState(null);
@@ -2875,6 +3538,9 @@ export function quitRun(): void {
   state.vfx.forEach((v) => (v.alive = false));
   state.pendingAttacks = [];
   state.pendingShots = [];
+  state.groundZones = [];
+  state.timedStrikes = [];
+  state.pendingPulses = [];
   state.tapQueued = false;
   state.deathT = 0;
   state.bossWarnT = 0;
@@ -2955,6 +3621,9 @@ export function debugGrantLandmarkUpgrade(id: string): boolean {
   else run.upgrades.push({ id, stacks: 1 });
   const env = envFor(run);
   u.hooks?.onApply?.(env.ctx);
+  if (ensureTwinDice(run)) {
+    state.dice = buildDieInstances(run.dice);
+  }
   syncActiveUpgradesToStore();
   syncHudToStore();
   return true;

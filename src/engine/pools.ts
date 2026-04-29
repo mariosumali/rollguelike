@@ -31,6 +31,9 @@ export function makeProjectile(): Projectile {
     rotation: 0,
     tags: new Set<string>(),
     tagT: 0,
+    critChance: 0,
+    burnDps: 0,
+    burnDur: 0,
   };
 }
 
@@ -63,6 +66,9 @@ export function resetProjectile(p: Projectile): void {
   p.rotation = 0;
   p.tags.clear();
   p.tagT = 0;
+  p.critChance = 0;
+  p.burnDps = 0;
+  p.burnDur = 0;
   p.orbit = undefined;
   p.minion = undefined;
   p.animTrailId = undefined;
@@ -95,6 +101,7 @@ export function makeEnemy(): Enemy {
     element: 'none',
     hitFlash: 0,
     slow: 0,
+    slowT: 0,
     freeze: 0,
     poisonT: 0,
     poisonDps: 0,
@@ -104,6 +111,7 @@ export function makeEnemy(): Enemy {
     voidMark: 0,
     radiance: 0,
     charged: 0,
+    eliteKind: undefined,
   };
 }
 
@@ -118,6 +126,7 @@ export function resetEnemy(e: Enemy): void {
   e.element = 'none';
   e.hitFlash = 0;
   e.slow = 0;
+  e.slowT = 0;
   e.freeze = 0;
   e.poisonT = 0;
   e.poisonDps = 0;
@@ -128,6 +137,7 @@ export function resetEnemy(e: Enemy): void {
   e.radiance = 0;
   e.charged = 0;
   e.elite = false;
+  e.eliteKind = undefined;
   e.isBoss = false;
 }
 
