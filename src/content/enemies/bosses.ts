@@ -25,7 +25,7 @@ export const BOSS_TYPES: EnemyType[] = [
     name: 'Face Locker',
     spriteId: 'boss_facelocker',
     color: palHex('G')!,
-    baseHp: 110,
+    baseHp: 82,
     baseSpeed: 6,
     radius: 16,
     minWave: 5,
@@ -33,6 +33,7 @@ export const BOSS_TYPES: EnemyType[] = [
     touchDamage: 18,
     scoreValue: 300,
     isBoss: true,
+    mechanicDesc: 'Locks a die face. Break through the phase quickly to free your roll table.',
     behavior: (e, dt) => {
       const maxY = WALL_Y - 60;
       if (e.y < maxY) {
@@ -43,13 +44,14 @@ export const BOSS_TYPES: EnemyType[] = [
     },
     bossMechanic: (e, dt) => {
       e.data['lockT'] = ((e.data['lockT'] as number | undefined) ?? 0) + dt;
-      if ((e.data['lockT'] as number) > 8) {
+      const phase = bossPhase(e);
+      if ((e.data['lockT'] as number) > (phase >= 2 ? 5.5 : 7.5)) {
         e.data['lockT'] = 0;
         import('../../engine/engine').then(({ getEngineState }) => {
           const st = getEngineState();
           if (!st.run) return;
           st.run.lockedFaceValue = 1 + Math.floor(Math.random() * 6);
-          st.run.lockedFaceTimer = 6;
+          st.run.lockedFaceTimer = phase >= 2 ? 4.2 : 5.5;
         });
       }
     },
@@ -59,7 +61,7 @@ export const BOSS_TYPES: EnemyType[] = [
     name: 'Splitter Queen',
     spriteId: 'boss_splitterqueen',
     color: palHex('p')!,
-    baseHp: 260,
+    baseHp: 145,
     baseSpeed: 8,
     radius: 16,
     minWave: 10,
@@ -67,28 +69,31 @@ export const BOSS_TYPES: EnemyType[] = [
     touchDamage: 18,
     scoreValue: 350,
     isBoss: true,
+    mechanicDesc: 'Spawns swarms in bursts. Clear the brood windows before the lane floods.',
     behavior: (e, dt) => {
       approachTargetY(e, dt, HUD_H + 50);
       oscillate(e, dt, 36);
     },
     bossMechanic: (e, dt) => {
       e.data['spawnT'] = ((e.data['spawnT'] as number | undefined) ?? 0) + dt;
-      if ((e.data['spawnT'] as number) > 4) {
+      const phase = bossPhase(e);
+      if ((e.data['spawnT'] as number) > (phase >= 2 ? 2.9 : 4.2)) {
         e.data['spawnT'] = 0;
         import('../../engine/engine').then(({ getEngineState }) => {
           const st = getEngineState();
-          for (let i = 0; i < 3; i++) {
+          const count = phase >= 2 ? 4 : 3;
+          for (let i = 0; i < count; i++) {
             const c = st.enemies.find((x) => !x.alive);
             if (!c) return;
             Object.assign(c, {
               alive: true,
               typeId: 'swarm',
-              x: e.x + (i - 1) * 12,
+              x: e.x + (i - (count - 1) / 2) * 12,
               y: e.y + 14,
               vx: 0,
               vy: e.speed + 30,
-              maxHp: 10 + st.run!.wave,
-              hp: 10 + st.run!.wave,
+              maxHp: 8 + Math.floor(st.run!.wave * 0.7),
+              hp: 8 + Math.floor(st.run!.wave * 0.7),
               radius: 5,
               speed: 40,
               age: 0,
@@ -114,7 +119,7 @@ export const BOSS_TYPES: EnemyType[] = [
     name: 'Mirror Twin',
     spriteId: 'boss_mirrortwin',
     color: palHex('H')!,
-    baseHp: 240,
+    baseHp: 135,
     baseSpeed: 12,
     radius: 16,
     minWave: 15,
@@ -122,6 +127,7 @@ export const BOSS_TYPES: EnemyType[] = [
     touchDamage: 16,
     scoreValue: 400,
     isBoss: true,
+    mechanicDesc: 'Copies your last projectile face. Bait mirrored shots away from the wall.',
     behavior: (e, dt) => {
       approachTargetY(e, dt, HUD_H + 60);
       e.data['t'] = ((e.data['t'] as number | undefined) ?? 0) + dt;
@@ -132,7 +138,8 @@ export const BOSS_TYPES: EnemyType[] = [
     },
     bossMechanic: (e, dt) => {
       e.data['copyT'] = ((e.data['copyT'] as number | undefined) ?? 0) + dt;
-      if ((e.data['copyT'] as number) > 3) {
+      const phase = bossPhase(e);
+      if ((e.data['copyT'] as number) > (phase >= 2 ? 2.2 : 3.2)) {
         e.data['copyT'] = 0;
         import('../../engine/engine').then(({ getEngineState }) => {
           const st = getEngineState();
@@ -151,7 +158,7 @@ export const BOSS_TYPES: EnemyType[] = [
               np.y = e.y + 10;
               np.vx = Math.cos(ang) * 140;
               np.vy = Math.sin(ang) * 140;
-              np.damage = 12;
+              np.damage = phase >= 2 ? 16 : 11;
               np.radius = 3;
               np.pierce = 0;
               np.bounces = 0;
@@ -179,7 +186,7 @@ export const BOSS_TYPES: EnemyType[] = [
     name: 'Null Zone',
     spriteId: 'boss_nullzone',
     color: palHex('E')!,
-    baseHp: 280,
+    baseHp: 160,
     baseSpeed: 8,
     radius: 16,
     minWave: 20,
@@ -187,17 +194,19 @@ export const BOSS_TYPES: EnemyType[] = [
     touchDamage: 16,
     scoreValue: 450,
     isBoss: true,
+    mechanicDesc: 'Projects null zones that erase shots. Overload windows by changing angles.',
     behavior: (e, dt) => {
       approachTargetY(e, dt, HUD_H + 50);
       oscillate(e, dt, 20);
     },
     bossMechanic: (e, dt) => {
       e.data['zoneT'] = ((e.data['zoneT'] as number | undefined) ?? 0) + dt;
-      if ((e.data['zoneT'] as number) > 5) {
+      const phase = bossPhase(e);
+      if ((e.data['zoneT'] as number) > (phase >= 2 ? 3.6 : 5)) {
         e.data['zoneT'] = 0;
         import('../../engine/engine').then(({ getEngineState }) => {
           const st = getEngineState();
-          const zx = 20 + Math.random() * (ARENA_W - 40);
+          const zx = phase >= 2 ? e.x + (Math.random() - 0.5) * 80 : 20 + Math.random() * (ARENA_W - 40);
           const zy = WALL_Y - 80;
           for (const p of st.projectiles) {
             if (!p.alive) continue;
@@ -229,7 +238,7 @@ export const BOSS_TYPES: EnemyType[] = [
     name: 'Invert King',
     spriteId: 'boss_invertking',
     color: palHex('O')!,
-    baseHp: 300,
+    baseHp: 170,
     baseSpeed: 8,
     radius: 16,
     minWave: 25,
@@ -237,28 +246,24 @@ export const BOSS_TYPES: EnemyType[] = [
     touchDamage: 20,
     scoreValue: 500,
     isBoss: true,
+    mechanicDesc: 'Temporarily inverts die values. Use the flipped table before it snaps back.',
     behavior: (e, dt) => {
       approachTargetY(e, dt, HUD_H + 60);
       oscillate(e, dt, 28);
     },
     bossMechanic: (e, dt) => {
       e.data['invT'] = ((e.data['invT'] as number | undefined) ?? 0) + dt;
-      if ((e.data['invT'] as number) > 6) {
+      if (e.data['inverted'] && (e.data['invT'] as number) > 3.2) {
         e.data['invT'] = 0;
-        import('../../engine/engine').then(({ getEngineState }) => {
-          const st = getEngineState();
-          if (!st.run) return;
-          for (const d of st.run.dice) {
-            for (const f of d.faces) {
-              f.value = 7 - f.value;
-            }
-          }
-          for (const d of st.dice) {
-            for (const f of d.config.faces) {
-              f.value = 7 - f.value;
-            }
-          }
-        });
+        e.data['inverted'] = false;
+        invertAllDice();
+        return;
+      }
+      const phase = bossPhase(e);
+      if (!e.data['inverted'] && (e.data['invT'] as number) > (phase >= 2 ? 4.3 : 6)) {
+        e.data['inverted'] = true;
+        e.data['invT'] = 0;
+        invertAllDice();
       }
     },
   },
@@ -267,7 +272,7 @@ export const BOSS_TYPES: EnemyType[] = [
     name: 'Reflector',
     spriteId: 'boss_reflector',
     color: palHex('C')!,
-    baseHp: 320,
+    baseHp: 185,
     baseSpeed: 6,
     radius: 17,
     minWave: 30,
@@ -275,9 +280,64 @@ export const BOSS_TYPES: EnemyType[] = [
     touchDamage: 18,
     scoreValue: 550,
     isBoss: true,
+    mechanicDesc: 'Raises a rotating mirror shell. Wait it out or punish it with pulses and beams.',
     behavior: (e, dt) => {
       approachTargetY(e, dt, HUD_H + 56);
       oscillate(e, dt, 32);
     },
+    bossMechanic: (e, dt) => {
+      e.data['shieldT'] = ((e.data['shieldT'] as number | undefined) ?? 0) + dt;
+      const phase = bossPhase(e);
+      const cycle = phase >= 2 ? 4.2 : 5.2;
+      const shieldDur = phase >= 2 ? 1.7 : 1.35;
+      if ((e.data['shieldT'] as number) > cycle) e.data['shieldT'] = 0;
+      const shielding = (e.data['shieldT'] as number) < shieldDur;
+      e.data['mirrorShield'] = shielding;
+      const ringBucket = Math.floor((e.data['shieldT'] as number) * 8);
+      if (shielding && ringBucket % 3 === 0 && e.data['ringBucket'] !== ringBucket) {
+        e.data['ringBucket'] = ringBucket;
+        import('../../engine/engine').then(({ getEngineState }) => {
+          const st = getEngineState();
+          const v = st.vfx.find((x) => !x.alive);
+          if (!v) return;
+          v.alive = true;
+          v.age = 0;
+          v.life = 0.25;
+          v.kind = 'ring';
+          v.x = e.x;
+          v.y = e.y;
+          v.vx = 0;
+          v.vy = 0;
+          v.color = palHex('C')!;
+          v.size = 30;
+          v.angle = 0;
+          v.rot = 0;
+        });
+      }
+    },
   },
 ];
+
+function bossPhase(e: Enemy): number {
+  const hpFrac = e.maxHp > 0 ? e.hp / e.maxHp : 1;
+  if (hpFrac <= 0.35) return 3;
+  if (hpFrac <= 0.68) return 2;
+  return 1;
+}
+
+function invertAllDice(): void {
+  import('../../engine/engine').then(({ getEngineState }) => {
+    const st = getEngineState();
+    if (!st.run) return;
+    for (const d of st.run.dice) {
+      for (const f of d.faces) {
+        f.value = 7 - f.value;
+      }
+    }
+    for (const d of st.dice) {
+      for (const f of d.config.faces) {
+        f.value = 7 - f.value;
+      }
+    }
+  });
+}
