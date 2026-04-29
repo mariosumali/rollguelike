@@ -91,145 +91,138 @@ const gamblerPortrait: string[] = [
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
-// ALCHEMIST — a deep hooded cowl. Everything inside the hood is a pool of
-// black shadow, pierced only by two pinprick toxic-green eye points. The
-// face is hidden; the hood does all the talking.
-//   F/G/H: dark → bright violet hood
-//   R: shadow (pure black inside the hood)
-//   z: bright toxic-green eye dots   m: green glow shadow
-//   T/U: deep teal robe shoulders
+// ALCHEMIST — face-only hooded flask-master: black cowl void and two toxic
+// eye sparks. No body rows here; character select portraits stay close-up.
+//   F/G/H: dark → bright violet hood   R: cowl shadow
+//   z/m: toxic glow
 // ──────────────────────────────────────────────────────────────────────────
 const alchemistPortrait: string[] = [
-  '........................',
-  '..........HHHHHH........',
-  '........HHGGGGGGGHH.....',
-  '.......HGGFFFFFFFGGH....',
-  '......HGGFFFFFFFFFFGH...',
-  '.....HGGFFFFFFFFFFFFGH..',
-  '.....HGFFFRRRRRRRRFFFGH.',
-  '....HGFFRRRRRRRRRRRFFGH.',
-  '....HGFRRRRRRRRRRRRRFGH.',
-  '....HGFRRRzRRRRRRzRRFGH.',
-  '....HGFRRRzRRRRRRzRRFGH.',
-  '....HGFRRRRRRRRRRRRRFGH.',
-  '....HGFFRRRRRRRRRRRFFGH.',
-  '....HGFFFRRRRRRRRRFFFGH.',
-  '.....HGGFFRRRRRRFFGGH...',
-  '.....HHGGGFFFFFFGGGH....',
-  '......HHGGGGGGGGGGGH....',
-  '.......HHHGGGGGGGHH.....',
-  '........TTUUUUUUUTT.....',
-  '.......TUUUUUUUUUUUT....',
-  '.......TDDUUUUUUUDDT....',
-  '......TTDDDUUUUDDDTT....',
-  '.......TTTTTTTTTTT......',
-  '........................',
+  blank(),
+  blank(),
+  r('HHHHHHHH'),
+  r('HGGGGGGGGH'),
+  r('HGGFFFFFFGGH'),
+  r('HGFFFFFFFFFGH'),
+  r('HGFFRRRRFFGH'),
+  r('HGFERRRREFGH'),
+  r('HGFRRRRRRFGH'),
+  r('HGFRzRRzRFGH'),
+  r('HGFRmRRmRFGH'),
+  r('HGFRzRRzRFGH'),
+  r('HGFRRRRRRFGH'),
+  r('HGGFRRRRFGGH'),
+  r('HHGGFFFFGGHH'),
+  r('..HHGGGGHH..'),
+  r('....HHHH....'),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
-// NECROMANCER — a cyan-boned skull, no hood. Deep black eye sockets with
-// bright green pupils burning inside. Jagged carved teeth line the jaw.
-//   A/B/C/D: dark → bright cyan bone gradient
-//   e: bone highlight   R: black (eye pits, mouth)
-//   z: bright green eye pupils   m: mid green soul-fire
+// NECROMANCER — just a crowned skull: huge hollow sockets, cracked nasal
+// cavity, exposed teeth, and tarnished gold crown. No robe/body rows.
+//   6/8/9: tarnished gold crown   c/d/e: aged bone
+//   0/1: hollow socket/crack shadow
 // ──────────────────────────────────────────────────────────────────────────
 const necromancerPortrait: string[] = [
-  '........................',
-  '........BBDDDDDDBB......',
-  '......BBDDCCCCCCDDBB....',
-  '.....BDDCCDDDDDDCCDDB...',
-  '....BDCCDDDDDDDDDDCCDB..',
-  '....BDCDDDeeeeeeeDDDCDB.',
-  '....BDCDDDDDDDDDDDDDCDB.',
-  '....BDCDDRRRRDDRRRRDDCDB',
-  '....BDCDRRzzRDRRzzRRDCDB',
-  '....BDCDRmzzzRRmzzzRDCDB',
-  '....BDCDRRzzRRRRzzRRDCDB',
-  '....BDCDDRRRRDDRRRRDDCDB',
-  '....BDCCDDDDDDDDDDDCCDB.',
-  '.....BDCDDDeeeeeeeDDCDB.',
-  '.....BDCCDDDeeeDDDCCDB..',
-  '.....BDCCDDDDDDDDDCCDB..',
-  '......BDDCDDDDDDDCCDDB..',
-  '......BDDCRRRRRRRRDDCB..',
-  '.....BBDDRDRRDRRDRRDDBB.',
-  '.....BDDRRDRRDRRDRRDDB..',
-  '......BBDDDDDDDDDDDDBB..',
-  '........BBDDDDDDDBB.....',
-  '..........BBBBBBB.......',
-  '........................',
+  blank(),
+  blank(),
+  r('9...9...9'),
+  r('99999999999'),
+  r('98e88888e89'),
+  r('66eeeeeee66'),
+  r('6eeddddddee6'),
+  r('6ed000000de6'),
+  r('6ed00dd00de6'),
+  r('6ed001100de6'),
+  r('6ed000000de6'),
+  r('6eddd11ddde6'),
+  r('66edd11dde66'),
+  r('666ed111de666'),
+  r('66ed111111de66'),
+  r('6ed1d1d1d1de6'),
+  r('6ed11111111de6'),
+  r('66ed1d1d1de66'),
+  r('666eeeeeee666'),
+  r('..666666666..'),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
-// BERSERKER — dark iron viking helmet with two large curving silver horns
-// sweeping up and outward, a cyan inlaid cross on the centerline, and a
-// thick braided brown beard below the face-gap.
+// BERSERKER — Viking face close-up: iron helm, bone horns, red rage slit,
+// and a heavy beard. No torso/legs in character select portraits.
 //   a: dark seam / outline   4: helmet steel (dark blue-grey)
 //   P: horn base (grey)   Q: horn highlight (near-white)
-//   C: cyan inlay   D: bright cyan accent
-//   0/1: shadow (eye-slot under helmet rim)
+//   J/L: dark → bright rage marks   0/1: eye-slot shadow
 //   5/6/7: dark → light brown beard
 // ──────────────────────────────────────────────────────────────────────────
 const berserkerPortrait: string[] = [
-  '..aaa..............aaa..',
-  '..aQQa............aQQa..',
-  '.aQQPa............aPQQa.',
-  '.aQQPa............aPQQa.',
-  '.aPPPa............aPPPa.',
-  '.aPPPaa..........aaPPPa.',
-  '.aaPPPa..aaaaaa..aPPPaa.',
-  '..aPPPaaa444444aaaPPPa..',
-  '..aaPPa4444CC4444aPPaa..',
-  '...aaa4444CCCC4444aaa...',
-  '....a44444CCCC44444a....',
-  '....a44aa44CCCC44aa44a..',
-  '....a44a0044CC4400a44a..',
-  '....a44a001111110a44a...',
-  '....aa4a011DDDD110a44a..',
-  '.....aaa0011111100aaa...',
-  '......aa55555555aa......',
-  '.....a55556666655555a...',
-  '....a55666677766665555a.',
-  '....55666777777766665a..',
-  '....a5667777777766655...',
-  '....a55667777776665a....',
-  '.....a5556666666655a....',
-  '......aa555555555aa.....',
+  r('aa..............aa'),
+  r('aQQa..........aQQa'),
+  r('aQQPa........aPQQa'),
+  r('aaQPPa......aPPQaa'),
+  r('.aPPPaa4444aaPPPa.'),
+  r('..aaP44444444Paa..'),
+  r('...a4444LL4444a...'),
+  r('...a444LLLL444a...'),
+  r('..a44aa4444aa44a..'),
+  r('..a440011110044a..'),
+  r('..a4400JLLJ0044a..'),
+  r('...aa00111100aa...'),
+  r('....aa666666aa....'),
+  r('...a566666665a...'),
+  r('..a56667776665a..'),
+  r('.a5667777776665a.'),
+  r('.556677777776655.'),
+  r('.a5667777776655a.'),
+  r('..a55666666655a..'),
+  r('...aa555555aa...'),
+  r('....a55555a....'),
+  r('.....a555a.....'),
+  blank(),
+  blank(),
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
-// CLOCKMAKER — brass-plated tinker helm, goggles pushed up showing copper
-// lenses, stern aged face with a simple monocle, neatly-groomed mustache.
-// (Kept from previous pass — user did not ask to change it.)
+// CLOCKMAKER — face-only brass tinker: raised goggles, monocle, stern face,
+// and silver mustache. No gear-collar/body rows in character select.
 //   5/6/7/8/9: dark → bright brass gradient   y: brass highlight
 //   a: dark seam   c/d: aged skin   2: eye / mouth / brow shadow
 //   b: iron rim (monocle)   Q/S: lens shine   P: steel mustache
 // ──────────────────────────────────────────────────────────────────────────
 const clockmakerPortrait: string[] = [
   blank(),
-  r('66666666666666'),
-  r('66888888888888866'),
-  r('688999888888999886'),
-  r('6899988888888999986'),
-  r('6898877yyyyyy778986'),
-  r('6898y77yy77yy77y986'),
-  r('6898y7QSSy7ySSQ7y986'),
-  r('6898y7SSSy7ySSS7y986'),
-  r('6898y77yy77yy77y986'),
-  r('.68888yyyyyyyyyy8886.'),
-  r('..aacccddddddddcaa..'),
-  r('.acdddddd22dddddddca.'),
-  r('acdddd22dbbdd22dddca'),
-  r('acddd11QQdbbbdQQ11dca'),
-  r('acdddd11dbbbd11dddca'),
-  r('acddddddd2bb2ddddddca'),
-  r('acddddddddbbddddddca'),
-  r('acddddddd1111dddddca'),
-  r('aacddddPPPPPPPPddccaa'),
-  r('.aaPPPP888888PPPPaa.'),
-  r('..PPP8888yy8888PPP..'),
-  r('..0088888yy8888800..'),
-  r('....00PPPPPPPP00....'),
+  r('666666666666'),
+  r('688888888886'),
+  r('68999yy99986'),
+  r('6898yyyy8986'),
+  r('689QSS88SSQ986'),
+  r('688QSS88SSQ886'),
+  r('6688888888866'),
+  r('..aacddddcaa..'),
+  r('.acdd2222ddca.'),
+  r('acdd22bb22ddca'),
+  r('acdd11QQ11ddca'),
+  r('acddd1bb1dddca'),
+  r('acddddd22dddca'),
+  r('aacdddPPdddccaa'),
+  r('.aaPPPPPPPPaa.'),
+  r('..aaPPPPPPaa..'),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
+  blank(),
 ];
 
 // Pad or truncate any loose rows to exactly 24 characters so every sprite
