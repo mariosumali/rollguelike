@@ -10,6 +10,8 @@ import {
   debugUnlockEverything,
   debugListFaceUpgrades,
   debugListLandmarkUpgrades,
+  debugListBaubleUpgrades,
+  debugListRelicUpgrades,
   startRun,
   quitRun,
 } from '../engine/engine';
@@ -29,10 +31,14 @@ const THEME_LABELS: Record<Theme, string> = {
   volcano: 'Volcano',
   wizardTower: 'Wizard Tower',
   skyTemple: 'Sky Temple',
+  ironFoundry: 'Iron Foundry',
+  abyssalTrench: 'Abyssal Trench',
+  sunbleachedDunes: 'Sunbleached Dunes',
+  stormBalcony: 'Storm Balcony',
 };
 
 const MENU_TRACK_LABELS: Record<MenuTrackId, string> = {
-  'menu': 'Menu (default)',
+  'menu': 'Dice Overture',
   'menu-chiptune': 'Chiptune',
   'menu-synthwave': 'Synthwave',
   'menu-lofi': 'Lo-Fi',
@@ -56,10 +62,14 @@ export function DebugPanel() {
   const [waveInput, setWaveInput] = useState('1');
   const [faceFilter, setFaceFilter] = useState('');
   const [landmarkFilter, setLandmarkFilter] = useState('');
+  const [relicFilter, setRelicFilter] = useState('');
+  const [baubleFilter, setBaubleFilter] = useState('');
   const [toast, setToast] = useState<string | null>(null);
 
   const characters = useMemo(() => listCharacters(), []);
   const landmarkUpgrades = useMemo(() => debugListLandmarkUpgrades(), [debugMode]);
+  const relicUpgrades = useMemo(() => debugListRelicUpgrades(), [debugMode]);
+  const baubleUpgrades = useMemo(() => debugListBaubleUpgrades(), [debugMode]);
   const faceUpgrades = useMemo(() => debugListFaceUpgrades(), [debugMode]);
 
   const filteredFace = useMemo(() => {
@@ -77,6 +87,22 @@ export function DebugPanel() {
       (u) => u.id.toLowerCase().includes(q) || u.name.toLowerCase().includes(q),
     );
   }, [landmarkFilter, landmarkUpgrades]);
+
+  const filteredRelic = useMemo(() => {
+    const q = relicFilter.trim().toLowerCase();
+    if (!q) return relicUpgrades;
+    return relicUpgrades.filter(
+      (u) => u.id.toLowerCase().includes(q) || u.name.toLowerCase().includes(q),
+    );
+  }, [relicFilter, relicUpgrades]);
+
+  const filteredBauble = useMemo(() => {
+    const q = baubleFilter.trim().toLowerCase();
+    if (!q) return baubleUpgrades;
+    return baubleUpgrades.filter(
+      (u) => u.id.toLowerCase().includes(q) || u.name.toLowerCase().includes(q),
+    );
+  }, [baubleFilter, baubleUpgrades]);
 
   if (!debugMode) return null;
 
@@ -324,6 +350,62 @@ export function DebugPanel() {
                         title={u.id}
                       >
                         <span className="debug-list-name">{u.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="debug-group">
+                  <div className="debug-group-title">Relics ({filteredRelic.length})</div>
+                  <input
+                    type="text"
+                    className="debug-input"
+                    placeholder="Filter by id or name…"
+                    value={relicFilter}
+                    onChange={(e) => setRelicFilter(e.target.value)}
+                  />
+                  <div className="debug-scroll">
+                    {filteredRelic.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className="debug-list-item"
+                        onClick={() => {
+                          const ok = debugGrantLandmarkUpgrade(u.id);
+                          flash(ok ? `Granted ${u.name}` : 'No active run.');
+                        }}
+                        title={u.id}
+                      >
+                        <span className="debug-list-name">{u.name}</span>
+                        <span className="debug-list-meta">relic</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="debug-group">
+                  <div className="debug-group-title">Baubles ({filteredBauble.length})</div>
+                  <input
+                    type="text"
+                    className="debug-input"
+                    placeholder="Filter by id or name…"
+                    value={baubleFilter}
+                    onChange={(e) => setBaubleFilter(e.target.value)}
+                  />
+                  <div className="debug-scroll">
+                    {filteredBauble.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className="debug-list-item"
+                        onClick={() => {
+                          const ok = debugGrantLandmarkUpgrade(u.id);
+                          flash(ok ? `Granted ${u.name}` : 'No active run.');
+                        }}
+                        title={u.id}
+                      >
+                        <span className="debug-list-name">{u.name}</span>
+                        <span className="debug-list-meta">bauble</span>
                       </button>
                     ))}
                   </div>
