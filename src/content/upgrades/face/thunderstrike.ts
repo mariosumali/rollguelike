@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { legendary: prices.premiumLegendary };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -16,7 +20,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'thunder_column',
     evolution: 'zeus_double',
   },
-    effect: { effects: [{ verb: 'column', count: 1, delay: 0.15, damageMul: 2.5 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'column', count: 1, delay: 0.18, damageMul: 2.35 }], damageMul: 1.0, timing: tempo.artillery },
+    basePrice,
   },
   {
     id: "thunderstrike_ii",
@@ -34,7 +39,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'thunder_column',
     evolution: 'zeus_double',
   },
-    effect: { effects: [{ verb: 'column', count: 2, delay: 0.18, damageMul: 4.0, stunDur: 0.4 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'column', count: 2, delay: 0.2, damageMul: 3.3, stunDur: 0.35 }], damageMul: 1.0, timing: tempo.legendary },
+    basePrice,
   },
   {
     id: "thunderstrike_iii",
@@ -51,7 +57,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'thunder_column',
     evolution: 'zeus_double',
   },
-    effect: { effects: [{ verb: 'column', count: 3, delay: 0.2, damageMul: 6.5, stunDur: 0.5, chainToExtra: 4 }, { verb: 'column', count: 3, delay: 0.2, damageMul: 6.5 }], damageMul: 1.0, note: "Zeus's Wrath" },
+    effect: { effects: [{ verb: 'column', count: 4, delay: 0.22, damageMul: 4.4, stunDur: 0.45, chainToExtra: 4 }], damageMul: 1.0, timing: tempo.legendary, note: "Zeus's Wrath" },
+    basePrice,
   }
 ];
 
