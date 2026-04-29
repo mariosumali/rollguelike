@@ -3,6 +3,7 @@ import { getRunState } from '../state/store';
 import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
 import { getFaceIconRows, getFaceIconCacheKey } from '../content/upgrades/faceIcons';
 import { getFaceName } from '../content/upgrades/faceNames';
+import { getCharacter } from '../content/characters/registry';
 import { buildFaceIconCanvas } from '../sprites/dice';
 import type { Rarity } from '../types';
 
@@ -56,12 +57,13 @@ export function FaceBar() {
 
   const slots = run.slotLayout ?? [];
   const characterId = run.characterId ?? null;
+  const character = characterId ? getCharacter(characterId) : undefined;
   const faces = Array.from({ length: 6 }, (_, i) => {
     const slot = slots[i];
     const replacerId = slot?.replacerId ?? null;
     const up = replacerId ? getFaceUpgrade(replacerId) : null;
-    const supCount = slot?.supplementIds.length ?? 0;
-    return { value: i + 1, replacerId, upgrade: up, supCount };
+    const baseline = character?.defaultFaces?.[i];
+    return { value: i + 1, replacerId, upgrade: up, baseline };
   });
 
   return (
@@ -71,9 +73,9 @@ export function FaceBar() {
         const accent = rarity ? RARITY_COLORS[rarity] : 'var(--fg-dim)';
         const name = f.upgrade
           ? getFaceName(f.upgrade.id, characterId, f.upgrade.name)
-          : '—';
+          : f.baseline?.name ?? 'Base';
         const kindTag = !f.upgrade
-          ? 'EMPTY'
+          ? 'BASE'
           : f.upgrade.kind === 'replacer'
             ? ''
             : 'MOD';
@@ -84,26 +86,22 @@ export function FaceBar() {
             style={{ ['--fb-accent' as string]: accent }}
             title={
               f.upgrade
-                ? `Face ${f.value} · ${name}${f.supCount > 0 ? ` (+${f.supCount})` : ''}\n${f.upgrade.description}`
-                : `Face ${f.value} · empty slot`
+                ? `Face ${f.value} · ${name}\n${f.upgrade.description}`
+                : `Face ${f.value} · ${name}\n${f.baseline?.description ?? 'Baseline face'}`
             }
           >
             <div className="fb-chip-head">
               <span className="fb-pip" aria-hidden>{f.value}</span>
               {kindTag && <span className="fb-kind">{kindTag}</span>}
             </div>
-            <FaceIcon upgradeId={f.replacerId} characterId={characterId} />
+            {f.replacerId ? (
+              <FaceIcon upgradeId={f.replacerId} characterId={characterId} />
+            ) : (
+              <span className="fb-icon" aria-hidden>◆</span>
+            )}
             <div className="fb-name" aria-label={name}>
               {name}
             </div>
-            {f.supCount > 0 && (
-              <div className="fb-sup-dots" aria-label={`${f.supCount} supplements`}>
-                {Array.from({ length: Math.min(f.supCount, 4) }).map((_, i) => (
-                  <span key={i} className="fb-sup-dot">◆</span>
-                ))}
-                {f.supCount > 4 && <span className="fb-sup-more">+{f.supCount - 4}</span>}
-              </div>
-            )}
           </div>
         );
       })}
