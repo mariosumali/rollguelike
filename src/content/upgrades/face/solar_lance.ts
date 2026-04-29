@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { legendary: prices.premiumLegendary };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -16,7 +20,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'solar_scorch',
     evolution: 'corona_flare',
   },
-    effect: { effects: [{ verb: 'beam', width: 5, dps: 14, duration: 0.5, pierce: 5, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 2, duration: 3 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'beam', width: 5, dps: 14, duration: 0.46, pierce: 5, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 2, duration: 3 }], damageMul: 1.0, timing: tempo.artillery },
+    basePrice,
   },
   {
     id: "solar_lance_ii",
@@ -34,7 +39,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'solar_scorch',
     evolution: 'corona_flare',
   },
-    effect: { effects: [{ verb: 'beam', width: 7, dps: 18, duration: 0.6, pierce: 7, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 4, duration: 3.5 }], damageMul: 1.1 },
+    effect: { effects: [{ verb: 'beam', width: 7, dps: 19, duration: 0.58, pierce: 7, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 4, duration: 3.5 }], damageMul: 1.05, timing: tempo.legendary },
+    basePrice,
   },
   {
     id: "solar_lance_iii",
@@ -51,7 +57,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'solar_scorch',
     evolution: 'corona_flare',
   },
-    effect: { effects: [{ verb: 'beam', width: 10, dps: 28, duration: 0.85, pierce: 10, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 7, duration: 5 }, { verb: 'pulse', radius: 42, damageMul: 1.2, element: 'fire' }], damageMul: 1.25, note: 'Corona Flare' },
+    effect: { effects: [{ verb: 'beam', width: 10, dps: 28, duration: 0.8, pierce: 10, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 7, duration: 5 }, { verb: 'pulse', radius: 40, damageMul: 0.95, element: 'fire' }], damageMul: 1.18, timing: tempo.legendary, note: 'Corona Flare' },
+    basePrice,
   }
 ];
 
