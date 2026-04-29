@@ -1,7 +1,74 @@
-export type Screen = 'menu' | 'select' | 'game' | 'upgrade' | 'forge' | 'boss-warn' | 'pause' | 'gameover' | 'den';
+export type Screen =
+  | 'menu'
+  | 'select'
+  | 'game'
+  | 'upgrade'
+  | 'forge'
+  | 'casino'
+  | 'boss-warn'
+  | 'pause'
+  | 'gameover'
+  | 'den';
 
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
-export type UpgradeCategory = 'dice' | 'projectile' | 'passive' | 'aoe' | 'landmark';
+export type UpgradeCategory = 'dice' | 'projectile' | 'passive' | 'aoe' | 'landmark' | 'relic' | 'bauble';
+export type CasinoGameId = 'slots' | 'roulette' | 'blackjack' | 'coinFlip';
+export type CasinoPhase = 'choose' | 'play' | 'chest' | 'reward';
+export type CasinoLuckGrade = 'COLD' | 'WARM' | 'HOT' | 'LUCKY' | 'JACKPOT';
+export type CasinoChestTier = 'rusty' | 'copper' | 'bronze' | 'iron' | 'silver' | 'gold' | 'diamond' | 'jackpot';
+export type CasinoOutcome = 'miss' | 'small' | 'big' | 'jackpot';
+
+export interface CasinoGameResult {
+  outcome: CasinoOutcome;
+  label: string;
+  chestDelta: number;
+}
+
+export type CasinoRewardKind = 'gold' | 'heal' | 'face' | 'bauble' | 'relic' | 'forgeDiscount';
+
+export type CasinoChestReward =
+  | {
+      kind: 'gold';
+      amount: number;
+      tier: CasinoChestTier;
+      label: string;
+    }
+  | {
+      kind: 'heal';
+      amount: number;
+      tier: CasinoChestTier;
+      label: string;
+    }
+  | {
+      kind: 'face' | 'bauble' | 'relic';
+      id: string;
+      rarity: Rarity;
+      tier: CasinoChestTier;
+      label: string;
+      convertGold: number;
+    }
+  | {
+      kind: 'forgeDiscount';
+      amount: number;
+      tier: CasinoChestTier;
+      label: string;
+    };
+
+export interface CasinoIntermissionState {
+  wave: number;
+  phase: CasinoPhase;
+  game: CasinoGameId | null;
+  offeredGames: CasinoGameId[];
+  luckGrade: CasinoLuckGrade;
+  luckScore: number;
+  chestTier: CasinoChestTier;
+  baseChestTier: CasinoChestTier;
+  result?: CasinoGameResult;
+  rewards?: CasinoChestReward[];
+  reward?: CasinoChestReward;
+  rewardClaimed?: boolean;
+  seed: number;
+}
 
 export type Element = 'none' | 'fire' | 'ice' | 'poison' | 'lightning' | 'arcane';
 export type WaveArchetypeId =
@@ -229,6 +296,44 @@ export interface RollResult {
   dieId: string;
 }
 
+export interface BaubleEffect {
+  allDamageMul?: number;
+  damageToFrozenMul?: number;
+  damageToSlowedMul?: number;
+  damageToPoisonedMul?: number;
+  damageToBurningMul?: number;
+  damageToEliteBossMul?: number;
+  lowFaceDamageMul?: number;
+  highFaceDamageMul?: number;
+  lowHpDamageMul?: number;
+  fireDamageMul?: number;
+  lightningDamageMul?: number;
+  arcaneDamageMul?: number;
+  poisonApplicationDpsMul?: number;
+  poisonDurationMul?: number;
+  poisonTickDamageMul?: number;
+  burnTickDamageMul?: number;
+  freezeDurationMul?: number;
+  stunDurationMul?: number;
+  chainDamageMul?: number;
+  chainRangeMul?: number;
+  projectileDamageMul?: number;
+  projectileSpeedMul?: number;
+  projectileRadiusMul?: number;
+  projectileLifetimeMul?: number;
+  projectileCritChance?: number;
+  frozenCritChance?: number;
+  fireProjectileCritChance?: number;
+  pulseDamageMul?: number;
+  beamDamageMul?: number;
+  orbitDamageMul?: number;
+  strikeDamageMul?: number;
+  healingReceivedMul?: number;
+  waveStartShield?: number;
+  goldGainMul?: number;
+  cooldownReductionMul?: number;
+}
+
 export interface Upgrade {
   id: string;
   name: string;
@@ -236,6 +341,16 @@ export interface Upgrade {
   rarity: Rarity;
   category: UpgradeCategory;
   maxStack: number;
+  /** Optional relic/item pixel art rows. Uses the shared palette keys from sprites/palette.ts. */
+  icon?: string[];
+  /** Short lore line used by relic presentation surfaces. */
+  lore?: string;
+  /** Primary proc animation id for special relic feedback. */
+  procAnimation?: string;
+  /** Optional direct forge price override for rare purchasable relic offers. */
+  forgePrice?: number;
+  /** Stack-additive minor passive effect used by baubles. */
+  bauble?: BaubleEffect;
   characterExclusive?: string;
   minWave?: number;
   hooks?: Partial<UpgradeHooks>;
@@ -253,6 +368,26 @@ export interface UpgradeHooks {
   onWaveStart: (ctx: HookCtx & { wave: number }) => void;
   onWaveEnd: (ctx: HookCtx & { wave: number }) => void;
   onTick: (ctx: HookCtx & { dt: number }) => void;
+}
+
+export type HouseEnemyFamily =
+  | 'debt'
+  | 'vault'
+  | 'brood'
+  | 'mirror'
+  | 'null'
+  | 'grave'
+  | 'court'
+  | 'suture'
+  | 'furnace';
+
+export interface BossDossier {
+  title: string;
+  rule: string;
+  weakness: string;
+  lore: string;
+  phaseLines?: [string, string, string];
+  rewardLine?: string;
 }
 
 export interface EnemyType {
@@ -274,6 +409,15 @@ export interface EnemyType {
   elite?: boolean;
   isBoss?: boolean;
   mechanicDesc?: string;
+  family?: HouseEnemyFamily;
+  role?: string;
+  lore?: string;
+  tell?: string;
+  threat?: string;
+  weakness?: string;
+  spawnLine?: string;
+  deathLine?: string;
+  bossDossier?: BossDossier;
   bossMechanic?: (e: Enemy, dt: number) => void;
 }
 
@@ -303,6 +447,10 @@ export interface RunMutator {
   name: string;
   shortName: string;
   desc: string;
+  premise?: string;
+  entryLine?: string;
+  rewardLine?: string;
+  enemyFamilyBias?: Partial<Record<HouseEnemyFamily, number>>;
   modifiers: RunMutatorModifiers;
 }
 
@@ -311,6 +459,9 @@ export interface BiomeRule {
   name: string;
   shortName: string;
   desc: string;
+  roomTitle?: string;
+  roomLine?: string;
+  enemyFamilyBias?: Partial<Record<HouseEnemyFamily, number>>;
   enemyHpMul?: number;
   enemySpeedMul?: number;
   eliteChanceBonus?: number;
@@ -344,6 +495,7 @@ export interface MetaState {
   totalRunsCompleted: number;
   totalWavesCleared: number;
   unlockedArsenal: string[];
+  encounteredEnemyIds: string[];
   totalKills: number;
   maxWaveReached: number;
   pendingArsenalUnlocks: string[];
@@ -380,6 +532,8 @@ export interface RunState {
   lockedFaceTimer?: number;
   momentum?: number;
   momentumT?: number;
+  casinoWaveDamageTaken?: number;
+  casinoWaveEliteKills?: number;
 
   // Dice Forge rework (new)
   gold: number;
@@ -396,6 +550,7 @@ export interface RunState {
   currentBiomeRuleId?: string;
   nextForgeDiscount?: number;
   guaranteedForgeRarity?: Rarity;
+  pendingCasino?: CasinoIntermissionState;
 }
 
 export interface SpawnEvent {
