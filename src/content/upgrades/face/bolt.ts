@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { common: prices.premiumCommon };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pierce_spark',
     evolution: 'rail_streak',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 1 }], damageMul: 1.1 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 1, speed: 1.35, size: 0.9 }], damageMul: 1.25, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "bolt_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pierce_spark',
     evolution: 'rail_streak',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, pierce: 2 }], damageMul: 1.2 },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 3, speed: 1.45, size: 0.95 }], damageMul: 1.75, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "bolt_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pierce_spark',
     evolution: 'rail_streak',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 3, pierce: 99 }, { verb: 'modifyProjectile', pierce: 99 }], damageMul: 1.4, note: 'Rail' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 99, speed: 1.6, size: 1.05, damageMul: 1.25 }, { verb: 'modifyProjectile', pierce: 99 }], damageMul: 1.9, timing: tempo.heavy, note: 'Rail' },
+    basePrice,
   }
 ];
 
