@@ -37,6 +37,18 @@ export function HUD({ onPause }: Props) {
           <span className="chip-val">{String(hud.wave).padStart(2, '0')}</span>
           {hud.isBossWave && <span className="boss-tag pixel-text">BOSS</span>}
         </div>
+        {(hud.biomeName || hud.waveArchetypeName) && (
+          <div className="hud-chip pixel-text" aria-label={`encounter ${hud.biomeName} ${hud.waveArchetypeName}`}>
+            <span className="chip-key">{hud.biomeName}</span>
+            {hud.waveArchetypeName && <span className="chip-val">{hud.waveArchetypeName}</span>}
+          </div>
+        )}
+        {hud.runMutatorShortName && (
+          <div className="hud-chip pixel-text" aria-label={`run mutator ${hud.runMutatorName}`}>
+            <span className="chip-key">OMEN</span>
+            <span className="chip-val">{hud.runMutatorShortName}</span>
+          </div>
+        )}
         <div key={scorePopKey} className="hud-chip score-chip pixel-text score-pop">
           <span className="chip-dot">{pip}</span>
           <span className="chip-val">{hud.score}</span>

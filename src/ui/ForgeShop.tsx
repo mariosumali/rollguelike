@@ -15,6 +15,7 @@ import {
   moveOrSwapSupplement,
 } from '../engine/engine';
 import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
+import { MAX_TIER } from '../content/upgrades/types';
 import { getFaceName } from '../content/upgrades/faceNames';
 import { getFaceIconRows, getFaceIconCacheKey } from '../content/upgrades/faceIcons';
 import { getCharacter } from '../content/characters/registry';
@@ -74,6 +75,13 @@ const KIND_GLYPH: Record<'replacer' | 'supplement' | 'default', string> = {
   supplement: '+',
   default: '◇',
 };
+
+const TIER_NAMES = ['IDENTITY', 'AMPLIFIED', 'EVOLUTION'] as const;
+
+function forgeTierLabel(tier: number): string {
+  const safe = Math.max(1, Math.min(MAX_TIER, tier));
+  return `T${safe} · ${TIER_NAMES[safe - 1] ?? 'TIER'}`;
+}
 
 function FaceIcon({
   upgradeId,
@@ -460,7 +468,10 @@ export function ForgeShop() {
 
         <div className="panel-kicker">
           <span className="chev">▸</span>
-          <span>WAVE {String(hud.wave).padStart(2, '0')} · FORGE</span>
+          <span>
+            WAVE {String(hud.wave).padStart(2, '0')} · FORGE
+            {hud.runMutatorShortName ? ` · ${hud.runMutatorShortName}` : ''}
+          </span>
           <span className="chev">◂</span>
         </div>
 
@@ -473,6 +484,8 @@ export function ForgeShop() {
           <span className="sh-line" />
           <span className="upg-picks-label">
             GOLD · <span className="gold-amount">{hud.gold}</span>
+            {hud.forgeBonusLabel ? ` · ${hud.forgeBonusLabel}` : ''}
+            {hud.biomeName ? ` · ${hud.biomeName}` : ''}
           </span>
           <span className="sh-line" />
         </div>
@@ -489,7 +502,7 @@ export function ForgeShop() {
                 if (!up) return null;
                 const canAfford = hud.gold >= o.price;
                 const disabled = !canAfford;
-                const tierLabel = o.nextTier === 5 ? 'T5★' : `T${o.nextTier}`;
+                const tierLabel = o.nextTier === MAX_TIER ? `T${MAX_TIER}★` : `T${o.nextTier}`;
                 const isDraggingThis =
                   drag?.source.kind === 'offer' && drag.source.offerIndex === i;
                 const displayName = getFaceName(up.id, character?.id, up.name);
@@ -760,7 +773,7 @@ export function ForgeShop() {
                 )}
                 {details.nextTier !== null && (
                   <span className="fdp-tier-chip fdp-tier-next">
-                    {details.nextTier === 5 ? 'T5 · EVOLVE' : `NEXT · T${details.nextTier}`}
+                    {details.nextTier === MAX_TIER ? forgeTierLabel(details.nextTier) : `NEXT · ${forgeTierLabel(details.nextTier)}`}
                   </span>
                 )}
               </div>
@@ -768,7 +781,7 @@ export function ForgeShop() {
 
             <div className="fdp-desc">{details.upgrade.description}</div>
 
-            {details.nextTier === 5 && details.upgrade.evolution && (
+            {details.nextTier === MAX_TIER && details.upgrade.evolution && (
               <div className="fdp-evolution">
                 <div className="fdp-evo-head">
                   ★ {details.upgrade.evolution.name}
@@ -776,6 +789,12 @@ export function ForgeShop() {
                 <div className="fdp-evo-flavor">
                   {details.upgrade.evolution.flavor ?? details.upgrade.description}
                 </div>
+              </div>
+            )}
+
+            {details.currentTier !== null && details.nextTier === null && (
+              <div className="fdp-hint">
+                {forgeTierLabel(details.currentTier)}
               </div>
             )}
 
@@ -1065,7 +1084,9 @@ function FaceDetailsPanel({
             <span className="chip-name">
               {getFaceName(replacerUp.id, character?.id, replacerUp.name)}
             </span>
-            <span className="chip-tier">T{run.ownedFaceUpgrades[replacerUp.id] ?? 1}</span>
+            <span className="chip-tier" title={forgeTierLabel(run.ownedFaceUpgrades[replacerUp.id] ?? 1)}>
+              T{run.ownedFaceUpgrades[replacerUp.id] ?? 1}
+            </span>
             <button
               type="button"
               className="forge-info-btn chip-info"
@@ -1138,7 +1159,9 @@ function FaceDetailsPanel({
                 {KIND_GLYPH.supplement}
               </span>
               <span className="chip-name">{up.name}</span>
-              <span className="chip-tier">T{run.ownedFaceUpgrades[up.id] ?? 1}</span>
+              <span className="chip-tier" title={forgeTierLabel(run.ownedFaceUpgrades[up.id] ?? 1)}>
+                T{run.ownedFaceUpgrades[up.id] ?? 1}
+              </span>
               <button
                 type="button"
                 className="forge-info-btn chip-info"

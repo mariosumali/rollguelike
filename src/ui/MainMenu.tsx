@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { startRun } from '../engine/engine';
+import { continueRun } from '../engine/engine';
 import { getRunState } from '../state/store';
 import { playSfx } from '../audio/sfx';
 import { MenuScene } from './MenuScene';
@@ -14,7 +14,14 @@ import {
 } from '../state/persistence';
 import { getUpgrade } from '../content/upgrades/registry';
 import { listFaceUpgrades } from '../content/upgrades/faceRegistry';
-import { DIE_THEME_LABELS, DIE_THEME_UNLOCKS, type DieThemeId } from '../sprites/dice';
+import { getFaceIconCacheKey, getFaceIconRows } from '../content/upgrades/faceIcons';
+import {
+  buildFaceIconCanvas,
+  DIE_THEME_LABELS,
+  DIE_THEME_UNLOCKS,
+  type DieThemeId,
+} from '../sprites/dice';
+import type { FaceUpgrade } from '../content/upgrades/types';
 
 const FLAVOR_LINES = [
   'TAP THE DIE · BEND THE ODDS',
@@ -73,7 +80,7 @@ export function MainMenu() {
     const run = getRunState();
     if (!run) return;
     playSfx('ui_click');
-    startRun(run.characterId, run);
+    continueRun(run);
   };
 
   const onEnterDen = () => {
@@ -295,33 +302,87 @@ export function MainMenu() {
   );
 }
 
+function CodexIcon({ upgrade }: { upgrade: FaceUpgrade }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, c.width, c.height);
+
+    const rows = getFaceIconRows(upgrade.id, upgrade.icon, null);
+    if (!rows) return;
+    const src = buildFaceIconCanvas(rows, getFaceIconCacheKey(upgrade.id, null));
+    if (!src) return;
+
+    const scale = Math.max(1, Math.floor(Math.min(c.width / src.width, c.height / src.height)));
+    const drawW = src.width * scale;
+    const drawH = src.height * scale;
+    const dx = Math.round((c.width - drawW) / 2);
+    const dy = Math.round((c.height - drawH) / 2);
+    ctx.drawImage(src, 0, 0, src.width, src.height, dx, dy, drawW, drawH);
+  }, [upgrade]);
+
+  return <canvas ref={ref} width={36} height={36} className="arsenal-icon" aria-hidden />;
+}
+
 function CodexPanel({ onClose }: { onClose: () => void }) {
   const entries = listFaceUpgrades();
-  const sorted = [...entries].sort((a, b) => {
+  const sortByRarityThenName = (a: FaceUpgrade, b: FaceUpgrade) => {
     const order = { common: 0, rare: 1, epic: 2, legendary: 3 } as const;
     return order[a.rarity] - order[b.rarity] || a.name.localeCompare(b.name);
-  });
+  };
+  const sections = [
+    {
+      title: 'WEAPONS',
+      note: 'Face replacers',
+      entries: entries.filter((u) => u.kind === 'replacer').sort(sortByRarityThenName),
+    },
+    {
+      title: 'WEAPON SUPPLEMENTS',
+      note: 'Slot modifiers',
+      entries: entries.filter((u) => u.kind === 'supplement').sort(sortByRarityThenName),
+    },
+  ];
   return (
     <div className="overlay arsenal-overlay" onClick={onClose}>
       <div className="arsenal-panel" onClick={(e) => e.stopPropagation()}>
         <div className="arsenal-head pixel-text">
           <span>FACE CODEX</span>
-          <span className="arsenal-count">{sorted.length}</span>
+          <span className="arsenal-count">{entries.length}</span>
           <button className="btn btn-ghost arsenal-close" onClick={() => { playSfx('ui_click'); onClose(); }}>
             ✕
           </button>
         </div>
         <div className="arsenal-list">
-          {sorted.map((u) => (
-            <div key={u.id} className={`arsenal-row rarity-${u.rarity} is-unlocked`}>
-              <div className="arsenal-row-head">
-                <span className="arsenal-name pixel-text">{u.name}</span>
-                <span className={`arsenal-rarity pixel-text rarity-tag-${u.rarity}`}>
-                  {u.rarity.toUpperCase()}
+          {sections.map((section) => (
+            <section key={section.title} className="arsenal-section">
+              <div className="arsenal-section-head pixel-text">
+                <span>{section.title}</span>
+                <span className="arsenal-section-note">
+                  {section.note} · {section.entries.length}
                 </span>
               </div>
-              <div className="arsenal-desc">{u.description}</div>
-            </div>
+              {section.entries.map((u) => (
+                <div key={u.id} className={`arsenal-row rarity-${u.rarity} is-unlocked`}>
+                  <div className="arsenal-icon-shell">
+                    <CodexIcon upgrade={u} />
+                  </div>
+                  <div className="arsenal-copy">
+                    <div className="arsenal-row-head">
+                      <span className="arsenal-name pixel-text">{u.name}</span>
+                      <span className={`arsenal-rarity pixel-text rarity-tag-${u.rarity}`}>
+                        {u.rarity.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="arsenal-desc">{u.description}</div>
+                  </div>
+                </div>
+              ))}
+            </section>
           ))}
         </div>
       </div>
