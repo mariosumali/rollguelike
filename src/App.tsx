@@ -97,7 +97,7 @@ export function App() {
         {screen === 'menu' && <MainMenu />}
         {screen === 'select' && <CharacterSelect />}
         {screen === 'den' && <DenScene />}
-        {(screen === 'game' || screen === 'upgrade' || screen === 'forge' || screen === 'boss-warn' || screen === 'pause') && <GameScreen />}
+        {(screen === 'game' || screen === 'upgrade' || screen === 'forge' || screen === 'casino' || screen === 'boss-warn' || screen === 'pause') && <GameScreen />}
         {screen === 'gameover' && <GameOver />}
       </div>
       <DebugPanel />
