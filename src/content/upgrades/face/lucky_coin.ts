@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 1, chance: 0.08 }], damageMul: 1.0 },
-    { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 1, chance: 0.15 }], damageMul: 1.0 },
     { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 2, chance: 0.22 }], damageMul: 1.0 },
-    { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 2, chance: 0.32 }], damageMul: 1.0 },
     { effects: [{ verb: 'spawnPickup', kind: 'gold', amount: 3, chance: 0.45 }, { verb: 'spawnPickup', kind: 'gold', amount: 1, chance: 1.0 }], damageMul: 1.0, note: 'Midas Shower' },
   ],
 };

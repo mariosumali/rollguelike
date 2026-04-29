@@ -17,11 +17,9 @@ const upgrade: FaceUpgrade = {
     flavor: 'Burns spread to the next target on kill.',
   },
   tiers: [
-    { effects: [{ verb: 'applyStatus', status: 'burn', power: 1, duration: 2 }], damageMul: 1.0 },
-    { effects: [{ verb: 'applyStatus', status: 'burn', power: 2, duration: 2 }], damageMul: 1.0 },
-    { effects: [{ verb: 'applyStatus', status: 'burn', power: 2, duration: 3 }], damageMul: 1.0 },
-    { effects: [{ verb: 'applyStatus', status: 'burn', power: 3, duration: 3 }], damageMul: 1.0 },
-    { effects: [{ verb: 'applyStatus', status: 'burn', power: 4, duration: 4 }], damageMul: 1.0, note: 'Inferno Tip' },
+    { effects: [{ verb: 'modifyProjectile', burnDps: 3, burnDur: 2 }], damageMul: 1.0 },
+    { effects: [{ verb: 'modifyProjectile', burnDps: 5, burnDur: 3 }, { verb: 'flamePillar', count: 1, radius: 14, damageMul: 0.3, duration: 0.6 }], damageMul: 1.0 },
+    { effects: [{ verb: 'modifyProjectile', burnDps: 8, burnDur: 4 }, { verb: 'flamePillar', count: 2, radius: 18, damageMul: 0.4, duration: 0.8, delay: 0.14 }], damageMul: 1.0, note: 'Inferno Tip' },
   ],
 };
 

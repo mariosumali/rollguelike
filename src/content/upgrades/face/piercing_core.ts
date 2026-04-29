@@ -18,8 +18,6 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', pierce: 1 }], damageMul: 1.0 },
-    { effects: [{ verb: 'modifyProjectile', pierce: 1 }], damageMul: 1.0 },
-    { effects: [{ verb: 'modifyProjectile', pierce: 2 }], damageMul: 1.0 },
     { effects: [{ verb: 'modifyProjectile', pierce: 2 }], damageMul: 1.0 },
     { effects: [{ verb: 'modifyProjectile', pierce: 3 }], damageMul: 1.0, note: 'Harpoon', params: { pullAfterCap: 1 } },
   ],

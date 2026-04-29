@@ -20,9 +20,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'fireProjectile', count: 1, homing: true }], damageMul: 1.2 },
-    { effects: [{ verb: 'fireProjectile', count: 1, homing: true }, { verb: 'modifyProjectile', aoeOnHit: 20 }], damageMul: 1.25 },
     { effects: [{ verb: 'fireProjectile', count: 2, homing: true }, { verb: 'modifyProjectile', aoeOnHit: 24 }], damageMul: 1.3 },
-    { effects: [{ verb: 'fireProjectile', count: 2, homing: true }, { verb: 'modifyProjectile', aoeOnHit: 32 }], damageMul: 1.4 },
     { effects: [{ verb: 'fireProjectile', count: 3, homing: true }, { verb: 'modifyProjectile', aoeOnHit: 40 }, { verb: 'applyStatus', status: 'mark', power: 1.5, duration: 3 }], damageMul: 1.5, note: 'Cruise' },
   ],
 };

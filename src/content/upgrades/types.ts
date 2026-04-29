@@ -26,6 +26,14 @@ export type Effect =
       repeat?: number;
     }
   | { verb: 'chain'; maxChains: number; decay: number }
+  | {
+      verb: 'chainLightning';
+      jumps: number;
+      damageMul: number;
+      radius?: number;
+      stunDur?: number;
+      fromDie?: boolean;
+    }
   | { verb: 'bounce'; count: number }
   | {
       verb: 'applyStatus';
@@ -47,6 +55,26 @@ export type Effect =
     }
   | { verb: 'column'; count: number; delay: number; damageMul: number; stunDur?: number; chainToExtra?: number }
   | {
+      verb: 'flamePillar';
+      count: number;
+      radius: number;
+      damageMul: number;
+      duration: number;
+      delay?: number;
+      burnDps?: number;
+      burnDur?: number;
+    }
+  | {
+      verb: 'groundZone';
+      radius: number;
+      dps: number;
+      duration: number;
+      element?: Element;
+      slow?: number;
+    }
+  | { verb: 'frostBurst'; radius: number; damageMul: number; freezeDur: number; slow?: number }
+  | { verb: 'statusAura'; status: StatusKind; radius: number; power: number; duration: number }
+  | {
       verb: 'modifyProjectile';
       pierce?: number;
       bounce?: number;
@@ -56,6 +84,7 @@ export type Effect =
       extra?: number;
       sizeMul?: number;
       damageMul?: number;
+      speedMul?: number;
       crit?: number;
       burnDps?: number;
       burnDur?: number;
@@ -128,13 +157,13 @@ export interface FaceUpgrade {
   characterExclusive?: string;
   evolution?: FaceUpgradeEvolution;
   animation: AnimationBinding;
-  tiers: [FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier];
+  tiers: [FaceUpgradeTier, FaceUpgradeTier, FaceUpgradeTier];
   basePrice?: Partial<Record<Rarity, number[]>>;
   /** Optional palette-character rows used as the die-face pixel art when this upgrade occupies a slot. */
   icon?: string[];
 }
 
-export const MAX_TIER = 5;
+export const MAX_TIER = 3;
 
 export interface SlotRestriction {
   slotIndex: number;

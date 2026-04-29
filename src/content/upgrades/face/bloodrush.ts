@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.1 }], damageMul: 1.0, params: { requireRage: 5, windowSec: 3, onKillReResolve: 1 } },
-    { effects: [{ verb: 'modifyProjectile', damageMul: 1.15 }], damageMul: 1.0, params: { requireRage: 5, windowSec: 3, onKillReResolve: 1 } },
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.2 }], damageMul: 1.0, params: { requireRage: 4, windowSec: 3.5, onKillReResolve: 1 } },
-    { effects: [{ verb: 'modifyProjectile', damageMul: 1.3 }], damageMul: 1.0, params: { requireRage: 4, windowSec: 4, onKillReResolve: 1 } },
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.4 }, { verb: 'pulse', radius: 24, damageMul: 0.5 }], damageMul: 1.0, params: { requireRage: 3, windowSec: 5, onKillReResolve: 2 }, note: 'Rampage' },
   ],
 };

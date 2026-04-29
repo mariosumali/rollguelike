@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'heal', amount: 8 }], damageMul: 1.0, params: { perFace: 3 } },
-    { effects: [{ verb: 'heal', amount: 12 }], damageMul: 1.0, params: { perFace: 4 } },
     { effects: [{ verb: 'heal', amount: 16, cleanse: true }], damageMul: 1.0, params: { perFace: 5 } },
-    { effects: [{ verb: 'heal', amount: 20, cleanse: true }], damageMul: 1.0, params: { perFace: 6 } },
     { effects: [{ verb: 'heal', amount: 24, cleanse: true, overflowToShield: true }], damageMul: 1.0, params: { perFace: 7 }, note: 'Fountain' },
   ],
 };

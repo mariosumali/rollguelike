@@ -20,9 +20,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'fireProjectile', count: 1, pierce: 1 }], damageMul: 1.1 },
-    { effects: [{ verb: 'fireProjectile', count: 1, pierce: 2 }], damageMul: 1.15 },
     { effects: [{ verb: 'fireProjectile', count: 2, pierce: 2 }], damageMul: 1.2 },
-    { effects: [{ verb: 'fireProjectile', count: 2, pierce: 3 }], damageMul: 1.3 },
     { effects: [{ verb: 'fireProjectile', count: 3, pierce: 99 }], damageMul: 1.4, note: 'Rail' },
   ],
 };

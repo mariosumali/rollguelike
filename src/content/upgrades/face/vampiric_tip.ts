@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', lifesteal: 0.05 }], damageMul: 1.0 },
-    { effects: [{ verb: 'modifyProjectile', lifesteal: 0.08 }], damageMul: 1.0 },
     { effects: [{ verb: 'modifyProjectile', lifesteal: 0.12 }], damageMul: 1.0 },
-    { effects: [{ verb: 'modifyProjectile', lifesteal: 0.18 }], damageMul: 1.0 },
     { effects: [{ verb: 'modifyProjectile', lifesteal: 0.25 }], damageMul: 1.0, note: 'Bloodpact' },
   ],
 };

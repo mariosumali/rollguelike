@@ -35,7 +35,7 @@ export const LANDMARK_EXPANSION_UPGRADES: Upgrade[] = [
   {
     id: 'landmark_twin_dice',
     name: 'Twin Dice',
-    desc: 'A second die rolls in parallel; both resolve on tap.',
+    desc: 'A second die rolls in parallel; dice damage is halved.',
     rarity: 'legendary',
     category: 'landmark',
     maxStack: 1,

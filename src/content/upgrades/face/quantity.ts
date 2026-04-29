@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', extra: 1 }], damageMul: 1.0, params: { minValue: 3 } },
-    { effects: [{ verb: 'modifyProjectile', extra: 1 }], damageMul: 1.0, params: { valueMul: 0.5 } },
     { effects: [{ verb: 'modifyProjectile', extra: 2 }], damageMul: 1.0, params: { valueMul: 0.75 } },
-    { effects: [{ verb: 'modifyProjectile', extra: 3 }], damageMul: 1.0, params: { valueMul: 1.0 } },
     { effects: [{ verb: 'modifyProjectile', extra: 4, crit: 0.1 }], damageMul: 1.0, params: { valueMul: 1.25 }, note: 'Abundance' },
   ],
 };

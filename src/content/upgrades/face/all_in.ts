@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.0 }], damageMul: 1.0, params: { requireGambit: 5, onExtreme: 1, reResolve: 1 } },
-    { effects: [{ verb: 'modifyProjectile', damageMul: 1.05 }], damageMul: 1.0, params: { requireGambit: 5, onExtreme: 1, reResolve: 1 } },
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.1 }], damageMul: 1.0, params: { requireGambit: 4, onExtreme: 1, reResolve: 1 } },
-    { effects: [{ verb: 'modifyProjectile', damageMul: 1.15 }], damageMul: 1.0, params: { requireGambit: 4, onExtreme: 1, reResolve: 1 } },
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.25 }], damageMul: 1.0, params: { requireGambit: 3, onExtreme: 1, reResolve: 2 }, note: 'Jackpot' },
   ],
 };

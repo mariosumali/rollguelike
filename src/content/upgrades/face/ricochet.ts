@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', bounce: 1 }, { verb: 'chain', maxChains: 1, decay: 0.5 }], damageMul: 1.0 },
-    { effects: [{ verb: 'modifyProjectile', bounce: 2 }, { verb: 'chain', maxChains: 1, decay: 0.5 }], damageMul: 1.0 },
     { effects: [{ verb: 'modifyProjectile', bounce: 2 }, { verb: 'chain', maxChains: 2, decay: 0.4 }], damageMul: 1.0 },
-    { effects: [{ verb: 'modifyProjectile', bounce: 3 }, { verb: 'chain', maxChains: 2, decay: 0.35 }], damageMul: 1.0 },
     { effects: [{ verb: 'modifyProjectile', bounce: 4 }, { verb: 'chain', maxChains: 3, decay: 0.3 }], damageMul: 1.0, note: 'Storm Chain' },
   ],
 };

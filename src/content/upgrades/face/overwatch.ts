@@ -19,9 +19,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', extra: 1 }], damageMul: 1.0, params: { onSix: 1, lockRolls: 2 } },
-    { effects: [{ verb: 'modifyProjectile', extra: 2 }], damageMul: 1.0, params: { onSix: 1, lockRolls: 2 } },
     { effects: [{ verb: 'modifyProjectile', extra: 2 }], damageMul: 1.0, params: { onSix: 1, lockRolls: 3 } },
-    { effects: [{ verb: 'modifyProjectile', extra: 3 }], damageMul: 1.0, params: { onSix: 1, lockRolls: 3 } },
     { effects: [{ verb: 'modifyProjectile', extra: 4 }], damageMul: 1.0, params: { onSix: 1, lockRolls: 4 }, note: 'Full Overwatch' },
   ],
 };

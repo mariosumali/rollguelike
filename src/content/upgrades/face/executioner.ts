@@ -18,9 +18,7 @@ const upgrade: FaceUpgrade = {
   },
   tiers: [
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.08 }], damageMul: 1.0, params: { executeBelow: 0.25, executeMul: 1.1 } },
-    { effects: [{ verb: 'modifyProjectile', damageMul: 1.14 }], damageMul: 1.0, params: { executeBelow: 0.25, executeMul: 1.18 } },
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.22 }], damageMul: 1.0, params: { executeBelow: 0.25, executeMul: 1.28 } },
-    { effects: [{ verb: 'modifyProjectile', damageMul: 1.32 }], damageMul: 1.0, params: { executeBelow: 0.25, executeMul: 1.4 } },
     { effects: [{ verb: 'modifyProjectile', damageMul: 1.45 }], damageMul: 1.0, params: { executeBelow: 0.1, instaKillBelow: 0.1 }, note: "Reaper's Mark" },
   ],
 };

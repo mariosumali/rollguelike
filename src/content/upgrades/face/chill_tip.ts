@@ -18,11 +18,9 @@ const upgrade: FaceUpgrade = {
     extraEffects: [{ verb: 'applyStatus', status: 'freeze', power: 1, duration: 0.4, chance: 0.25 }],
   },
   tiers: [
-    { effects: [{ verb: 'applyStatus', status: 'slow', power: 2, duration: 1 }], damageMul: 1.0 },
-    { effects: [{ verb: 'applyStatus', status: 'slow', power: 2, duration: 1.5 }], damageMul: 1.0 },
-    { effects: [{ verb: 'applyStatus', status: 'slow', power: 3, duration: 1.5 }], damageMul: 1.0 },
-    { effects: [{ verb: 'applyStatus', status: 'slow', power: 3, duration: 2 }], damageMul: 1.0 },
-    { effects: [{ verb: 'applyStatus', status: 'slow', power: 4, duration: 2.5 }], damageMul: 1.0, note: 'Cryo Tip' },
+    { effects: [{ verb: 'statusAura', status: 'slow', radius: 34, power: 0.3, duration: 1.2 }], damageMul: 1.0 },
+    { effects: [{ verb: 'statusAura', status: 'slow', radius: 46, power: 0.45, duration: 1.8 }], damageMul: 1.0 },
+    { effects: [{ verb: 'statusAura', status: 'slow', radius: 58, power: 0.6, duration: 2.4 }, { verb: 'frostBurst', radius: 40, damageMul: 0.25, freezeDur: 0.45, slow: 0.6 }], damageMul: 1.0, note: 'Cryo Tip' },
   ],
 };
 
