@@ -1,12 +1,163 @@
 import { useEffect, useState } from 'react';
-import { useStore } from '../state/store';
-import { resumeGame, quitRun } from '../engine/engine';
+import { getRunState, useStore } from '../state/store';
+import { resumeGame, returnToMainMenu, quitRun } from '../engine/engine';
 import { playSfx } from '../audio/sfx';
 import { SettingsPanel } from './SettingsPanel';
+import { getUpgrade } from '../content/upgrades/registry';
+import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
+import { getFaceName } from '../content/upgrades/faceNames';
+import type { Rarity, RunState } from '../types';
+
+const RARITY_COLORS: Record<Rarity, string> = {
+  common: 'var(--common)',
+  rare: 'var(--rare)',
+  epic: 'var(--epic)',
+  legendary: 'var(--legendary)',
+};
+
+type ActiveUpgrade = { id: string; stacks: number };
+
+function PauseBuildSummary({
+  run,
+  activeUpgrades,
+}: {
+  run: RunState | null;
+  activeUpgrades: ActiveUpgrade[];
+}) {
+  const characterId = run?.characterId ?? null;
+  const slots = run?.slotLayout ?? [];
+  const equippedFaceIds = new Set<string>();
+  slots.forEach((slot) => {
+    if (slot.replacerId) equippedFaceIds.add(slot.replacerId);
+    slot.supplementIds.forEach((id) => equippedFaceIds.add(id));
+  });
+  const equippedFaceCount = slots.reduce(
+    (count, slot) => count + (slot.replacerId ? 1 : 0) + slot.supplementIds.length,
+    0,
+  );
+
+  const benchFaces = Object.entries(run?.ownedFaceUpgrades ?? {})
+    .filter(([id]) => !equippedFaceIds.has(id))
+    .map(([id, tier]) => ({ upgrade: getFaceUpgrade(id), tier }))
+    .filter((entry): entry is { upgrade: NonNullable<ReturnType<typeof getFaceUpgrade>>; tier: number } =>
+      Boolean(entry.upgrade),
+    );
+
+  return (
+    <div className="pause-build-v2" aria-label="Current build">
+      <div className="build-head-v2">
+        <span className="sh-line" />
+        <span className="build-title-v2">BUILD</span>
+        <span className="build-count-v2">
+          {activeUpgrades.length + equippedFaceCount + benchFaces.length} UPGRADES
+        </span>
+        <span className="sh-line" />
+      </div>
+
+      <div className="build-section-v2">
+        <div className="build-section-label">DICE FACES</div>
+        <div className="pause-face-grid-v2">
+          {Array.from({ length: 6 }).map((_, i) => {
+            const slot = slots[i];
+            const replacer = slot?.replacerId ? getFaceUpgrade(slot.replacerId) : null;
+            const supplements = slot?.supplementIds
+              .map((id) => getFaceUpgrade(id))
+              .filter((up): up is NonNullable<typeof up> => Boolean(up)) ?? [];
+            const accent = replacer ? RARITY_COLORS[replacer.rarity] : 'var(--fg-dim)';
+            const replacerName = replacer
+              ? getFaceName(replacer.id, characterId, replacer.name)
+              : 'Empty';
+            const tier = replacer ? run?.ownedFaceUpgrades[replacer.id] ?? 1 : 0;
+
+            return (
+              <div
+                key={i}
+                className={`pause-face-slot-v2 ${replacer ? '' : 'is-empty'}`}
+                style={{ ['--card-accent' as string]: accent }}
+                title={
+                  replacer
+                    ? `${replacerName} T${tier}\n${replacer.description}`
+                    : `Face ${i + 1} · empty slot`
+                }
+              >
+                <div className="pause-face-main-v2">
+                  <span className="pause-face-value-v2">{i + 1}</span>
+                  <span className="pause-face-name-v2">{replacerName}</span>
+                  {replacer && <span className="pause-face-tier-v2">T{tier}</span>}
+                </div>
+                <div className="pause-face-sups-v2">
+                  {supplements.length === 0 ? (
+                    <span className="pause-face-empty-v2">NO MODS</span>
+                  ) : (
+                    supplements.map((up, idx) => (
+                      <span
+                        key={`${up.id}-${idx}`}
+                        className="pause-face-sup-v2"
+                        style={{ ['--card-accent' as string]: RARITY_COLORS[up.rarity] }}
+                        title={`${up.name} T${run?.ownedFaceUpgrades[up.id] ?? 1}\n${up.description}`}
+                      >
+                        {up.name} T{run?.ownedFaceUpgrades[up.id] ?? 1}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {benchFaces.length > 0 && (
+        <div className="build-section-v2">
+          <div className="build-section-label">OWNED · NOT EQUIPPED</div>
+          <div className="pause-chip-list-v2">
+            {benchFaces.map(({ upgrade, tier }) => (
+              <span
+                key={upgrade.id}
+                className="pause-build-chip-v2"
+                style={{ ['--card-accent' as string]: RARITY_COLORS[upgrade.rarity] }}
+                title={upgrade.description}
+              >
+                {getFaceName(upgrade.id, characterId, upgrade.name)} T{tier}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="build-section-v2">
+        <div className="build-section-label">RUN UPGRADES</div>
+        <div className="pause-upgrade-list-v2">
+          {activeUpgrades.length === 0 && <div className="empty-v2">NO RUN UPGRADES YET</div>}
+          {activeUpgrades.map((a) => {
+            const up = getUpgrade(a.id);
+            if (!up) return null;
+            return (
+              <div
+                key={a.id}
+                className="drawer-row-v2 pause-upgrade-row-v2"
+                style={{ ['--card-accent' as string]: RARITY_COLORS[up.rarity] }}
+              >
+                <div className="drawer-row-head">
+                  <span className="drawer-name">
+                    {up.name}{a.stacks > 1 ? ` ×${a.stacks}` : ''}
+                  </span>
+                  <span className="drawer-rarity">{up.rarity.toUpperCase()}</span>
+                </div>
+                <div className="drawer-desc">{up.desc}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function PauseMenu() {
   const hud = useStore((s) => s.hud);
   const confirmQuit = useStore((s) => s.settings.confirmQuit);
+  const activeUpgrades = useStore((s) => s.activeUpgrades);
   const [showSettings, setShowSettings] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
@@ -16,6 +167,8 @@ export function PauseMenu() {
     return () => window.clearInterval(id);
   }, []);
   const pip = (tick & 1) === 0 ? '•' : '·';
+  const run = getRunState();
+  const runUpgrades = run?.upgrades ?? activeUpgrades;
 
   if (showSettings) {
     return (
@@ -55,6 +208,8 @@ export function PauseMenu() {
           <span className="tr-bracket">]</span>
         </div>
 
+        <PauseBuildSummary run={run} activeUpgrades={runUpgrades} />
+
         <div className="pause-btns-v2">
           <button
             className="btn-pixel btn-primary-v2"
@@ -74,6 +229,17 @@ export function PauseMenu() {
             <span className="btn-chev">⚙</span>
             <span className="btn-body">
               <span className="btn-label">SETTINGS</span>
+            </span>
+            <span className="btn-dot">{pip}</span>
+          </button>
+          <button
+            className="btn-pixel btn-ghost-v2"
+            onClick={() => { playSfx('ui_click'); returnToMainMenu(); }}
+          >
+            <span className="btn-chev">◂</span>
+            <span className="btn-body">
+              <span className="btn-label">MAIN MENU</span>
+              <span className="btn-sub">KEEP THIS RUN</span>
             </span>
             <span className="btn-dot">{pip}</span>
           </button>

@@ -5,6 +5,7 @@ export function BossWarning() {
   const bossId = useStore((s) => s.bossWarnTypeId);
   const type = bossId ? getEnemyType(bossId) : null;
   const name = (type?.name ?? 'Boss Incoming').toUpperCase();
+  const mechanic = type?.mechanicDesc ?? 'Watch the dice. This boss changes the rules.';
 
   return (
     <div className="overlay boss-warn boss-warn-v2">
@@ -26,6 +27,12 @@ export function BossWarning() {
         <div className="boss-warn-name-wrap">
           <span className="bwn-shadow" aria-hidden>{name}</span>
           <span className="bwn-main">{name}</span>
+        </div>
+
+        <div className="tagline-ribbon upg-ribbon">
+          <span className="tr-bracket">[</span>
+          <span className="tr-track">{mechanic}</span>
+          <span className="tr-bracket">]</span>
         </div>
 
         <div className="boss-warn-foot">

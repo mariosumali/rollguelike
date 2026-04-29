@@ -56,7 +56,10 @@ export function UpgradeSelect() {
 
         <div className="panel-kicker">
           <span className="chev">▸</span>
-          <span>WAVE {String(hud.wave).padStart(2, '0')} · ALTAR</span>
+          <span>
+            WAVE {String(hud.wave).padStart(2, '0')} · ALTAR
+            {hud.runMutatorShortName ? ` · ${hud.runMutatorShortName}` : ''}
+          </span>
           <span className="chev">◂</span>
         </div>
 
@@ -67,7 +70,9 @@ export function UpgradeSelect() {
 
         <div className="tagline-ribbon upg-ribbon">
           <span className="tr-bracket">[</span>
-          <span className="tr-track">{tagline}</span>
+          <span className="tr-track">
+            {tagline}{hud.forgeBonusLabel ? ` · NEXT ${hud.forgeBonusLabel}` : ''}
+          </span>
           <span className="tr-bracket">]</span>
         </div>
 
