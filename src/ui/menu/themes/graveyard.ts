@@ -65,6 +65,7 @@ export function createGraveyardTheme(engine: MenuEngine): ThemeController {
 
   return {
     torchPal: TORCH_GHOST,
+    torchMounts: [{ x: 15, y: 155 }, { x: W - 15, y: 155 }],
     stars: true,
     shootingStars: true,
     magicCircleKey: 'q',
