@@ -61,7 +61,7 @@ function c(k: string): string {
 export const STAGES: StageTheme[] = [
   {
     id: 'void_spire',
-    name: 'VOID SPIRE',
+    name: 'FRONT FOYER',
     subtitle: 'Waves 1-10',
     skyTop: c('2'),
     skyMid: c('1'),
@@ -84,7 +84,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'ember_forge',
-    name: 'EMBER FORGE',
+    name: 'DEBT KENNEL',
     subtitle: 'Waves 11-20',
     skyTop: c('J'),
     skyMid: c('f'),
@@ -107,7 +107,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'frozen_tundra',
-    name: 'FROZEN TUNDRA',
+    name: 'LOCKED VAULT',
     subtitle: 'Waves 21-30',
     skyTop: c('r'),
     skyMid: c('q'),
@@ -130,7 +130,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'toxic_marsh',
-    name: 'TOXIC MARSH',
+    name: 'RED INFIRMARY',
     subtitle: 'Waves 31-40',
     skyTop: c('U'),
     skyMid: c('T'),
@@ -153,7 +153,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'sunbleached_dunes',
-    name: 'SUNBLEACHED DUNES',
+    name: 'ODD COURT',
     subtitle: 'Waves 41-50',
     skyTop: c('v'),
     skyMid: c('u'),
@@ -176,7 +176,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'abyssal_trench',
-    name: 'ABYSSAL TRENCH',
+    name: 'NULL TABLE',
     subtitle: 'Waves 51-60',
     skyTop: c('B'),
     skyMid: c('A'),
@@ -199,7 +199,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'shadow_glade',
-    name: 'SHADOW GLADE',
+    name: 'GRAVE CLOAKROOM',
     subtitle: 'Waves 61-70',
     skyTop: c('F'),
     skyMid: c('E'),
@@ -222,7 +222,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'celestial_garden',
-    name: 'CELESTIAL GARDEN',
+    name: 'MIRROR GARDEN',
     subtitle: 'Waves 71-80',
     skyTop: c('j'),
     skyMid: c('I'),
@@ -245,7 +245,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'iron_foundry',
-    name: 'IRON FOUNDRY',
+    name: 'IRON COUNTING ROOM',
     subtitle: 'Waves 81-90',
     skyTop: c('a'),
     skyMid: c('3'),
@@ -268,7 +268,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'blood_moon',
-    name: 'BLOOD MOON',
+    name: 'BLOOD LEDGER',
     subtitle: 'Waves 91-100',
     skyTop: c('K'),
     skyMid: c('J'),
@@ -291,7 +291,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'stormwall',
-    name: 'STORMWALL',
+    name: 'STORM BALCONY',
     subtitle: 'Waves 101-110',
     skyTop: c('a'),
     skyMid: c('3'),
@@ -314,7 +314,7 @@ export const STAGES: StageTheme[] = [
   },
   {
     id: 'hellfire_core',
-    name: 'HELLFIRE CORE',
+    name: 'HELLFIRE FURNACE',
     subtitle: 'Waves 111-120',
     skyTop: c('L'),
     skyMid: c('K'),
