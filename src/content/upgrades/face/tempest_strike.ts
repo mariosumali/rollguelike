@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { legendary: prices.controlLegendary };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -16,7 +20,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'thunder_column',
     evolution: 'tempest_spiral',
   },
-    effect: { effects: [{ verb: 'column', count: 1, delay: 0.18, damageMul: 3.0 }, { verb: 'applyStatus', status: 'slow', power: 0.4, duration: 1.5 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'column', count: 1, delay: 0.2, damageMul: 2.6 }, { verb: 'applyStatus', status: 'slow', power: 0.4, duration: 1.5 }], damageMul: 1.0, timing: tempo.artillery },
+    basePrice,
   },
   {
     id: "tempest_strike_ii",
@@ -34,7 +39,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'thunder_column',
     evolution: 'tempest_spiral',
   },
-    effect: { effects: [{ verb: 'column', count: 2, delay: 0.2, damageMul: 4.0, stunDur: 0.2 }, { verb: 'frostBurst', radius: 38, damageMul: 0.35, freezeDur: 0.45, slow: 0.55 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'column', count: 2, delay: 0.22, damageMul: 3.2, stunDur: 0.2 }, { verb: 'frostBurst', radius: 38, damageMul: 0.28, freezeDur: 0.45, slow: 0.55 }], damageMul: 1.0, timing: tempo.legendary },
+    basePrice,
   },
   {
     id: "tempest_strike_iii",
@@ -51,7 +57,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'thunder_column',
     evolution: 'tempest_spiral',
   },
-    effect: { effects: [{ verb: 'column', count: 4, delay: 0.22, damageMul: 5.5, stunDur: 0.4, chainToExtra: 2 }, { verb: 'frostBurst', radius: 58, damageMul: 0.55, freezeDur: 0.9, slow: 0.7 }, { verb: 'column', count: 2, delay: 0.25, damageMul: 5.0, chainToExtra: 3 }], damageMul: 1.0, note: 'Tempest Spiral' },
+    effect: { effects: [{ verb: 'column', count: 4, delay: 0.24, damageMul: 4.1, stunDur: 0.35, chainToExtra: 2 }, { verb: 'frostBurst', radius: 58, damageMul: 0.45, freezeDur: 0.8, slow: 0.7 }, { verb: 'column', count: 2, delay: 0.28, damageMul: 3.6, chainToExtra: 3 }], damageMul: 1.0, timing: tempo.legendary, note: 'Tempest Spiral' },
+    basePrice,
   }
 ];
 
