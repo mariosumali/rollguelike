@@ -503,6 +503,10 @@ const generalDie = [
   '.............',
 ];
 
+function remapRows(rows: string[], palette: Record<string, string>): string[] {
+  return rows.map((row) => Array.from(row, (ch) => palette[ch] ?? ch).join(''));
+}
+
 function def(id: string, idleA: string[], idleB: string[], die: string[]): void {
   defineSprite({
     id,
@@ -531,4 +535,20 @@ export function defineEnemySprites(): void {
   def('enemy_reflector', reflectorA, reflectorB, generalDie);
   def('enemy_resurrector', resurrectorA, resurrectorB, generalDie);
   def('enemy_immune', immuneA, immuneB, generalDie);
+
+  def('house_debt_hound', remapRows(rusherA, { J: 'O', L: 'y', h: 'v', i: 'O' }), remapRows(rusherB, { J: 'O', L: 'y', h: 'v', i: 'O' }), rusherDie);
+  def('house_vaultback', remapRows(tankA, { M: 'a', P: 'b', c: 'u' }), remapRows(tankB, { M: 'a', P: 'b', c: 'u' }), tankDie);
+  def('house_loaded_larva', remapRows(splitterA, { p: 'P', y: 'Q', o: 'p' }), remapRows(splitterB, { p: 'P', y: 'Q', o: 'p' }), splitterDie);
+  def('house_pip_rat', remapRows(swarmA, { N: 'O', O: 'y', x: '1' }), remapRows(swarmB, { N: 'O', O: 'y', x: '1' }), swarmDie);
+  def('house_chandelier_wisp', remapRows(drifterA, { w: 'I', H: 'S', d: 'q' }), remapRows(drifterB, { w: 'I', H: 'S', d: 'q' }), drifterDie);
+  def('house_odd_apostle', remapRows(oddOnlyA, { F: 'G', G: 'H', H: 'y', w: '1' }), remapRows(oddOnlyB, { F: 'G', G: 'H', H: 'y', w: '1' }), generalDie);
+  def('house_mirror_clerk', remapRows(copierA, { a: 'H', P: 'I', Q: 'S', c: 'w' }), remapRows(copierB, { a: 'H', P: 'I', Q: 'S', c: 'w' }), generalDie);
+  def('house_tithe_drainer', remapRows(debufferA, { T: 'U', U: 'z', m: 'l' }), remapRows(debufferB, { T: 'U', U: 'z', m: 'l' }), generalDie);
+  def('house_null_maw', remapRows(absorberA, { A: 'E', B: 'F', C: 'R', D: 'S' }), remapRows(absorberB, { A: 'E', B: 'F', C: 'R', D: 'S' }), generalDie);
+  def('house_surgeon', remapRows(healerA, { m: 'K', z: 'L', l: 'f' }), remapRows(healerB, { m: 'K', z: 'L', l: 'f' }), generalDie);
+  def('house_curtain_shade', remapRows(invisibleA, { w: 'E', I: 'H', d: '0' }), remapRows(invisibleB, { w: 'E', I: 'H', d: '0' }), generalDie);
+  def('house_flip_jester', remapRows(inverterA, { F: 'O', G: 'v', H: 'u' }), remapRows(inverterB, { F: 'O', G: 'v', H: 'u' }), generalDie);
+  def('house_mirror_bailiff', remapRows(reflectorA, { C: 'q', D: 'r', B: 'S' }), remapRows(reflectorB, { C: 'q', D: 'r', B: 'S' }), generalDie);
+  def('house_grave_usher', remapRows(resurrectorA, { V: 'T', T: 'E', z: 'H' }), remapRows(resurrectorB, { V: 'T', T: 'E', z: 'H' }), generalDie);
+  def('house_six_seal_guard', remapRows(immuneA, { A: 'a', B: 'b', C: 'u' }), remapRows(immuneB, { A: 'a', B: 'b', C: 'u' }), generalDie);
 }
