@@ -67,6 +67,7 @@ export function createSkyTempleTheme(engine: MenuEngine): ThemeController {
 
   return {
     torchPal: TORCH_FIRE,
+    torchMounts: [{ x: 33, y: 155 }, { x: W - 35, y: 155 }],
     stars: true,
     shootingStars: false,
     magicCircleKey: 'O',
