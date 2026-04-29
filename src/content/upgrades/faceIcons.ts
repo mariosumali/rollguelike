@@ -1,3 +1,5 @@
+import { getFaceChainId, getFaceRank, getFaceUpgrade } from './faceRegistry';
+
 /**
  * Pixel-art icons shown on the face of the die when an upgrade occupies the slot.
  *
@@ -836,22 +838,33 @@ export const FACE_ICONS: Record<string, string[]> = {
  *
  * Resolution order:
  *   1. Explicit `icon` override on the upgrade definition (if provided).
+ *      Copied tier icons still evolve so rank 2/3 do not reuse rank 1 art.
  *   2. Character-scoped variant `FACE_ICONS[`${upgradeId}@${characterId}`]`
  *      — used so shared upgrades like `std_shot` can reflect each character's
  *      distinct base projectile (bullet vs chip vs flask vs bone vs axe).
  *   3. Generic `FACE_ICONS[upgradeId]`.
+ *   4. Evolved rank art derived from the base chain icon.
  */
 export function getFaceIconRows(
   upgradeId: string,
   explicit?: string[],
   characterId?: string | null,
 ): string[] | null {
-  if (explicit && explicit.length > 0) return explicit;
+  const upgrade = getFaceUpgrade(upgradeId);
+  const rank = getFaceRank(upgrade);
+  if (explicit && explicit.length > 0) {
+    return shouldEvolveExplicitIcon(upgradeId, explicit) ? evolvedTierIconRows(explicit, rank, upgradeId) : explicit;
+  }
   if (characterId) {
     const variant = FACE_ICONS[`${upgradeId}@${characterId}`];
     if (variant) return variant;
+    const chainVariant = upgrade ? FACE_ICONS[`${getFaceChainId(upgrade)}@${characterId}`] : undefined;
+    if (chainVariant) return evolvedTierIconRows(chainVariant, rank, `${upgradeId}@${characterId}`);
   }
-  return FACE_ICONS[upgradeId] ?? null;
+  const direct = FACE_ICONS[upgradeId];
+  if (direct) return direct;
+  const chain = upgrade ? FACE_ICONS[getFaceChainId(upgrade)] : undefined;
+  return chain ? evolvedTierIconRows(chain, rank, upgradeId) : null;
 }
 
 /**
@@ -863,8 +876,243 @@ export function getFaceIconCacheKey(
   upgradeId: string,
   characterId?: string | null,
 ): string {
+  const upgrade = getFaceUpgrade(upgradeId);
   if (characterId && FACE_ICONS[`${upgradeId}@${characterId}`]) {
     return `${upgradeId}@${characterId}`;
   }
+  if (upgrade && characterId && FACE_ICONS[`${getFaceChainId(upgrade)}@${characterId}`]) {
+    return `${upgradeId}@${characterId}`;
+  }
   return upgradeId;
+}
+
+const TIER_ICON_ROW_CACHE = new Map<string, string[]>();
+
+function shouldEvolveExplicitIcon(upgradeId: string, rows: string[]): boolean {
+  const upgrade = getFaceUpgrade(upgradeId);
+  if (getFaceRank(upgrade) <= 1) return false;
+
+  const predecessor = upgrade?.upgradesFrom ? getFaceUpgrade(upgrade.upgradesFrom) : undefined;
+  if (predecessor?.icon && sameIconRows(rows, predecessor.icon)) return true;
+
+  const chainRows = upgrade ? FACE_ICONS[getFaceChainId(upgrade)] : undefined;
+  return Boolean(chainRows && sameIconRows(rows, chainRows));
+}
+
+function evolvedTierIconRows(rows: string[], rank: number, cacheKey: string): string[] {
+  if (rank <= 1 || rows.length === 0) return rows;
+  const tierKey = `${cacheKey}#${rank}`;
+  const cached = TIER_ICON_ROW_CACHE.get(tierKey);
+  if (cached) return cached;
+
+  const evolved = buildEvolvedTierIconRows(rows, rank, cacheKey);
+  TIER_ICON_ROW_CACHE.set(tierKey, evolved);
+  return evolved;
+}
+
+function buildEvolvedTierIconRows(rows: string[], rank: number, cacheKey: string): string[] {
+  const width = Math.max(...rows.map((row) => row.length));
+  const out = rows.map((row) => row.padEnd(width, '.').split(''));
+  const bounds = getIconBounds(out);
+  if (!bounds) return rows;
+
+  const accent = getTierAccent(rows, cacheKey);
+  addOffsetGlow(out, bounds, accent, rank);
+  addTierSparks(out, bounds, accent, rank);
+  if (rank >= 3) {
+    addInnerHighlights(out, bounds, accent, cacheKey);
+    addOuterHalo(out, bounds, accent);
+  }
+
+  return out.map((rowChars) => rowChars.join(''));
+}
+
+function sameIconRows(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((row, index) => row === b[index]);
+}
+
+type IconBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+type TierAccent = {
+  shadow: string;
+  main: string;
+  light: string;
+};
+
+function getIconBounds(rows: string[][]): IconBounds | null {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  rows.forEach((row, y) => {
+    row.forEach((cell, x) => {
+      if (cell === '.') return;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    });
+  });
+
+  if (!Number.isFinite(minX)) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function getTierAccent(rows: string[], cacheKey: string): TierAccent {
+  const key = cacheKey.toLowerCase();
+  const art = rows.join('');
+
+  if (key.includes('poison') || key.includes('venom') || key.includes('toxic') || /[zmn]/.test(art)) {
+    return { shadow: 'm', main: 'z', light: 'n' };
+  }
+  if (
+    key.includes('fire') ||
+    key.includes('flame') ||
+    key.includes('burn') ||
+    key.includes('ember') ||
+    key.includes('kindling') ||
+    key.includes('volatile') ||
+    key.includes('dragon') ||
+    /[huiu]/.test(art)
+  ) {
+    return { shadow: 'h', main: 'u', light: 'y' };
+  }
+  if (key.includes('frost') || key.includes('chill') || key.includes('ice') || key.includes('glacier') || /[qDr]/.test(art)) {
+    return { shadow: 'q', main: 'r', light: 'D' };
+  }
+  if (
+    key.includes('arc') ||
+    key.includes('thunder') ||
+    key.includes('tesla') ||
+    key.includes('conductive') ||
+    key.includes('tempest')
+  ) {
+    return { shadow: 'q', main: 'y', light: 'r' };
+  }
+  if (key.includes('gold') || key.includes('coin') || key.includes('transmute') || key.includes('jackpot') || key.includes('all_in')) {
+    return { shadow: '8', main: 'x', light: 'y' };
+  }
+  if (
+    key.includes('bone') ||
+    key.includes('fang') ||
+    key.includes('grave') ||
+    key.includes('soul') ||
+    key.includes('spirit') ||
+    key.includes('executioner')
+  ) {
+    return { shadow: 'H', main: 'd', light: 'I' };
+  }
+  if (key.includes('heal') || key.includes('aegis') || key.includes('guardian')) {
+    return { shadow: 'q', main: 'm', light: 'n' };
+  }
+  if (/[HIw]/.test(art)) return { shadow: 'H', main: 'w', light: 'I' };
+  if (/[xy]/.test(art)) return { shadow: '8', main: 'x', light: 'y' };
+  return { shadow: '2', main: 'c', light: 'd' };
+}
+
+function addOffsetGlow(rows: string[][], bounds: IconBounds, accent: TierAccent, rank: number): void {
+  const source = rows.map((row) => [...row]);
+  const offsets = rank >= 3 ? [[1, -1], [-1, 1]] : [[1, -1]];
+
+  source.forEach((row, y) => {
+    row.forEach((cell, x) => {
+      if (cell === '.' || cell === '2') return;
+      offsets.forEach(([dx, dy], oi) => {
+        if ((x + y + oi) % 3 !== 0) return;
+        paintIfEmpty(rows, x + dx, y + dy, oi === 0 ? accent.main : accent.shadow);
+      });
+    });
+  });
+
+  const midX = Math.round((bounds.minX + bounds.maxX) / 2);
+  paintIfEmpty(rows, midX - 1, bounds.minY - 1, accent.main);
+  paintIfEmpty(rows, midX, bounds.minY - 1, accent.light);
+  paintIfEmpty(rows, midX + 1, bounds.minY - 1, accent.main);
+}
+
+function addTierSparks(rows: string[][], bounds: IconBounds, accent: TierAccent, rank: number): void {
+  const midX = Math.round((bounds.minX + bounds.maxX) / 2);
+  const midY = Math.round((bounds.minY + bounds.maxY) / 2);
+  const rankTwoSparks = [
+    [bounds.minX - 1, bounds.minY + 1],
+    [bounds.maxX + 1, bounds.maxY - 1],
+    [midX, bounds.maxY + 1],
+  ];
+  const rankThreeSparks = [
+    [bounds.maxX + 1, bounds.minY + 1],
+    [bounds.minX - 1, bounds.maxY - 1],
+    [bounds.minX - 1, midY],
+    [bounds.maxX + 1, midY],
+  ];
+
+  for (const [x, y] of rankTwoSparks) {
+    paintSpark(rows, x, y, accent);
+  }
+  if (rank >= 3) {
+    for (const [x, y] of rankThreeSparks) {
+      paintSpark(rows, x, y, accent);
+    }
+  }
+}
+
+function addInnerHighlights(rows: string[][], bounds: IconBounds, accent: TierAccent, cacheKey: string): void {
+  const seed = hashString(cacheKey);
+  for (let y = bounds.minY; y <= bounds.maxY; y++) {
+    for (let x = bounds.minX; x <= bounds.maxX; x++) {
+      const cell = rows[y]?.[x];
+      if (!cell || cell === '.' || cell === '2') continue;
+      if ((x * 13 + y * 17 + seed) % 7 === 0) {
+        rows[y]![x] = accent.light;
+      }
+    }
+  }
+}
+
+function addOuterHalo(rows: string[][], bounds: IconBounds, accent: TierAccent): void {
+  const midX = Math.round((bounds.minX + bounds.maxX) / 2);
+  const midY = Math.round((bounds.minY + bounds.maxY) / 2);
+  const radiusX = Math.max(3, Math.ceil((bounds.maxX - bounds.minX) / 2) + 1);
+  const radiusY = Math.max(3, Math.ceil((bounds.maxY - bounds.minY) / 2) + 1);
+  const points = [
+    [midX, midY - radiusY],
+    [midX + 1, midY - radiusY + 1],
+    [midX + radiusX, midY],
+    [midX + 1, midY + radiusY - 1],
+    [midX, midY + radiusY],
+    [midX - 1, midY + radiusY - 1],
+    [midX - radiusX, midY],
+    [midX - 1, midY - radiusY + 1],
+  ];
+
+  points.forEach(([x, y], i) => {
+    paintIfEmpty(rows, x, y, i % 2 === 0 ? accent.light : accent.main);
+  });
+}
+
+function paintSpark(rows: string[][], x: number, y: number, accent: TierAccent): void {
+  paintIfEmpty(rows, x, y, accent.light);
+  paintIfEmpty(rows, x - 1, y, accent.main);
+  paintIfEmpty(rows, x + 1, y, accent.main);
+  paintIfEmpty(rows, x, y - 1, accent.shadow);
+  paintIfEmpty(rows, x, y + 1, accent.shadow);
+}
+
+function paintIfEmpty(rows: string[][], x: number, y: number, color: string): void {
+  if (y < 0 || y >= rows.length || x < 0 || x >= (rows[y]?.length ?? 0)) return;
+  if (rows[y]![x] !== '.') return;
+  rows[y]![x] = color;
+}
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
 }

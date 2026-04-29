@@ -27,28 +27,39 @@ const KNOWN_VERBS = new Set<Effect['verb']>([
 
 const reg = new Map<string, FaceUpgrade>();
 
-const modules = import.meta.glob<{ default: FaceUpgrade }>('./face/*.ts', {
+const modules = import.meta.glob<{ default: FaceUpgrade | FaceUpgrade[] }>('./face/*.ts', {
   eager: true,
 });
 
 for (const [path, mod] of Object.entries(modules)) {
   if (path.endsWith('/_template.ts')) continue;
-  const def = mod.default;
-  if (!def) {
+  const defs = Array.isArray(mod.default) ? mod.default : [mod.default];
+  if (defs.length === 0 || defs.some((def) => !def)) {
     console.warn(`[faceUpgrades] ${path}: missing default export`);
     continue;
   }
-  const issues = validateFaceUpgrade(def);
-  if (issues.length > 0) {
-    const message = `[faceUpgrades] ${path}: ${issues.join('; ')}`;
-    if (import.meta.env?.DEV) throw new Error(message);
-    console.warn(message);
-    continue;
+  for (const def of defs) {
+    const issues = validateFaceUpgrade(def);
+    if (issues.length > 0) {
+      const message = `[faceUpgrades] ${path}: ${issues.join('; ')}`;
+      if (import.meta.env?.DEV) throw new Error(message);
+      console.warn(message);
+      continue;
+    }
+    if (reg.has(def.id)) {
+      console.warn(`[faceUpgrades] duplicate id ${def.id} at ${path}`);
+    }
+    reg.set(def.id, def);
   }
-  if (reg.has(def.id)) {
-    console.warn(`[faceUpgrades] duplicate id ${def.id} at ${path}`);
-  }
-  reg.set(def.id, def);
+}
+
+for (const def of reg.values()) {
+  const issues = validateFaceUpgradeChain(def);
+  if (issues.length === 0) continue;
+  const message = `[faceUpgrades] ${def.id}: ${issues.join('; ')}`;
+  if (import.meta.env?.DEV) throw new Error(message);
+  console.warn(message);
+  reg.delete(def.id);
 }
 
 function validateFaceUpgrade(u: FaceUpgrade): string[] {
@@ -56,20 +67,17 @@ function validateFaceUpgrade(u: FaceUpgrade): string[] {
   if (!u.id) issues.push('missing id');
   if (!u.name) issues.push('missing name');
   if (u.kind !== 'replacer' && u.kind !== 'supplement') issues.push(`bad kind: ${u.kind}`);
-  if (!Array.isArray(u.tiers) || u.tiers.length !== MAX_TIER) {
-    issues.push(`tiers must have exactly ${MAX_TIER} entries`);
+  if (!Array.isArray(u.effect?.effects) || u.effect.effects.length === 0) {
+    issues.push('effect has no effects');
   } else {
-    u.tiers.forEach((tier, idx) => {
-      if (!Array.isArray(tier.effects) || tier.effects.length === 0) {
-        issues.push(`tier ${idx + 1} has no effects`);
-        return;
+    u.effect.effects.forEach((e, ei) => {
+      if (!KNOWN_VERBS.has(e.verb)) {
+        issues.push(`effect ${ei}: unknown verb '${e.verb}'`);
       }
-      tier.effects.forEach((e, ei) => {
-        if (!KNOWN_VERBS.has(e.verb)) {
-          issues.push(`tier ${idx + 1} effect ${ei}: unknown verb '${e.verb}'`);
-        }
-      });
     });
+  }
+  if (u.rank != null && (!Number.isInteger(u.rank) || u.rank < 1 || u.rank > MAX_TIER)) {
+    issues.push(`rank must be an integer from 1 to ${MAX_TIER}`);
   }
   if (!u.animation) {
     issues.push('missing animation binding');
@@ -89,6 +97,47 @@ function validateFaceUpgrade(u: FaceUpgrade): string[] {
   return issues;
 }
 
+function validateFaceUpgradeChain(u: FaceUpgrade): string[] {
+  const issues: string[] = [];
+  const predecessorId = u.upgradesFrom;
+  if (predecessorId) {
+    const predecessor = reg.get(predecessorId);
+    if (!predecessor) {
+      issues.push(`missing predecessor '${predecessorId}'`);
+    } else {
+      if (predecessor.kind !== u.kind) {
+        issues.push(`predecessor '${predecessorId}' has kind '${predecessor.kind}'`);
+      }
+      if (getFaceChainId(predecessor) !== getFaceChainId(u)) {
+        issues.push(`predecessor '${predecessorId}' is in chain '${getFaceChainId(predecessor)}'`);
+      }
+      if (getFaceRank(predecessor) >= getFaceRank(u)) {
+        issues.push(`predecessor '${predecessorId}' rank is not lower`);
+      }
+    }
+  }
+  const successorId = u.upgradesTo;
+  if (successorId) {
+    const successor = reg.get(successorId);
+    if (!successor) {
+      issues.push(`missing successor '${successorId}'`);
+    } else if (successor.upgradesFrom !== u.id) {
+      issues.push(`successor '${successorId}' does not point back to this upgrade`);
+    }
+  }
+  const seen = new Set<string>();
+  let cursor: FaceUpgrade | undefined = u;
+  while (cursor?.upgradesFrom) {
+    if (seen.has(cursor.id)) {
+      issues.push('cycle detected');
+      break;
+    }
+    seen.add(cursor.id);
+    cursor = reg.get(cursor.upgradesFrom);
+  }
+  return issues;
+}
+
 export function getFaceUpgrade(id: string): FaceUpgrade | undefined {
   return reg.get(id);
 }
@@ -103,6 +152,21 @@ export function listFaceUpgrades(): FaceUpgrade[] {
 
 export function listFaceUpgradeIds(): string[] {
   return Array.from(reg.keys());
+}
+
+export function getFaceChainId(upgrade: FaceUpgrade | undefined): string {
+  return upgrade?.chainId ?? upgrade?.id ?? '';
+}
+
+export function getFaceRank(upgrade: FaceUpgrade | undefined): number {
+  return Math.max(1, Math.min(MAX_TIER, Math.floor(upgrade?.rank ?? 1)));
+}
+
+export function listFaceChainIds(chainId: string): string[] {
+  return listFaceUpgrades()
+    .filter((u) => getFaceChainId(u) === chainId)
+    .sort((a, b) => getFaceRank(a) - getFaceRank(b))
+    .map((u) => u.id);
 }
 
 export function listReplacers(): FaceUpgrade[] {
