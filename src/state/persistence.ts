@@ -1,4 +1,4 @@
-import type { MetaState, RunState } from '../types';
+import type { CasinoChestReward, CasinoChestTier, MetaState, RunState } from '../types';
 import {
   useStore,
   setRunState,
@@ -32,6 +32,7 @@ const KEY_META = 'rollguelike.meta.v1';
 const KEY_RUN = 'rollguelike.run.v1';
 const KEY_SETTINGS = 'rollguelike.settings.v1';
 const KEY_ONBOARDED = 'rollguelike.onboarded.v1';
+const CASINO_CHEST_TIERS = ['rusty', 'copper', 'bronze', 'iron', 'silver', 'gold', 'diamond', 'jackpot'] as const satisfies readonly CasinoChestTier[];
 
 export function loadMeta(): MetaState {
   try {
@@ -45,6 +46,7 @@ export function loadMeta(): MetaState {
     for (const id of starter) existing.add(id);
     merged.unlockedArsenal = Array.from(existing);
     merged.pendingArsenalUnlocks = merged.pendingArsenalUnlocks ?? [];
+    merged.encounteredEnemyIds = uniqueStringArray(merged.encounteredEnemyIds);
     // Dice themes: always grant defaults; retroactively re-check challenges so
     // new themes light up for returning players who already met the criteria.
     const diceStarter = new Set(base.unlockedDiceThemes);
@@ -87,11 +89,11 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     if (typeof tier !== 'number' || !Number.isFinite(tier)) continue;
     const safeTier = Math.max(1, Math.min(MAX_TIER, Math.floor(tier)));
     legacyTiers[id] = safeTier;
-    ownedFaceUpgrades[resolveLegacyFaceUpgradeId(id, safeTier)] = 1;
   }
-  const slotLayout = migrateSlotLayout(parsed.slotLayout, legacyTiers, ownedFaceUpgrades);
+  const characterId = parsed.characterId ?? 'soldier';
+  const slotLayout = migrateSlotLayout(characterId, parsed.slotLayout, legacyTiers, ownedFaceUpgrades);
   return {
-    characterId: parsed.characterId ?? 'soldier',
+    characterId,
     wave: parsed.wave ?? 1,
     score: parsed.score ?? 0,
     hp: parsed.hp ?? 100,
@@ -110,6 +112,8 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     lockedFaceTimer: parsed.lockedFaceTimer,
     momentum: parsed.momentum,
     momentumT: parsed.momentumT,
+    casinoWaveDamageTaken: parsed.casinoWaveDamageTaken ?? 0,
+    casinoWaveEliteKills: parsed.casinoWaveEliteKills ?? 0,
     gold: parsed.gold ?? 0,
     ownedFaceUpgrades,
     slotLayout,
@@ -120,6 +124,32 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     currentBiomeRuleId: parsed.currentBiomeRuleId,
     nextForgeDiscount: parsed.nextForgeDiscount,
     guaranteedForgeRarity: parsed.guaranteedForgeRarity,
+    pendingCasino: migratePendingCasino(parsed.pendingCasino),
+  };
+}
+
+function isCasinoChestTier(v: unknown): v is CasinoChestTier {
+  return typeof v === 'string' && (CASINO_CHEST_TIERS as readonly string[]).includes(v);
+}
+
+function safeCasinoChestTier(v: unknown, fallback: CasinoChestTier): CasinoChestTier {
+  return isCasinoChestTier(v) ? v : fallback;
+}
+
+function migrateCasinoRewardTier(reward: CasinoChestReward, fallback: CasinoChestTier): CasinoChestReward {
+  return { ...reward, tier: safeCasinoChestTier(reward.tier, fallback) };
+}
+
+function migratePendingCasino(casino: RunState['pendingCasino']): RunState['pendingCasino'] {
+  if (!casino) return undefined;
+  const baseChestTier = safeCasinoChestTier(casino.baseChestTier, 'bronze');
+  const chestTier = safeCasinoChestTier(casino.chestTier, baseChestTier);
+  return {
+    ...casino,
+    chestTier,
+    baseChestTier,
+    rewards: casino.rewards?.map((reward) => migrateCasinoRewardTier(reward, chestTier)),
+    reward: casino.reward ? migrateCasinoRewardTier(casino.reward, chestTier) : undefined,
   };
 }
 
@@ -132,64 +162,44 @@ function resolveLegacyFaceUpgradeId(id: string, tier: number): string {
   return ranked?.id ?? id;
 }
 
+const LEGACY_DEFAULT_REPLACERS: Record<string, readonly (string | null)[]> = {
+  soldier: [null, null, 'std_shot', 'std_shot', 'std_shot', 'std_shot'],
+  gambler: ['std_shot', 'std_shot', 'std_shot', 'std_shot', 'std_shot', 'std_shot'],
+  alchemist: [null, 'aqua_bolt', null, 'arc_bolt', 'std_shot', 'std_shot'],
+  necromancer: [null, null, 'std_shot', 'std_shot', 'std_shot', 'std_shot'],
+  berserker: [null, null, 'std_shot', 'std_shot', 'pulse_nova', 'pulse_nova'],
+  clockmaker: [null, null, 'std_shot', 'std_shot', 'std_shot', 'pulse_nova'],
+};
+
+function isLegacyDefaultReplacer(characterId: string, slotIndex: number, id: string): boolean {
+  return LEGACY_DEFAULT_REPLACERS[characterId]?.[slotIndex] === id;
+}
+
 function migrateSlotLayout(
+  characterId: string,
   parsedSlots: RunState['slotLayout'] | undefined,
   legacyTiers: Record<string, number>,
   ownedFaceUpgrades: Record<string, number>,
 ): SlotState[] {
   const rawSlots = Array.isArray(parsedSlots) ? parsedSlots : [];
-  const slots: SlotState[] = rawSlots.map((slot, index) => ({
-    index: typeof slot?.index === 'number' ? slot.index : index,
-    replacerId: slot?.replacerId ? resolveLegacyFaceUpgradeId(slot.replacerId, legacyTiers[slot.replacerId] ?? 1) : null,
-    supplementIds: Array.isArray(slot?.supplementIds)
-      ? slot.supplementIds
-          .filter((id): id is string => typeof id === 'string')
-          .map((id) => resolveLegacyFaceUpgradeId(id, legacyTiers[id] ?? 1))
-      : [],
-    supplementCap: typeof slot?.supplementCap === 'number' ? slot.supplementCap : 0,
-  }));
-
-  const bestByChain = new Map<string, { id: string; rank: number; order: number }>();
-  let order = 0;
-  for (const slot of slots) {
-    for (const id of [slot.replacerId, ...slot.supplementIds]) {
-      if (!id) continue;
-      const upgrade = getFaceUpgrade(id);
-      if (!upgrade) continue;
-      const chainId = getFaceChainId(upgrade);
-      const rank = getFaceRank(upgrade);
-      const current = bestByChain.get(chainId);
-      if (!current || rank > current.rank) {
-        bestByChain.set(chainId, { id, rank, order });
-      }
-      order++;
+  const slots: SlotState[] = Array.from({ length: 6 }, (_, index) => {
+    const slot = rawSlots[index];
+    const rawId = slot?.replacerId ?? null;
+    let replacerId = rawId ? resolveLegacyFaceUpgradeId(rawId, legacyTiers[rawId] ?? 1) : null;
+    if (rawId && isLegacyDefaultReplacer(characterId, index, rawId)) replacerId = null;
+    if (replacerId && !getFaceUpgrade(replacerId)) replacerId = null;
+    if (replacerId) {
+      ownedFaceUpgrades[replacerId] = (ownedFaceUpgrades[replacerId] ?? 0) + 1;
     }
-  }
-
-  const keptChains = new Set<string>();
-  for (const slot of slots) {
-    if (slot.replacerId) {
-      const upgrade = getFaceUpgrade(slot.replacerId);
-      const chainId = upgrade ? getFaceChainId(upgrade) : '';
-      const best = bestByChain.get(chainId);
-      if (!upgrade || !best || best.id !== slot.replacerId || keptChains.has(chainId)) {
-        slot.replacerId = null;
-      } else {
-        keptChains.add(chainId);
-        ownedFaceUpgrades[slot.replacerId] = 1;
-      }
-    }
-    slot.supplementIds = slot.supplementIds.filter((id) => {
-      const upgrade = getFaceUpgrade(id);
-      if (!upgrade) return false;
-      const chainId = getFaceChainId(upgrade);
-      const best = bestByChain.get(chainId);
-      if (!best || best.id !== id || keptChains.has(chainId)) return false;
-      keptChains.add(chainId);
-      ownedFaceUpgrades[id] = 1;
-      return true;
-    });
-  }
+    return {
+      index,
+      replacerId,
+      // Existing saved supplements are intentionally dropped in the relics branch.
+      // The content remains in source, but per-slot supplement state is no longer active.
+      supplementIds: [],
+      supplementCap: 0,
+    };
+  });
 
   return slots;
 }
@@ -226,6 +236,18 @@ function clamp01(v: unknown, fallback: number): number {
   if (v < 0) return 0;
   if (v > 1) return 1;
   return v;
+}
+
+function uniqueStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of v) {
+    if (typeof item !== 'string' || item.length === 0 || seen.has(item)) continue;
+    seen.add(item);
+    out.push(item);
+  }
+  return out;
 }
 
 export function loadSettings(): Settings {
@@ -392,6 +414,26 @@ export function consumePendingDiceThemeUnlocks(): string[] {
   return pending;
 }
 
+export function recordEnemyEncounters(typeIds: Iterable<string>): void {
+  const state = useStore.getState();
+  const known = new Set(state.meta.encounteredEnemyIds ?? []);
+  let changed = false;
+
+  for (const typeId of typeIds) {
+    if (!typeId || known.has(typeId)) continue;
+    known.add(typeId);
+    changed = true;
+  }
+
+  if (!changed) return;
+  const meta: MetaState = {
+    ...state.meta,
+    encounteredEnemyIds: Array.from(known),
+  };
+  saveMeta(meta);
+  state.setMeta(meta);
+}
+
 function defaultMeta(): MetaState {
   return {
     highScores: {},
@@ -401,6 +443,7 @@ function defaultMeta(): MetaState {
     totalRunsCompleted: 0,
     totalWavesCleared: 0,
     unlockedArsenal: ['ars_firebolt', 'ars_arc_bolt', 'ars_frost_shard', 'ars_pulse_shot', 'ars_aqua_bolt'],
+    encounteredEnemyIds: [],
     totalKills: 0,
     maxWaveReached: 0,
     pendingArsenalUnlocks: [],
