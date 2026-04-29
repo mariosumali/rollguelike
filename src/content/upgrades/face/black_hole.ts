@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { legendary: prices.controlLegendary };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -17,7 +21,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'void_collapse',
     evolution: 'event_horizon',
   },
-    effect: { effects: [{ verb: 'pull', radius: 60, strength: 0.3, dps: 2, duration: 1 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'pull', radius: 62, strength: 0.35, dps: 1.5, duration: 1.2 }], damageMul: 1.0, timing: tempo.heavy },
+    basePrice,
   },
   {
     id: "black_hole_ii",
@@ -36,7 +41,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'void_collapse',
     evolution: 'event_horizon',
   },
-    effect: { effects: [{ verb: 'pull', radius: 90, strength: 0.55, dps: 4, duration: 1.5 }, { verb: 'groundZone', radius: 54, dps: 3, duration: 1.5, element: 'arcane', slow: 0.3 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'pull', radius: 92, strength: 0.6, dps: 3, duration: 1.7 }, { verb: 'groundZone', radius: 54, dps: 2.5, duration: 1.7, element: 'arcane', slow: 0.3 }], damageMul: 1.0, timing: tempo.artillery },
+    basePrice,
   },
   {
     id: "black_hole_iii",
@@ -54,7 +60,8 @@ const upgrades: FaceUpgrade[] = [
     hit: 'void_collapse',
     evolution: 'event_horizon',
   },
-    effect: { effects: [{ verb: 'pull', radius: 120, strength: 0.9, dps: 7, duration: 2.5, destroyProjectiles: true }, { verb: 'groundZone', radius: 76, dps: 6, duration: 2.5, element: 'arcane', slow: 0.45 }, { verb: 'statusAura', status: 'mark', radius: 120, power: 2, duration: 3 }, { verb: 'statusAura', status: 'mark', radius: 120, power: 2.5, duration: 3 }], damageMul: 1.0, note: 'Event Horizon' },
+    effect: { effects: [{ verb: 'pull', radius: 120, strength: 0.9, dps: 5.5, duration: 2.5, destroyProjectiles: true }, { verb: 'groundZone', radius: 76, dps: 5, duration: 2.5, element: 'arcane', slow: 0.45 }, { verb: 'statusAura', status: 'mark', radius: 120, power: 2.25, duration: 3 }], damageMul: 1.0, timing: tempo.legendary, note: 'Event Horizon' },
+    basePrice,
   }
 ];
 
