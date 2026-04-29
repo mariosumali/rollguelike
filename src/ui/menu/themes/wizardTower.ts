@@ -66,6 +66,7 @@ export function createWizardTowerTheme(engine: MenuEngine): ThemeController {
 
   return {
     torchPal: TORCH_CRYSTAL,
+    torchMounts: [{ x: 15, y: 155 }, { x: W - 15, y: 155 }],
     stars: true,
     shootingStars: true,
     magicCircleKey: 'H',
