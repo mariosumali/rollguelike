@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { rare: prices.premiumRare };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -13,7 +17,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['ice', 'elemental', 'aoe', 'slow'],
     animation: { cast: 'frost_cast', projectile: 'frost_proj', hit: 'frost_shatter', evolution: 'zero_freeze' },
     icon: ['..............','......q.......','....qqrqq.....','...qr...rq....','..qr..q..rq...','...qr...rq....','....qqrqq.....','......q.......','....q...q.....','...q.....q....','..q.......q...','..............','..............','..............'],
-    effect: { effects: [{ verb: 'groundZone', radius: 38, dps: 4, duration: 1.5, element: 'ice', slow: 0.35 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'groundZone', radius: 38, dps: 3, duration: 1.5, element: 'ice', slow: 0.35 }], damageMul: 1.0, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "glacier_field_ii",
@@ -28,7 +33,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['ice', 'elemental', 'aoe', 'slow'],
     animation: { cast: 'frost_cast', projectile: 'frost_proj', hit: 'frost_shatter', evolution: 'zero_freeze' },
     icon: ['..............','......q.......','....qqrqq.....','...qr...rq....','..qr..q..rq...','...qr...rq....','....qqrqq.....','......q.......','....q...q.....','...q.....q....','..q.......q...','..............','..............','..............'],
-    effect: { effects: [{ verb: 'groundZone', radius: 50, dps: 5, duration: 2.0, element: 'ice', slow: 0.5 }, { verb: 'frostBurst', radius: 34, damageMul: 0.45, freezeDur: 0.45, slow: 0.5 }], damageMul: 1.05 },
+    effect: { effects: [{ verb: 'groundZone', radius: 50, dps: 4, duration: 2.0, element: 'ice', slow: 0.5 }, { verb: 'frostBurst', radius: 34, damageMul: 0.35, freezeDur: 0.45, slow: 0.5 }], damageMul: 1.0, timing: tempo.heavy },
+    basePrice,
   },
   {
     id: "glacier_field_iii",
@@ -42,7 +48,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['ice', 'elemental', 'aoe', 'slow'],
     animation: { cast: 'frost_cast', projectile: 'frost_proj', hit: 'frost_shatter', evolution: 'zero_freeze' },
     icon: ['..............','......q.......','....qqrqq.....','...qr...rq....','..qr..q..rq...','...qr...rq....','....qqrqq.....','......q.......','....q...q.....','...q.....q....','..q.......q...','..............','..............','..............'],
-    effect: { effects: [{ verb: 'groundZone', radius: 64, dps: 7, duration: 2.4, element: 'ice', slow: 0.65 }, { verb: 'frostBurst', radius: 58, damageMul: 0.65, freezeDur: 0.9, slow: 0.7 }, { verb: 'frostBurst', radius: 68, damageMul: 0.75, freezeDur: 1.1, slow: 0.7 }], damageMul: 1.1, note: 'Permafrost' },
+    effect: { effects: [{ verb: 'groundZone', radius: 64, dps: 5, duration: 2.4, element: 'ice', slow: 0.65 }, { verb: 'frostBurst', radius: 58, damageMul: 0.48, freezeDur: 0.9, slow: 0.7 }, { verb: 'frostBurst', radius: 68, damageMul: 0.52, freezeDur: 1.1, slow: 0.7 }], damageMul: 1.05, timing: tempo.artillery, note: 'Permafrost' },
+    basePrice,
   }
 ];
 
