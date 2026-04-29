@@ -64,6 +64,7 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
 
   return {
     torchPal: TORCH_FIRE,
+    torchMounts: [{ x: 16, y: 155 }, { x: W - 18, y: 155 }],
     stars: true,
     shootingStars: true,
     magicCircleKey: 'D',
@@ -84,26 +85,26 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
 
       // Distant water line (horizon).
       const waterTop = 140;
-      const waterBot = 170;
+      const waterBot = 218;
       ctx.fillStyle = palHex('A')!;
       ctx.fillRect(0, waterTop, W, waterBot - waterTop);
 
       // Animated distant wave bands.
       ctx.fillStyle = palHex('B')!;
       for (let x = 0; x < W; x++) {
-        const h = 1 + Math.round((Math.sin(x * 0.12 + t * 1.1) + 1) * 0.5);
+        const h = 1 + Math.round((Math.sin(x * 0.12 + t * 0.42) + 1) * 0.5);
         ctx.fillRect(x, waterTop + 4, 1, h);
       }
       ctx.fillStyle = palHex('o')!;
       for (let x = 0; x < W; x += 3) {
-        const y = waterTop + 9 + Math.round(Math.sin(x * 0.18 + t * 0.9) * 1);
+        const y = waterTop + 9 + Math.round(Math.sin(x * 0.18 + t * 0.35) * 1);
         ctx.fillRect(x, y, 2, 1);
       }
 
       // Moon reflection shimmering on water.
       ctx.save();
       for (let i = 0; i < 5; i++) {
-        const y = waterTop + 2 + i * 5 + Math.round(Math.sin(t * 1.4 + i) * 1);
+        const y = waterTop + 2 + i * 5 + Math.round(Math.sin(t * 0.5 + i) * 1);
         const w = 12 - i * 2;
         const a = 0.32 - i * 0.05;
         if (a <= 0) continue;
@@ -159,7 +160,7 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
       }
       ctx.restore();
 
-      // Short stone plinths on the dock, directly beneath the torches.
+      // Short stone plinths on the cove edge, directly beneath the torches.
       for (const px of [10, W - 24]) {
         // Mossy stone cap.
         ctx.fillStyle = palHex('a')!;
@@ -176,57 +177,76 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
         // Damp mossy seam.
         ctx.fillStyle = palHex('l')!;
         ctx.fillRect(px + 3, 164, 6, 1);
-        // Foot shadow on the planks.
+        // Foot shadow on the shore.
         ctx.fillStyle = palHex('0')!;
         ctx.fillRect(px + 2, 167, 8, 1);
       }
     },
 
     drawFloor(t) {
-      const y0 = 228;
+      const waterTop = 168;
+      const shoreBase = 218;
+      const edges: number[] = [];
 
-      // Weathered wood planks running horizontally.
-      const darkPlank = palHex('5')!;
-      const lightPlank = palHex('6')!;
-      const gap = palHex('0')!;
-      for (let y = y0; y < H; y += 6) {
-        const row = Math.floor((y - y0) / 6);
-        ctx.fillStyle = row & 1 ? lightPlank : darkPlank;
-        ctx.fillRect(0, y, W, 5);
-        ctx.fillStyle = gap;
-        ctx.fillRect(0, y + 5, W, 1);
-        // Knots and grain marks.
-        ctx.fillStyle = palHex('s')!;
-        for (let x = 6 + row * 3; x < W; x += 27) {
-          ctx.fillRect(x, y + 1, 2, 1);
+      // Near-shore water connects the distant cove to the foreground beach.
+      ctx.fillStyle = palHex('A')!;
+      ctx.fillRect(0, waterTop, W, shoreBase - waterTop + 10);
+      ctx.fillStyle = palHex('B')!;
+      for (let y = waterTop + 4; y < shoreBase - 4; y += 7) {
+        const drift = Math.round(Math.sin(t * 0.38 + y * 0.19) * 4);
+        for (let x = -10 + drift; x < W; x += 24) {
+          ctx.fillRect(x, y + Math.round(Math.sin(x * 0.12 + t * 0.32) * 1), 14, 1);
         }
       }
 
-      // Plank nails.
-      ctx.fillStyle = palHex('a')!;
-      for (let x = 8; x < W; x += 20) {
-        for (let y = y0 + 1; y < H; y += 6) {
-          ctx.fillRect(x, y, 1, 1);
-        }
-      }
-
-      // A couple of barrels and a coil of rope along the dock edge.
-      drawBarrel(30, y0 - 10);
-      drawBarrel(W - 38, y0 - 10);
-      drawCrate(W / 2 - 8, y0 - 7);
-
-      // Water lapping the dock edge.
-      ctx.fillStyle = palHex('C')!;
+      // Sand below the tide line, with darker wet sand where waves wash in.
       for (let x = 0; x < W; x++) {
-        const h = 1 + Math.round((Math.sin(x * 0.35 + t * 3) + 1) * 0.5);
-        ctx.fillRect(x, y0 - h, 1, h);
+        const edge = shoreBase +
+          Math.round(Math.sin(x * 0.11 + t * 0.58) * 3) +
+          Math.round(Math.sin(x * 0.31 - t * 0.8) * 1);
+        edges[x] = edge;
+
+        ctx.fillStyle = palHex('6')!;
+        ctx.fillRect(x, edge, 1, 16);
+        ctx.fillStyle = palHex('7')!;
+        ctx.fillRect(x, edge + 16, 1, H - edge - 16);
       }
+
+      // Pixel flecks and shallow shadows keep the beach from reading as a flat block.
+      ctx.fillStyle = palHex('8')!;
+      for (let x = 5; x < W; x += 11) {
+        const y = shoreBase + 23 + ((x * 7) % 31);
+        ctx.fillRect(x, y, x % 3 === 0 ? 2 : 1, 1);
+      }
+      ctx.fillStyle = palHex('5')!;
+      for (let x = 15; x < W; x += 37) {
+        const y = shoreBase + 31 + ((x * 5) % 25);
+        ctx.fillRect(x, y, 3, 1);
+        ctx.fillRect(x + 1, y + 1, 1, 1);
+      }
+
+      // Breaking surf: a bright crest, then thinner foam fingers washing onto sand.
+      ctx.save();
+      ctx.globalAlpha = 0.86;
+      ctx.fillStyle = palHex('e')!;
+      for (let x = 0; x < W; x += 2) {
+        const edge = edges[x] ?? shoreBase;
+        const open = Math.sin(x * 0.24 + t * 1.15) > -0.25;
+        if (open) ctx.fillRect(x, edge - 2, 2, 1);
+        if (Math.sin(x * 0.38 - t * 1.05) > 0.45) {
+          ctx.fillRect(x, edge + 3, 3, 1);
+        }
+      }
+      ctx.globalAlpha = 0.55;
       ctx.fillStyle = palHex('D')!;
       for (let x = 0; x < W; x += 5) {
-        if (Math.sin(x * 0.5 + t * 3) > 0.6) {
-          ctx.fillRect(x, y0 - 2, 2, 1);
+        const edge = edges[x] ?? shoreBase;
+        const wash = 4 + Math.round((Math.sin(x * 0.27 + t * 0.85) + 1) * 3);
+        if (Math.sin(x * 0.17 + t * 0.72) > -0.1) {
+          ctx.fillRect(x, edge + 5, 3, wash);
         }
       }
+      ctx.restore();
 
       drawMagicCircle(engine, t, palHex('D')!);
     },
@@ -377,27 +397,4 @@ export function createPirateCoveTheme(engine: MenuEngine): ThemeController {
     ctx.restore();
   }
 
-  function drawBarrel(x: number, y: number) {
-    ctx.fillStyle = palHex('5')!;
-    ctx.fillRect(x, y, 6, 10);
-    ctx.fillStyle = palHex('6')!;
-    ctx.fillRect(x, y + 1, 6, 1);
-    ctx.fillRect(x, y + 7, 6, 1);
-    ctx.fillStyle = palHex('a')!;
-    ctx.fillRect(x, y, 1, 10);
-    ctx.fillRect(x + 5, y, 1, 10);
-    ctx.fillStyle = palHex('0')!;
-    ctx.fillRect(x, y + 4, 6, 1);
-  }
-
-  function drawCrate(x: number, y: number) {
-    ctx.fillStyle = palHex('6')!;
-    ctx.fillRect(x, y, 14, 7);
-    ctx.fillStyle = palHex('5')!;
-    ctx.fillRect(x, y, 14, 1);
-    ctx.fillRect(x, y + 6, 14, 1);
-    ctx.fillRect(x, y, 1, 7);
-    ctx.fillRect(x + 13, y, 1, 7);
-    ctx.fillRect(x + 7, y, 1, 7);
-  }
 }
