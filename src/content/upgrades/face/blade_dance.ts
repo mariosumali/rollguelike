@@ -1,4 +1,8 @@
 import type { FaceUpgrade } from '../types';
+import { BALANCE } from '../../../config/balance';
+
+const { weaponTempo: tempo, weaponPrices: prices } = BALANCE.faceUpgrade;
+const basePrice = { epic: prices.standardEpic };
 
 const upgrades: FaceUpgrade[] = [
   {
@@ -13,7 +17,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['orbit', 'persistent', 'physical'],
     animation: { cast: 'orbit_cast', projectile: 'fang_orbit', hit: 'fang_bite', evolution: 'eternal_circle' },
     icon: ['..............','...e......e...','.....e..e.....','......ee......','..e..eeee..e..','......ee......','.....e..e.....','...e......e...','......e.......','.....e.e......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 3, radius: 30, rpm: 140, damageMul: 0.75, duration: 3.2, pierce: 1 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'orbit', count: 3, radius: 30, rpm: 160, damageMul: 0.58, duration: 2.6, pierce: 1 }], damageMul: 1.0, timing: tempo.standard },
+    basePrice,
   },
   {
     id: "blade_dance_ii",
@@ -28,7 +33,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['orbit', 'persistent', 'physical'],
     animation: { cast: 'orbit_cast', projectile: 'fang_orbit', hit: 'fang_bite', evolution: 'eternal_circle' },
     icon: ['..............','...e......e...','.....e..e.....','......ee......','..e..eeee..e..','......ee......','.....e..e.....','...e......e...','......e.......','.....e.e......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 4, radius: 35, rpm: 165, damageMul: 0.9, duration: 4.0, pierce: 1 }], damageMul: 1.05 },
+    effect: { effects: [{ verb: 'orbit', count: 4, radius: 35, rpm: 190, damageMul: 0.7, duration: 3.3, pierce: 1 }], damageMul: 1.02, timing: tempo.deliberate },
+    basePrice,
   },
   {
     id: "blade_dance_iii",
@@ -42,7 +48,8 @@ const upgrades: FaceUpgrade[] = [
     tags: ['orbit', 'persistent', 'physical'],
     animation: { cast: 'orbit_cast', projectile: 'fang_orbit', hit: 'fang_bite', evolution: 'eternal_circle' },
     icon: ['..............','...e......e...','.....e..e.....','......ee......','..e..eeee..e..','......ee......','.....e..e.....','...e......e...','......e.......','.....e.e......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 6, radius: 40, rpm: 190, damageMul: 1.05, duration: 5.0, pierce: 2 }, { verb: 'shield', stacks: 1 }, { verb: 'shield', stacks: 1 }], damageMul: 1.1, note: 'Whirling Guard' },
+    effect: { effects: [{ verb: 'orbit', count: 6, radius: 40, rpm: 220, damageMul: 0.82, duration: 4.2, pierce: 2 }, { verb: 'shield', stacks: 1 }], damageMul: 1.08, timing: tempo.heavy, note: 'Whirling Guard' },
+    basePrice,
   }
 ];
 
