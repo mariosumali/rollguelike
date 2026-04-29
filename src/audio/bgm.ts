@@ -91,20 +91,26 @@ function playStep(
   stepLen: number,
 ): void {
   const isBoss = intensity === 'boss';
+  const isOrchestral = p.tone === 'orchestral';
 
   const b = p.bass[i] ?? 0;
   if (b > 0) {
-    playTriangleBass(m2h(b), stepLen, isBoss ? 0.2 : 0.19, when);
+    playTriangleBass(m2h(b), stepLen, isBoss ? 0.2 : isOrchestral ? 0.17 : 0.19, when);
   }
 
   const s = p.strings[i] ?? 0;
   if (s > 0) {
-    playStringPad(m2h(s), Math.min(stepLen * 1.85, 0.42), when, isBoss ? 0.05 : 0.045);
+    playStringPad(
+      m2h(s),
+      Math.min(stepLen * (isOrchestral ? 2.65 : 1.85), isOrchestral ? 0.72 : 0.42),
+      when,
+      isBoss ? 0.055 : isOrchestral ? 0.06 : 0.045,
+    );
   }
 
   const br = p.brass[i] ?? 0;
   if (br > 0) {
-    playBrassStab(m2h(br), when, isBoss ? 0.09 : 0.075, isBoss);
+    playBrassStab(m2h(br), when, isBoss ? 0.09 : isOrchestral ? 0.085 : 0.075, isBoss);
   }
 
   const a = p.arp[i] ?? 0;
@@ -114,17 +120,24 @@ function playStep(
 
   const l = p.lead[i] ?? 0;
   if (l > 0) {
-    playChiptuneLead(m2h(l), stepLen * 0.92, isBoss ? 0.1 : 0.095, when, 7200, 'square');
+    playChiptuneLead(
+      m2h(l),
+      stepLen * (isOrchestral ? 1.08 : 0.92),
+      isBoss ? 0.1 : isOrchestral ? 0.082 : 0.095,
+      when,
+      isOrchestral ? 3600 : 7200,
+      isOrchestral ? 'triangle' : 'square',
+    );
   }
 
   const c = p.counter[i] ?? 0;
   if (c > 0) {
-    playWindCounter(m2h(c), stepLen * 0.88, isBoss ? 0.05 : 0.048, when);
+    playWindCounter(m2h(c), stepLen * 0.88, isBoss ? 0.05 : isOrchestral ? 0.052 : 0.048, when);
   }
 
   if (p.kick[i]) playDrum('kick', when, isBoss ? 0.3 : 0.26);
   if (p.snare[i]) playDrum('snare', when, isBoss ? 0.2 : 0.16);
-  if (p.hihat[i]) playDrum('hihat', when, 0.065);
+  if (p.hihat[i]) playDrum('hihat', when, isOrchestral ? 0.045 : 0.065);
 }
 
 function playTriangleBass(
