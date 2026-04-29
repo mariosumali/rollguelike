@@ -1,4 +1,4 @@
-import type { Rarity, Element } from '../../types';
+import type { Rarity, Element, Face } from '../../types';
 
 export type StatusKind = 'burn' | 'slow' | 'freeze' | 'stun' | 'mark' | 'poison';
 export type PickupKind = 'gold' | 'heal' | 'soul';
@@ -14,6 +14,7 @@ export type Effect =
       spread?: number;
       damageMul?: number;
       size?: number;
+      lifeMul?: number;
       element?: Element;
     }
   | {
@@ -131,9 +132,19 @@ export interface AnimationBinding {
   evolution?: string;
 }
 
+export interface FaceUpgradeTiming {
+  /** Delay between the die landing and the effect resolving. */
+  castDelay?: number;
+  /** Extra delay, after the normal post-roll cooldown, before the next roll. */
+  recovery?: number;
+  /** Delay between projectiles in a volley. Falls back to the global shot delay. */
+  shotInterval?: number;
+}
+
 export interface FaceUpgradeTier {
   effects: Effect[];
   damageMul?: number;
+  timing?: FaceUpgradeTiming;
   params?: Record<string, number>;
   note?: string;
 }
@@ -166,7 +177,7 @@ export interface FaceUpgrade {
   evolution?: FaceUpgradeEvolution;
   animation: AnimationBinding;
   effect: FaceUpgradeTier;
-  basePrice?: Partial<Record<Rarity, number[]>>;
+  basePrice?: Partial<Record<Rarity, readonly number[]>>;
   /** Optional palette-character rows used as the die-face pixel art when this upgrade occupies a slot. */
   icon?: string[];
 }
@@ -181,11 +192,10 @@ export interface SlotRestriction {
 
 export interface CharacterDefaultFace {
   kind: 'default';
-  /** When null, the slot starts with no replacer — effectively a true blank face. */
-  upgradeId: string | null;
-  projectileCount: number;
-  damageMul?: number;
-  element?: Element;
+  name: string;
+  description: string;
+  /** Baseline action used when no forge replacer occupies this slot. */
+  face: Omit<Face, 'value'>;
   restrictedReplacement?: boolean;
 }
 
