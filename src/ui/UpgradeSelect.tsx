@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { pickUpgrade, rerollUpgradeOffers } from '../engine/engine';
 import { getUpgrade } from '../content/upgrades/registry';
 import { playSfx } from '../audio/sfx';
+import { BaubleIcon, RelicIcon } from './RelicIcon';
 import type { Rarity } from '../types';
 
 const RARITY_COLORS: Record<Rarity, string> = {
@@ -41,7 +42,10 @@ export function UpgradeSelect() {
   };
 
   const title = isBossWave ? 'BOSS REWARD' : 'UPGRADE';
-  const tagline = isBossWave ? 'THE BEAST KNELT · CLAIM A GIFT' : 'CAST A NEW FATE · BEND THE ODDS';
+  const roomCopy = hud.roomLine || hud.omenLine;
+  const tagline = isBossWave
+    ? `THE WARDEN KNEELS${roomCopy ? ` · ${roomCopy}` : ' · CLAIM A GIFT'}`
+    : `CAST A NEW FATE${roomCopy ? ` · ${roomCopy}` : ' · BEND THE ODDS'}`;
 
   return (
     <div className="overlay upgrade-overlay upgrade-v2">
@@ -92,10 +96,12 @@ export function UpgradeSelect() {
             if (!up) return null;
             const existing = activeUpgrades.find((a) => a.id === o.id);
             const stackLabel = existing ? `×${existing.stacks + 1}/${up.maxStack}` : '';
+            const isRelic = up.category === 'relic';
+            const isBauble = up.category === 'bauble';
             return (
               <button
                 key={o.id}
-                className={`upg-card-v2 rarity-${o.rarity}`}
+                className={`upg-card-v2 rarity-${o.rarity} ${isRelic ? 'is-relic-card' : ''} ${isBauble ? 'is-bauble-card' : ''}`}
                 onClick={() => onPick(o.id)}
                 style={{ ['--card-accent' as string]: RARITY_COLORS[o.rarity] }}
               >
@@ -108,9 +114,20 @@ export function UpgradeSelect() {
                   <span className="upg-rarity">
                     {o.rarity.toUpperCase()}{stackLabel ? ` ${stackLabel}` : ''}
                   </span>
-                  <span className="upg-cat">{up.category}</span>
+                  <span className="upg-cat">{isRelic ? 'RELIC' : isBauble ? 'BAUBLE' : up.category}</span>
                 </div>
+                {isRelic && (
+                  <div className="upg-relic-art" aria-hidden>
+                    <RelicIcon upgrade={up} size={58} />
+                  </div>
+                )}
+                {isBauble && (
+                  <div className="upg-relic-art upg-bauble-art" aria-hidden>
+                    <BaubleIcon upgrade={up} size={48} />
+                  </div>
+                )}
                 <div className="upg-card-name">{up.name}</div>
+                {isRelic && up.lore && <div className="upg-card-lore">{up.lore}</div>}
                 <div className="upg-card-desc">{up.desc}</div>
                 <div className="upg-card-foot" aria-hidden>
                   <span className="chev">▸</span>
