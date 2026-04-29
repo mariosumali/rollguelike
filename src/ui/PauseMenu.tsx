@@ -6,6 +6,8 @@ import { SettingsPanel } from './SettingsPanel';
 import { getUpgrade } from '../content/upgrades/registry';
 import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
 import { getFaceName } from '../content/upgrades/faceNames';
+import { getCharacter } from '../content/characters/registry';
+import { BaubleIcon, RelicIcon } from './RelicIcon';
 import type { Rarity, RunState } from '../types';
 
 const RARITY_COLORS: Record<Rarity, string> = {
@@ -29,12 +31,17 @@ function PauseBuildSummary({
   const equippedFaceIds = new Set<string>();
   slots.forEach((slot) => {
     if (slot.replacerId) equippedFaceIds.add(slot.replacerId);
-    slot.supplementIds.forEach((id) => equippedFaceIds.add(id));
   });
   const equippedFaceCount = slots.reduce(
-    (count, slot) => count + (slot.replacerId ? 1 : 0) + slot.supplementIds.length,
+    (count, slot) => count + (slot.replacerId ? 1 : 0),
     0,
   );
+  const relicUpgrades = activeUpgrades.filter((a) => getUpgrade(a.id)?.category === 'relic');
+  const baubleUpgrades = activeUpgrades.filter((a) => getUpgrade(a.id)?.category === 'bauble');
+  const runUpgrades = activeUpgrades.filter((a) => {
+    const category = getUpgrade(a.id)?.category;
+    return category !== 'relic' && category !== 'bauble';
+  });
 
   const benchFaces = Object.entries(run?.ownedFaceUpgrades ?? {})
     .filter(([id]) => !equippedFaceIds.has(id))
@@ -60,13 +67,11 @@ function PauseBuildSummary({
           {Array.from({ length: 6 }).map((_, i) => {
             const slot = slots[i];
             const replacer = slot?.replacerId ? getFaceUpgrade(slot.replacerId) : null;
-            const supplements = slot?.supplementIds
-              .map((id) => getFaceUpgrade(id))
-              .filter((up): up is NonNullable<typeof up> => Boolean(up)) ?? [];
+            const baseline = run ? getCharacter(run.characterId)?.defaultFaces?.[i] : undefined;
             const accent = replacer ? RARITY_COLORS[replacer.rarity] : 'var(--fg-dim)';
             const replacerName = replacer
               ? getFaceName(replacer.id, characterId, replacer.name)
-              : 'Empty';
+              : baseline?.name ?? 'Baseline';
 
             return (
               <div
@@ -76,7 +81,7 @@ function PauseBuildSummary({
                 title={
                   replacer
                     ? `${replacerName}\n${replacer.description}`
-                    : `Face ${i + 1} · empty slot`
+                    : `Face ${i + 1} · ${replacerName}\n${baseline?.description ?? 'Baseline face'}`
                 }
               >
                 <div className="pause-face-main-v2">
@@ -84,21 +89,62 @@ function PauseBuildSummary({
                   <span className="pause-face-name-v2">{replacerName}</span>
                 </div>
                 <div className="pause-face-sups-v2">
-                  {supplements.length === 0 ? (
-                    <span className="pause-face-empty-v2">NO MODS</span>
-                  ) : (
-                    supplements.map((up, idx) => (
-                      <span
-                        key={`${up.id}-${idx}`}
-                        className="pause-face-sup-v2"
-                        style={{ ['--card-accent' as string]: RARITY_COLORS[up.rarity] }}
-                        title={`${up.name}\n${up.description}`}
-                      >
-                        {up.name}
-                      </span>
-                    ))
-                  )}
+                  <span className="pause-face-empty-v2">
+                    {replacer ? 'FORGE WEAPON' : 'BASELINE'}
+                  </span>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="build-section-v2">
+        <div className="build-section-label">RELICS</div>
+        <div className="pause-relic-list-v2">
+          {relicUpgrades.length === 0 && <div className="empty-v2">NO RELICS YET</div>}
+          {relicUpgrades.map((a) => {
+            const up = getUpgrade(a.id);
+            if (!up) return null;
+            return (
+              <div
+                key={a.id}
+                className="drawer-row-v2 pause-relic-row-v2"
+                style={{ ['--card-accent' as string]: RARITY_COLORS[up.rarity] }}
+              >
+                <RelicIcon upgrade={up} size={40} />
+                <div>
+                  <div className="drawer-row-head">
+                    <span className="drawer-name">
+                      {up.name}{a.stacks > 1 ? ` ×${a.stacks}` : ''}
+                    </span>
+                    <span className="drawer-rarity">{up.rarity.toUpperCase()}</span>
+                  </div>
+                  {up.lore && <div className="drawer-desc">{up.lore}</div>}
+                  <div className="drawer-desc">{up.desc}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="build-section-v2">
+        <div className="build-section-label">BAUBLES</div>
+        <div className="pause-bauble-grid-v2">
+          {baubleUpgrades.length === 0 && <div className="empty-v2">NO BAUBLES YET</div>}
+          {baubleUpgrades.map((a) => {
+            const up = getUpgrade(a.id);
+            if (!up) return null;
+            return (
+              <div
+                key={a.id}
+                className="pause-bauble-chip-v2"
+                style={{ ['--card-accent' as string]: RARITY_COLORS[up.rarity] }}
+                title={`${up.name}${a.stacks > 1 ? ` x${a.stacks}` : ''}\n${up.desc}`}
+              >
+                <BaubleIcon upgrade={up} size={34} />
+                {a.stacks > 1 && <span className="pause-bauble-stack-v2">x{a.stacks}</span>}
               </div>
             );
           })}
@@ -126,8 +172,8 @@ function PauseBuildSummary({
       <div className="build-section-v2">
         <div className="build-section-label">RUN UPGRADES</div>
         <div className="pause-upgrade-list-v2">
-          {activeUpgrades.length === 0 && <div className="empty-v2">NO RUN UPGRADES YET</div>}
-          {activeUpgrades.map((a) => {
+          {runUpgrades.length === 0 && <div className="empty-v2">NO RUN UPGRADES YET</div>}
+          {runUpgrades.map((a) => {
             const up = getUpgrade(a.id);
             if (!up) return null;
             return (
