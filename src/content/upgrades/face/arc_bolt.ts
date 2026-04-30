@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'arc_chain',
     evolution: 'storm_chain',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.25, element: 'lightning' }, { verb: 'chain', maxChains: 2, decay: 0.5 }], damageMul: 0.95, timing: tempo.standard },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.3, element: 'lightning' }, { verb: 'chain', maxChains: 3, decay: 0.5 }, { verb: 'chainLightning', jumps: 2, damageMul: 0.55, radius: 80, stunDur: 0.12 }], damageMul: 1.25, timing: tempo.standard },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'arc_chain',
     evolution: 'storm_chain',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.3, element: 'lightning' }, { verb: 'chainLightning', jumps: 3, damageMul: 0.5, radius: 95, stunDur: 0.18 }], damageMul: 1.0, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.35, element: 'lightning', spread: Math.PI / 18 }, { verb: 'chainLightning', jumps: 4, damageMul: 0.9, radius: 105, stunDur: 0.22 }], damageMul: 1.32, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'arc_chain',
     evolution: 'storm_chain',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.3, element: 'lightning', spread: Math.PI / 14 }, { verb: 'chainLightning', jumps: 5, damageMul: 0.58, radius: 115, stunDur: 0.3, fromDie: true }], damageMul: 1.12, timing: tempo.heavy, note: 'Storm Call' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.4, element: 'lightning', spread: Math.PI / 14 }, { verb: 'chainLightning', jumps: 6, damageMul: 1.0, radius: 125, stunDur: 0.34, fromDie: true }], damageMul: 1.48, timing: tempo.heavy, note: 'Storm Call' },
     basePrice,
   }
 ];

@@ -5,6 +5,7 @@ import { LANDMARK_EXPANSION_UPGRADES } from './landmark_expansion';
 import { MORE_LANDMARK_UPGRADES } from './landmark_more';
 import { RELIC_UPGRADES } from './relics';
 import { BAUBLE_UPGRADES } from './baubles';
+import { CHARACTER_BAUBLE_UPGRADES } from './characterBaubles';
 
 let initialized = false;
 
@@ -17,6 +18,7 @@ export function initUpgradeContent(): void {
     ...MORE_LANDMARK_UPGRADES,
     ...RELIC_UPGRADES,
     ...BAUBLE_UPGRADES,
+    ...CHARACTER_BAUBLE_UPGRADES,
   ]);
   initShopServiceContent();
 }

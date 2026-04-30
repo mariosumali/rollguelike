@@ -13,7 +13,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['supplement', 'poison', 'dot', 'aoe', 'elemental'],
     animation: { cast: 'toxin_cast', projectile: 'toxin_proj', hit: 'toxin_drip', evolution: 'plague_cloud' },
     icon: ['..............','.....zzzz.....','....zmmmmz....','...zmmnnmmz...','...zmmnnmmz...','....zmmmmz....','.....zzzz.....','......z.......','.....z.z......','....z...z.....','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'applyStatus', status: 'poison', power: 3, duration: 3 }, { verb: 'groundZone', radius: 24, dps: 3, duration: 0.9, element: 'poison', slow: 0.05 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'applyStatus', status: 'poison', power: 4.5, duration: 3 }, { verb: 'groundZone', radius: 24, dps: 4.5, duration: 0.9, element: 'poison', slow: 0.05 }], damageMul: 1.0 },
   },
   {
     id: "toxic_payload_ii",
@@ -28,7 +28,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['supplement', 'poison', 'dot', 'aoe', 'elemental'],
     animation: { cast: 'toxin_cast', projectile: 'toxin_proj', hit: 'toxin_drip', evolution: 'plague_cloud' },
     icon: ['..............','.....zzzz.....','....zmmmmz....','...zmmnnmmz...','...zmmnnmmz...','....zmmmmz....','.....zzzz.....','......z.......','.....z.z......','....z...z.....','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'statusAura', status: 'poison', radius: 40, power: 4, duration: 4 }, { verb: 'groundZone', radius: 34, dps: 4, duration: 1.2, element: 'poison', slow: 0.1 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'statusAura', status: 'poison', radius: 40, power: 6, duration: 4 }, { verb: 'groundZone', radius: 34, dps: 6, duration: 1.2, element: 'poison', slow: 0.1 }], damageMul: 1.0 },
   },
   {
     id: "toxic_payload_iii",
@@ -42,7 +42,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['supplement', 'poison', 'dot', 'aoe', 'elemental'],
     animation: { cast: 'toxin_cast', projectile: 'toxin_proj', hit: 'toxin_drip', evolution: 'plague_cloud' },
     icon: ['..............','.....zzzz.....','....zmmmmz....','...zmmnnmmz...','...zmmnnmmz...','....zmmmmz....','.....zzzz.....','......z.......','.....z.z......','....z...z.....','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'statusAura', status: 'poison', radius: 56, power: 6, duration: 5 }, { verb: 'groundZone', radius: 46, dps: 6, duration: 1.6, element: 'poison', slow: 0.18 }, { verb: 'statusAura', status: 'poison', radius: 54, power: 3, duration: 4 }], damageMul: 1.0, note: 'Spore Burst' },
+    effect: { effects: [{ verb: 'statusAura', status: 'poison', radius: 56, power: 9, duration: 5 }, { verb: 'groundZone', radius: 46, dps: 9, duration: 1.6, element: 'poison', slow: 0.18 }, { verb: 'statusAura', status: 'poison', radius: 54, power: 4.5, duration: 4 }], damageMul: 1.0, note: 'Spore Burst' },
   }
 ];
 

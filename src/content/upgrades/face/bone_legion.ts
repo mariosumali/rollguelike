@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'bone_crack',
     evolution: 'lich_march',
   },
-    effect: { effects: [{ verb: 'summonMinion', kind: 'bone', count: 2, hp: 6, duration: 3.8, damagePerHit: 3 }], damageMul: 1.0, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'bone', count: 3, hp: 8, duration: 4.4, damagePerHit: 6 }], damageMul: 1.0, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'bone_crack',
     evolution: 'lich_march',
   },
-    effect: { effects: [{ verb: 'summonMinion', kind: 'bone', count: 3, hp: 10, duration: 4.8, damagePerHit: 5 }], damageMul: 1.0, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'bone', count: 4, hp: 12, duration: 5.4, damagePerHit: 9 }], damageMul: 1.06, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'bone_crack',
     evolution: 'lich_march',
   },
-    effect: { effects: [{ verb: 'summonMinion', kind: 'bone', count: 4, hp: 14, duration: 5.8, damagePerHit: 7 }, { verb: 'applyStatus', status: 'stun', power: 1, duration: 0.35 }], damageMul: 1.08, timing: tempo.artillery, note: "Lich's March" },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'bone', count: 6, hp: 16, duration: 6.8, damagePerHit: 13 }, { verb: 'applyStatus', status: 'stun', power: 1, duration: 0.5 }], damageMul: 1.15, timing: tempo.artillery, note: "Lich's March" },
     basePrice,
   }
 ];

@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'whirl_hit',
     evolution: 'phantom_loop',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 0.75, lifeMul: 1.4, bounce: 1, pierce: 2 }], damageMul: 1.05, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 18 }, { verb: 'fireProjectile', count: 1, speed: 0.82, lifeMul: 1.5, bounce: 2, pierce: 3 }], damageMul: 1.18, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'whirl_hit',
     evolution: 'phantom_loop',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 0.78, lifeMul: 1.45, bounce: 1, pierce: 3, spread: Math.PI / 8 }], damageMul: 1.08, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 26 }, { verb: 'fireProjectile', count: 2, speed: 0.84, lifeMul: 1.6, bounce: 2, pierce: 4, spread: Math.PI / 8 }], damageMul: 1.22, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'whirl_hit',
     evolution: 'phantom_loop',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 3, speed: 0.82, lifeMul: 1.55, bounce: 2, pierce: 4, spread: Math.PI / 6 }, { verb: 'fireProjectile', count: 1, speed: 0.78, lifeMul: 1.6, bounce: 3, pierce: 2 }], damageMul: 1.14, timing: tempo.artillery, note: 'Phantom Loop' },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 34 }, { verb: 'fireProjectile', count: 3, speed: 0.88, lifeMul: 1.7, bounce: 3, pierce: 5, spread: Math.PI / 6 }, { verb: 'fireProjectile', count: 1, speed: 0.82, lifeMul: 1.8, bounce: 4, pierce: 3, damageMul: 1.15 }], damageMul: 1.28, timing: tempo.artillery, note: 'Phantom Loop' },
     basePrice,
   }
 ];

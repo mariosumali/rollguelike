@@ -17,7 +17,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['projectile', 'lightning', 'elemental', 'chain'],
     animation: { cast: 'spark_cast', projectile: 'arc_proj', hit: 'arc_chain', evolution: 'storm_chain' },
     icon: ['..............','......y.......','....yyyyy.....','...y.e.e.y....','..yy..y..yy...','...y.e.e.y....','....yyyyy.....','......y.......','....y.y.y.....','...y..y..y....','......y.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 0.9, element: 'lightning', size: 1.35 }, { verb: 'chain', maxChains: 2, decay: 0.5 }], damageMul: 1.1, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 0.95, element: 'lightning', size: 1.45 }, { verb: 'chain', maxChains: 4, decay: 0.5 }, { verb: 'chainLightning', jumps: 3, damageMul: 0.7, radius: 100, stunDur: 0.18 }], damageMul: 1.22, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -33,7 +33,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['projectile', 'lightning', 'elemental', 'chain'],
     animation: { cast: 'spark_cast', projectile: 'arc_proj', hit: 'arc_chain', evolution: 'storm_chain' },
     icon: ['..............','......y.......','....yyyyy.....','...y.e.e.y....','..yy..y..yy...','...y.e.e.y....','....yyyyy.....','......y.......','....y.y.y.....','...y..y..y....','......y.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 0.9, element: 'lightning', size: 1.55 }, { verb: 'chainLightning', jumps: 4, damageMul: 0.48, radius: 105, stunDur: 0.25 }], damageMul: 1.15, timing: tempo.artillery },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 0.98, element: 'lightning', size: 1.65, spread: Math.PI / 16 }, { verb: 'chainLightning', jumps: 5, damageMul: 0.75, radius: 120, stunDur: 0.3 }], damageMul: 1.28, timing: tempo.artillery },
     basePrice,
   },
   {
@@ -48,7 +48,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['projectile', 'lightning', 'elemental', 'chain'],
     animation: { cast: 'spark_cast', projectile: 'arc_proj', hit: 'arc_chain', evolution: 'storm_chain' },
     icon: ['..............','......y.......','....yyyyy.....','...y.e.e.y....','..yy..y..yy...','...y.e.e.y....','....yyyyy.....','......y.......','....y.y.y.....','...y..y..y....','......y.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 0.95, element: 'lightning', size: 1.55, spread: Math.PI / 12 }, { verb: 'chainLightning', jumps: 6, damageMul: 0.55, radius: 125, stunDur: 0.35 }, { verb: 'chainLightning', jumps: 4, damageMul: 0.58, radius: 115, stunDur: 0.3, fromDie: true }], damageMul: 1.18, timing: tempo.legendary, note: 'Tesla Storm' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 3, speed: 1.02, element: 'lightning', size: 1.75, spread: Math.PI / 10 }, { verb: 'chainLightning', jumps: 7, damageMul: 0.82, radius: 140, stunDur: 0.4 }, { verb: 'chainLightning', jumps: 5, damageMul: 0.72, radius: 130, stunDur: 0.35, fromDie: true }], damageMul: 1.35, timing: tempo.legendary, note: 'Tesla Storm' },
     basePrice,
   }
 ];

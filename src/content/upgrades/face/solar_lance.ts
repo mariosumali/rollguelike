@@ -20,7 +20,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'solar_scorch',
     evolution: 'corona_flare',
   },
-    effect: { effects: [{ verb: 'beam', width: 5, dps: 14, duration: 0.46, pierce: 5, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 2, duration: 3 }], damageMul: 1.0, timing: tempo.artillery },
+    effect: { effects: [{ verb: 'beam', width: 7, dps: 20, duration: 0.55, pierce: 7, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 4, duration: 3.5 }], damageMul: 1.05, timing: tempo.artillery },
     basePrice,
   },
   {
@@ -39,7 +39,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'solar_scorch',
     evolution: 'corona_flare',
   },
-    effect: { effects: [{ verb: 'beam', width: 7, dps: 19, duration: 0.58, pierce: 7, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 4, duration: 3.5 }], damageMul: 1.05, timing: tempo.legendary },
+    effect: { effects: [{ verb: 'beam', width: 10, dps: 29, duration: 0.72, pierce: 10, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 6, duration: 4.25 }], damageMul: 1.14, timing: tempo.legendary },
     basePrice,
   },
   {
@@ -57,7 +57,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'solar_scorch',
     evolution: 'corona_flare',
   },
-    effect: { effects: [{ verb: 'beam', width: 10, dps: 28, duration: 0.8, pierce: 10, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 7, duration: 5 }, { verb: 'pulse', radius: 40, damageMul: 0.95, element: 'fire' }], damageMul: 1.18, timing: tempo.legendary, note: 'Corona Flare' },
+    effect: { effects: [{ verb: 'beam', width: 14, dps: 42, duration: 0.95, pierce: 14, element: 'fire' }, { verb: 'applyStatus', status: 'burn', power: 9, duration: 5.5 }, { verb: 'pulse', radius: 60, damageMul: 1.25, element: 'fire', knockback: 24 }], damageMul: 1.28, timing: tempo.legendary, note: 'Corona Flare' },
     basePrice,
   }
 ];

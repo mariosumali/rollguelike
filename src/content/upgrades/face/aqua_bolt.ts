@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'splash_ring',
     evolution: 'tide_pool',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 0.95, bounce: 1 }], damageMul: 0.95, timing: tempo.standard },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 20 }, { verb: 'fireProjectile', count: 1, speed: 1.0, bounce: 2 }], damageMul: 1.05, timing: tempo.standard },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'splash_ring',
     evolution: 'tide_pool',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 0.95, bounce: 2, spread: Math.PI / 14 }, { verb: 'modifyProjectile', lifesteal: 0.05 }], damageMul: 1.0, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 28, lifesteal: 0.08 }, { verb: 'fireProjectile', count: 2, speed: 1.0, bounce: 3, spread: Math.PI / 14 }], damageMul: 1.1, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'splash_ring',
     evolution: 'tide_pool',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.0, bounce: 4, spread: Math.PI / 12 }, { verb: 'modifyProjectile', lifesteal: 0.12 }, { verb: 'spawnPickup', kind: 'heal', amount: 1, chance: 0.5 }, { verb: 'spawnPickup', kind: 'heal', amount: 1, chance: 1 }], damageMul: 1.12, timing: tempo.heavy, note: 'Tide Caller' },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 40, lifesteal: 0.14 }, { verb: 'fireProjectile', count: 3, speed: 1.05, bounce: 4, spread: Math.PI / 10 }, { verb: 'spawnPickup', kind: 'heal', amount: 1, chance: 0.5 }, { verb: 'spawnPickup', kind: 'heal', amount: 1, chance: 1 }], damageMul: 1.2, timing: tempo.heavy, note: 'Tide Caller' },
     basePrice,
   }
 ];

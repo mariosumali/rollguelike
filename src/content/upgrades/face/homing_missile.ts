@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'explosion_small',
     evolution: 'cruise_mark',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 0.7, lifeMul: 1.35, homing: true, damageMul: 1.35 }], damageMul: 1.0, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 36 }, { verb: 'fireProjectile', count: 1, speed: 0.68, lifeMul: 1.45, homing: true, size: 1.18, damageMul: 2.25 }], damageMul: 1.1, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'explosion_small',
     evolution: 'cruise_mark',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 0.75, lifeMul: 1.35, homing: true, damageMul: 1.05 }, { verb: 'modifyProjectile', aoeOnHit: 24 }], damageMul: 1.12, timing: tempo.artillery },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 54 }, { verb: 'fireProjectile', count: 2, speed: 0.72, lifeMul: 1.5, homing: true, size: 1.3, damageMul: 1.8 }], damageMul: 1.22, timing: tempo.artillery },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'explosion_small',
     evolution: 'cruise_mark',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 3, speed: 0.8, lifeMul: 1.45, homing: true, damageMul: 0.95 }, { verb: 'modifyProjectile', aoeOnHit: 38 }, { verb: 'applyStatus', status: 'mark', power: 1.5, duration: 3 }], damageMul: 1.25, timing: tempo.legendary, note: 'Cruise' },
+    effect: { effects: [{ verb: 'modifyProjectile', aoeOnHit: 76 }, { verb: 'fireProjectile', count: 3, speed: 0.78, lifeMul: 1.65, homing: true, size: 1.45, damageMul: 1.55 }, { verb: 'applyStatus', status: 'mark', power: 1.8, duration: 3.5 }], damageMul: 1.42, timing: tempo.legendary, note: 'Cruise' },
     basePrice,
   }
 ];

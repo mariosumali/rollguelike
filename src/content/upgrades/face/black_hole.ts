@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'void_collapse',
     evolution: 'event_horizon',
   },
-    effect: { effects: [{ verb: 'pull', radius: 62, strength: 0.35, dps: 1.5, duration: 1.2 }], damageMul: 1.0, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'pull', radius: 70, strength: 0.45, dps: 4.5, duration: 1.4 }], damageMul: 1.0, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'void_collapse',
     evolution: 'event_horizon',
   },
-    effect: { effects: [{ verb: 'pull', radius: 92, strength: 0.6, dps: 3, duration: 1.7 }, { verb: 'groundZone', radius: 54, dps: 2.5, duration: 1.7, element: 'arcane', slow: 0.3 }], damageMul: 1.0, timing: tempo.artillery },
+    effect: { effects: [{ verb: 'pull', radius: 104, strength: 0.72, dps: 7, duration: 2.0 }, { verb: 'groundZone', radius: 64, dps: 6, duration: 2.0, element: 'arcane', slow: 0.35 }], damageMul: 1.0, timing: tempo.artillery },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'void_collapse',
     evolution: 'event_horizon',
   },
-    effect: { effects: [{ verb: 'pull', radius: 120, strength: 0.9, dps: 5.5, duration: 2.5, destroyProjectiles: true }, { verb: 'groundZone', radius: 76, dps: 5, duration: 2.5, element: 'arcane', slow: 0.45 }, { verb: 'statusAura', status: 'mark', radius: 120, power: 2.25, duration: 3 }], damageMul: 1.0, timing: tempo.legendary, note: 'Event Horizon' },
+    effect: { effects: [{ verb: 'pull', radius: 136, strength: 1.0, dps: 11, duration: 2.8, destroyProjectiles: true }, { verb: 'groundZone', radius: 90, dps: 9, duration: 2.8, element: 'arcane', slow: 0.5 }, { verb: 'statusAura', status: 'mark', radius: 136, power: 2.75, duration: 3.5 }], damageMul: 1.0, timing: tempo.legendary, note: 'Event Horizon' },
     basePrice,
   }
 ];

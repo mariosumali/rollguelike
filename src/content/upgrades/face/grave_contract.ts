@@ -18,7 +18,7 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'necromancer',
     animation: { cast: 'wraith_bloom', projectile: 'minion_trail', hit: 'wraith_strike', evolution: 'lich_march' },
     icon: ['..............','....HHHHHH....','...HddddddH...','..HddHddHddH..','..HddddddddH..','..HddHHHHddH..','..HddddddddH..','...HddddddH...','....HHHHHH....','......H.......','......H.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 1, hp: 5, duration: 3.2, damagePerHit: 6, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 38, power: 1.1, duration: 2 }], damageMul: 1.0, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 2, hp: 6, duration: 3.8, damagePerHit: 8, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 46, power: 1.25, duration: 2.5 }, { verb: 'pulse', radius: 28, damageMul: 0.32, element: 'arcane' }], damageMul: 1.0, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -35,7 +35,7 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'necromancer',
     animation: { cast: 'wraith_bloom', projectile: 'minion_trail', hit: 'wraith_strike', evolution: 'lich_march' },
     icon: ['..............','....HHHHHH....','...HddddddH...','..HddHddHddH..','..HddddddddH..','..HddHHHHddH..','..HddddddddH..','...HddddddH...','....HHHHHH....','......H.......','......H.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 2, hp: 7, duration: 4.0, damagePerHit: 8, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 52, power: 1.25, duration: 2.5 }], damageMul: 1.0, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 3, hp: 9, duration: 4.8, damagePerHit: 11, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 62, power: 1.45, duration: 3 }, { verb: 'pulse', radius: 40, damageMul: 0.5, element: 'arcane' }], damageMul: 1.06, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -51,7 +51,7 @@ const upgrades: FaceUpgrade[] = [
     characterExclusive: 'necromancer',
     animation: { cast: 'wraith_bloom', projectile: 'minion_trail', hit: 'wraith_strike', evolution: 'lich_march' },
     icon: ['..............','....HHHHHH....','...HddddddH...','..HddHddHddH..','..HddddddddH..','..HddHHHHddH..','..HddddddddH..','...HddddddH...','....HHHHHH....','......H.......','......H.......','..............','..............','..............'],
-    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 3, hp: 9, duration: 5.0, damagePerHit: 10, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 70, power: 1.55, duration: 3 }], damageMul: 1.0, timing: tempo.artillery, note: 'Debt Collector' },
+    effect: { effects: [{ verb: 'summonMinion', kind: 'wraith', count: 5, hp: 12, duration: 6.0, damagePerHit: 15, trigger: 'onResolve' }, { verb: 'statusAura', status: 'mark', radius: 82, power: 1.85, duration: 3.5 }, { verb: 'pulse', radius: 58, damageMul: 0.78, element: 'arcane', knockback: 20 }], damageMul: 1.12, timing: tempo.artillery, note: 'Debt Collector' },
     basePrice,
   }
 ];

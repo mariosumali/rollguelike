@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'frost_shatter',
     evolution: 'zero_freeze',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.25, element: 'ice', pierce: 1 }, { verb: 'applyStatus', status: 'slow', power: 0.35, duration: 1.4 }], damageMul: 0.95, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.3, element: 'ice', pierce: 2 }, { verb: 'applyStatus', status: 'slow', power: 0.45, duration: 1.8 }, { verb: 'frostBurst', radius: 28, damageMul: 0.28, freezeDur: 0.35, slow: 0.45 }], damageMul: 1.05, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'frost_shatter',
     evolution: 'zero_freeze',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.25, element: 'ice', pierce: 1, spread: Math.PI / 16 }, { verb: 'applyStatus', status: 'slow', power: 0.5, duration: 2.4 }, { verb: 'frostBurst', radius: 36, damageMul: 0.38, freezeDur: 0.55, slow: 0.55 }], damageMul: 1.0, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.3, element: 'ice', pierce: 2, spread: Math.PI / 16 }, { verb: 'applyStatus', status: 'slow', power: 0.58, duration: 2.8 }, { verb: 'frostBurst', radius: 44, damageMul: 0.5, freezeDur: 0.7, slow: 0.62 }], damageMul: 1.08, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'frost_shatter',
     evolution: 'zero_freeze',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.35, element: 'ice', pierce: 2, spread: Math.PI / 12 }, { verb: 'frostBurst', radius: 58, damageMul: 0.6, freezeDur: 1.1, slow: 0.7 }, { verb: 'frostBurst', radius: 66, damageMul: 0.65, freezeDur: 1.25, slow: 0.65 }], damageMul: 1.08, timing: tempo.artillery, note: 'Absolute Zero' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 3, speed: 1.4, element: 'ice', pierce: 3, spread: Math.PI / 10 }, { verb: 'frostBurst', radius: 68, damageMul: 0.78, freezeDur: 1.25, slow: 0.72 }, { verb: 'frostBurst', radius: 76, damageMul: 0.82, freezeDur: 1.35, slow: 0.68 }], damageMul: 1.18, timing: tempo.artillery, note: 'Absolute Zero' },
     basePrice,
   }
 ];

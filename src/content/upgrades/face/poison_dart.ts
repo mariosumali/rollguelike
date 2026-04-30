@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'toxin_drip',
     evolution: 'plague_cloud',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.25, element: 'poison' }, { verb: 'applyStatus', status: 'poison', power: 2, duration: 3 }], damageMul: 0.9, timing: tempo.quick },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, speed: 1.25, element: 'poison' }, { verb: 'applyStatus', status: 'poison', power: 4.5, duration: 3.5 }, { verb: 'groundZone', radius: 22, dps: 3.5, duration: 0.9, element: 'poison', slow: 0.1 }], damageMul: 1.0, timing: tempo.quick },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'toxin_drip',
     evolution: 'plague_cloud',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.25, element: 'poison', spread: Math.PI / 12 }, { verb: 'applyStatus', status: 'poison', power: 4, duration: 4 }, { verb: 'groundZone', radius: 28, dps: 3, duration: 1.2, element: 'poison', slow: 0.15 }], damageMul: 0.98, timing: tempo.standard },
+    effect: { effects: [{ verb: 'fireProjectile', count: 2, speed: 1.25, element: 'poison', spread: Math.PI / 12 }, { verb: 'applyStatus', status: 'poison', power: 7.5, duration: 4.5 }, { verb: 'groundZone', radius: 34, dps: 6.5, duration: 1.5, element: 'poison', slow: 0.18 }], damageMul: 1.04, timing: tempo.standard },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'toxin_drip',
     evolution: 'plague_cloud',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 3, speed: 1.2, element: 'poison', spread: Math.PI / 8 }, { verb: 'applyStatus', status: 'poison', power: 7, duration: 5 }, { verb: 'groundZone', radius: 46, dps: 6, duration: 2.0, element: 'poison', slow: 0.25 }], damageMul: 1.06, timing: tempo.deliberate, note: 'Plague Carrier' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 3, speed: 1.2, element: 'poison', spread: Math.PI / 8 }, { verb: 'applyStatus', status: 'poison', power: 12, duration: 5.5 }, { verb: 'groundZone', radius: 54, dps: 10.5, duration: 2.2, element: 'poison', slow: 0.28 }], damageMul: 1.12, timing: tempo.deliberate, note: 'Plague Carrier' },
     basePrice,
   }
 ];

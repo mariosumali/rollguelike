@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pierce_spark',
     evolution: 'rail_streak',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 1, speed: 1.35, size: 0.9 }], damageMul: 1.25, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 2, speed: 1.45, size: 1.0 }], damageMul: 1.45, timing: tempo.standard },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pierce_spark',
     evolution: 'rail_streak',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 3, speed: 1.45, size: 0.95 }], damageMul: 1.75, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 5, speed: 1.55, size: 1.08 }], damageMul: 2.05, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pierce_spark',
     evolution: 'rail_streak',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 99, speed: 1.6, size: 1.05, damageMul: 1.25 }, { verb: 'modifyProjectile', pierce: 99 }], damageMul: 1.9, timing: tempo.heavy, note: 'Rail' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 1, pierce: 99, speed: 1.75, size: 1.18, damageMul: 1.45 }, { verb: 'modifyProjectile', pierce: 99 }], damageMul: 2.15, timing: tempo.heavy, note: 'Rail' },
     basePrice,
   }
 ];

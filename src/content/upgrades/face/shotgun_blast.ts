@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'buck_spread',
     evolution: 'slug_punch',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 4, speed: 0.9, lifeMul: 0.45, spread: Math.PI / 5, damageMul: 0.68 }], damageMul: 0.95, timing: tempo.quick },
+    effect: { effects: [{ verb: 'fireProjectile', count: 5, speed: 0.95, lifeMul: 0.58, spread: Math.PI / 4.6, damageMul: 0.78 }], damageMul: 1.0, timing: tempo.quick },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'buck_spread',
     evolution: 'slug_punch',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 6, speed: 0.95, lifeMul: 0.5, spread: Math.PI / 4, damageMul: 0.62 }], damageMul: 1.0, timing: tempo.standard },
+    effect: { effects: [{ verb: 'fireProjectile', count: 7, speed: 1.0, lifeMul: 0.66, spread: Math.PI / 3.8, damageMul: 0.7 }], damageMul: 1.05, timing: tempo.standard },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'buck_spread',
     evolution: 'slug_punch',
   },
-    effect: { effects: [{ verb: 'fireProjectile', count: 8, speed: 1.0, lifeMul: 0.55, spread: Math.PI / 3, damageMul: 0.52 }, { verb: 'fireProjectile', count: 1, pierce: 3, speed: 1.35, size: 1.5, damageMul: 1.45 }], damageMul: 1.05, timing: tempo.deliberate, note: 'Slug' },
+    effect: { effects: [{ verb: 'fireProjectile', count: 9, speed: 1.05, lifeMul: 0.74, spread: Math.PI / 3, damageMul: 0.6 }, { verb: 'fireProjectile', count: 1, pierce: 4, speed: 1.45, size: 1.7, damageMul: 1.9 }], damageMul: 1.12, timing: tempo.deliberate, note: 'Slug' },
     basePrice,
   }
 ];

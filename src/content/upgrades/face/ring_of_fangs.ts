@@ -21,7 +21,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'fang_bite',
     evolution: 'eternal_circle',
   },
-    effect: { effects: [{ verb: 'orbit', count: 3, radius: 28, rpm: 115, damageMul: 0.65, duration: 3.2, pierce: 1 }], damageMul: 1.0, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'orbit', count: 3, radius: 34, rpm: 135, damageMul: 0.82, duration: 3.6, pierce: 1 }, { verb: 'pulse', radius: 26, damageMul: 0.28, knockback: 12 }], damageMul: 1.0, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -41,7 +41,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'fang_bite',
     evolution: 'eternal_circle',
   },
-    effect: { effects: [{ verb: 'orbit', count: 4, radius: 32, rpm: 145, damageMul: 0.8, duration: 4.2, pierce: 1 }], damageMul: 1.05, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'orbit', count: 5, radius: 40, rpm: 165, damageMul: 0.98, duration: 4.8, pierce: 2 }, { verb: 'pulse', radius: 38, damageMul: 0.42, knockback: 20 }], damageMul: 1.08, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -60,7 +60,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'fang_bite',
     evolution: 'eternal_circle',
   },
-    effect: { effects: [{ verb: 'orbit', count: 6, radius: 38, rpm: 170, damageMul: 0.95, duration: 6.5, pierce: 2 }], damageMul: 1.12, timing: tempo.artillery, note: 'Eternal Circle' },
+    effect: { effects: [{ verb: 'orbit', count: 7, radius: 48, rpm: 195, damageMul: 1.16, duration: 7.2, pierce: 3 }, { verb: 'pulse', radius: 56, damageMul: 0.62, knockback: 30 }], damageMul: 1.18, timing: tempo.artillery, note: 'Eternal Circle' },
     basePrice,
   }
 ];

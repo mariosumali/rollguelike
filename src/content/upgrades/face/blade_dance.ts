@@ -17,7 +17,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['orbit', 'persistent', 'physical'],
     animation: { cast: 'orbit_cast', projectile: 'fang_orbit', hit: 'fang_bite', evolution: 'eternal_circle' },
     icon: ['..............','...e......e...','.....e..e.....','......ee......','..e..eeee..e..','......ee......','.....e..e.....','...e......e...','......e.......','.....e.e......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 3, radius: 30, rpm: 160, damageMul: 0.58, duration: 2.6, pierce: 1 }], damageMul: 1.0, timing: tempo.standard },
+    effect: { effects: [{ verb: 'orbit', count: 3, radius: 36, rpm: 185, damageMul: 0.72, duration: 3.0, pierce: 1 }, { verb: 'pulse', radius: 24, damageMul: 0.22, knockback: 10 }], damageMul: 1.0, timing: tempo.standard },
     basePrice,
   },
   {
@@ -33,7 +33,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['orbit', 'persistent', 'physical'],
     animation: { cast: 'orbit_cast', projectile: 'fang_orbit', hit: 'fang_bite', evolution: 'eternal_circle' },
     icon: ['..............','...e......e...','.....e..e.....','......ee......','..e..eeee..e..','......ee......','.....e..e.....','...e......e...','......e.......','.....e.e......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 4, radius: 35, rpm: 190, damageMul: 0.7, duration: 3.3, pierce: 1 }], damageMul: 1.02, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'orbit', count: 5, radius: 42, rpm: 220, damageMul: 0.88, duration: 3.8, pierce: 2 }, { verb: 'pulse', radius: 34, damageMul: 0.34, knockback: 18 }], damageMul: 1.06, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -48,7 +48,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['orbit', 'persistent', 'physical'],
     animation: { cast: 'orbit_cast', projectile: 'fang_orbit', hit: 'fang_bite', evolution: 'eternal_circle' },
     icon: ['..............','...e......e...','.....e..e.....','......ee......','..e..eeee..e..','......ee......','.....e..e.....','...e......e...','......e.......','.....e.e......','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'orbit', count: 6, radius: 40, rpm: 220, damageMul: 0.82, duration: 4.2, pierce: 2 }, { verb: 'shield', stacks: 1 }], damageMul: 1.08, timing: tempo.heavy, note: 'Whirling Guard' },
+    effect: { effects: [{ verb: 'orbit', count: 7, radius: 50, rpm: 255, damageMul: 1.02, duration: 5.0, pierce: 3 }, { verb: 'pulse', radius: 48, damageMul: 0.52, knockback: 28 }, { verb: 'shield', stacks: 1 }], damageMul: 1.14, timing: tempo.heavy, note: 'Whirling Guard' },
     basePrice,
   }
 ];

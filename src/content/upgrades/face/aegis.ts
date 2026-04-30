@@ -16,7 +16,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'shield_click',
     evolution: 'bulwark_reflect',
   },
-    effect: { effects: [{ verb: 'shield', stacks: 2 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'shield', stacks: 2 }, { verb: 'pulse', radius: 30, damageMul: 0.35, knockback: 18 }], damageMul: 1.0 },
   },
   {
     id: "aegis_ii",
@@ -34,7 +34,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'shield_click',
     evolution: 'bulwark_reflect',
   },
-    effect: { effects: [{ verb: 'shield', stacks: 4, reflect: 0.2 }], damageMul: 1.0 },
+    effect: { effects: [{ verb: 'shield', stacks: 4, reflect: 0.25 }, { verb: 'pulse', radius: 42, damageMul: 0.55, knockback: 28 }], damageMul: 1.0 },
   },
   {
     id: "aegis_iii",
@@ -51,7 +51,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'shield_click',
     evolution: 'bulwark_reflect',
   },
-    effect: { effects: [{ verb: 'shield', stacks: 8, reflect: 0.6, reflectChain: true }, { verb: 'shield', stacks: 0, reflectChain: true }], damageMul: 1.0, note: 'Bulwark' },
+    effect: { effects: [{ verb: 'shield', stacks: 8, reflect: 0.7, reflectChain: true }, { verb: 'pulse', radius: 58, damageMul: 0.85, knockback: 40 }, { verb: 'shield', stacks: 0, reflectChain: true }], damageMul: 1.0, note: 'Bulwark' },
   }
 ];
 

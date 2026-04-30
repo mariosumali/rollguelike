@@ -20,7 +20,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pulse_ring',
     evolution: 'supernova_ring',
   },
-    effect: { effects: [{ verb: 'pulse', radius: 45, damageMul: 0.9 }], damageMul: 1.0, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'pulse', radius: 54, damageMul: 1.35, knockback: 18 }], damageMul: 1.0, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -39,7 +39,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pulse_ring',
     evolution: 'supernova_ring',
   },
-    effect: { effects: [{ verb: 'pulse', radius: 65, damageMul: 1.2, knockback: 20 }], damageMul: 1.0, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'pulse', radius: 76, damageMul: 1.75, knockback: 32 }], damageMul: 1.04, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -57,7 +57,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'pulse_ring',
     evolution: 'supernova_ring',
   },
-    effect: { effects: [{ verb: 'pulse', radius: 88, damageMul: 1.55, knockback: 40, repeat: 2, delay: 0.45 }], damageMul: 1.0, timing: tempo.artillery, note: 'Supernova' },
+    effect: { effects: [{ verb: 'pulse', radius: 104, damageMul: 2.15, knockback: 50, repeat: 2, delay: 0.38 }], damageMul: 1.08, timing: tempo.artillery, note: 'Supernova' },
     basePrice,
   }
 ];

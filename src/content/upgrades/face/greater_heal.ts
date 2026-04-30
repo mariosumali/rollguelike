@@ -16,7 +16,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'heal_glow',
     evolution: 'fountain_overflow',
   },
-    effect: { effects: [{ verb: 'heal', amount: 8 }], damageMul: 1.0, params: { perFace: 3 } },
+    effect: { effects: [{ verb: 'heal', amount: 8 }, { verb: 'pulse', radius: 28, damageMul: 0.3, element: 'arcane', knockback: 12 }], damageMul: 1.0, params: { perFace: 3 } },
   },
   {
     id: "greater_heal_ii",
@@ -34,7 +34,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'heal_glow',
     evolution: 'fountain_overflow',
   },
-    effect: { effects: [{ verb: 'heal', amount: 16, cleanse: true }], damageMul: 1.0, params: { perFace: 5 } },
+    effect: { effects: [{ verb: 'heal', amount: 16, cleanse: true }, { verb: 'pulse', radius: 40, damageMul: 0.48, element: 'arcane', knockback: 20 }], damageMul: 1.0, params: { perFace: 5 } },
   },
   {
     id: "greater_heal_iii",
@@ -51,7 +51,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'heal_glow',
     evolution: 'fountain_overflow',
   },
-    effect: { effects: [{ verb: 'heal', amount: 24, cleanse: true, overflowToShield: true }, { verb: 'heal', amount: 0, overflowToShield: true }], damageMul: 1.0, params: { perFace: 7 }, note: 'Fountain' },
+    effect: { effects: [{ verb: 'heal', amount: 24, cleanse: true, overflowToShield: true }, { verb: 'pulse', radius: 56, damageMul: 0.75, element: 'arcane', knockback: 32 }, { verb: 'heal', amount: 0, overflowToShield: true }], damageMul: 1.0, params: { perFace: 7 }, note: 'Fountain' },
   }
 ];
 

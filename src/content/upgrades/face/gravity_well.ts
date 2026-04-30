@@ -17,7 +17,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['aoe', 'pull', 'void', 'arcane'],
     animation: { cast: 'void_cast', projectile: 'void_orb', hit: 'void_collapse', evolution: 'event_horizon' },
     icon: ['..............','....H.....H...','......H.......','...H.....H....','.....HHH......','....HHIHH.....','.....HHH......','...H.....H....','......H.......','....H.....H...','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'pull', radius: 48, strength: 0.4, dps: 1.5, duration: 1.1 }], damageMul: 1.0, timing: tempo.deliberate },
+    effect: { effects: [{ verb: 'pull', radius: 54, strength: 0.46, dps: 3.5, duration: 1.25 }], damageMul: 1.0, timing: tempo.deliberate },
     basePrice,
   },
   {
@@ -33,7 +33,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['aoe', 'pull', 'void', 'arcane'],
     animation: { cast: 'void_cast', projectile: 'void_orb', hit: 'void_collapse', evolution: 'event_horizon' },
     icon: ['..............','....H.....H...','......H.......','...H.....H....','.....HHH......','....HHIHH.....','.....HHH......','...H.....H....','......H.......','....H.....H...','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'pull', radius: 66, strength: 0.55, dps: 3, duration: 1.5 }, { verb: 'groundZone', radius: 38, dps: 2.5, duration: 1.4, element: 'arcane', slow: 0.2 }], damageMul: 1.0, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'pull', radius: 74, strength: 0.65, dps: 5.5, duration: 1.7 }, { verb: 'groundZone', radius: 46, dps: 5, duration: 1.6, element: 'arcane', slow: 0.25 }], damageMul: 1.0, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -48,7 +48,7 @@ const upgrades: FaceUpgrade[] = [
     tags: ['aoe', 'pull', 'void', 'arcane'],
     animation: { cast: 'void_cast', projectile: 'void_orb', hit: 'void_collapse', evolution: 'event_horizon' },
     icon: ['..............','....H.....H...','......H.......','...H.....H....','.....HHH......','....HHIHH.....','.....HHH......','...H.....H....','......H.......','....H.....H...','..............','..............','..............','..............'],
-    effect: { effects: [{ verb: 'pull', radius: 86, strength: 0.75, dps: 4.5, duration: 2.0 }, { verb: 'groundZone', radius: 52, dps: 4, duration: 2.0, element: 'arcane', slow: 0.35 }, { verb: 'statusAura', status: 'mark', radius: 90, power: 1.35, duration: 2.5 }], damageMul: 1.0, timing: tempo.artillery, note: 'Singularity Seed' },
+    effect: { effects: [{ verb: 'pull', radius: 96, strength: 0.85, dps: 8, duration: 2.25 }, { verb: 'groundZone', radius: 62, dps: 7, duration: 2.25, element: 'arcane', slow: 0.4 }, { verb: 'statusAura', status: 'mark', radius: 102, power: 1.6, duration: 3 }], damageMul: 1.0, timing: tempo.artillery, note: 'Singularity Seed' },
     basePrice,
   }
 ];

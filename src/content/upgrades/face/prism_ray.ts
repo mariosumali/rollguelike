@@ -20,7 +20,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'prism_hit',
     evolution: 'rainbow_lance',
   },
-    effect: { effects: [{ verb: 'beam', width: 3, dps: 9, duration: 0.38, pierce: 3, element: 'arcane' }], damageMul: 1.0, timing: tempo.heavy },
+    effect: { effects: [{ verb: 'beam', width: 5, dps: 13, duration: 3, pierce: 4, element: 'arcane' }], damageMul: 1.05, timing: tempo.heavy },
     basePrice,
   },
   {
@@ -39,7 +39,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'prism_hit',
     evolution: 'rainbow_lance',
   },
-    effect: { effects: [{ verb: 'beam', width: 5, dps: 13, duration: 0.5, pierce: 5, element: 'arcane' }], damageMul: 1.05, timing: tempo.artillery },
+    effect: { effects: [{ verb: 'beam', width: 7, dps: 19, duration: 3, pierce: 7, element: 'arcane' }], damageMul: 1.12, timing: tempo.artillery },
     basePrice,
   },
   {
@@ -57,7 +57,7 @@ const upgrades: FaceUpgrade[] = [
     hit: 'prism_hit',
     evolution: 'rainbow_lance',
   },
-    effect: { effects: [{ verb: 'beam', width: 7, dps: 18, duration: 0.7, pierce: 8, element: 'arcane' }, { verb: 'beam', width: 8, dps: 16, duration: 0.55, pierce: 10, element: 'arcane' }], damageMul: 1.15, timing: tempo.legendary, note: 'Rainbow Lance' },
+    effect: { effects: [{ verb: 'beam', width: 10, dps: 26, duration: 3, pierce: 10, element: 'arcane' }, { verb: 'beam', width: 12, dps: 22, duration: 3, pierce: 12, element: 'arcane' }], damageMul: 1.25, timing: tempo.legendary, note: 'Rainbow Lance' },
     basePrice,
   }
 ];
