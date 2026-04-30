@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { playSfx } from '../../audio/sfx';
 import { haptic, HAPTIC } from '../../audio/haptics';
 
-type SymbolId = 'seven' | 'bell' | 'gem' | 'skull' | 'coin' | 'cherry';
+export type SlotMachineSymbol = 'seven' | 'bell' | 'gem' | 'skull' | 'coin' | 'cherry';
+export type SlotMachinePhase = 'idle' | 'spinning' | 'resolved';
+export type SlotMachineResolution = 'big' | 'small' | 'lose';
 
-const SYMBOLS: SymbolId[] = ['seven', 'bell', 'gem', 'skull', 'coin', 'cherry'];
+const SYMBOLS: SlotMachineSymbol[] = ['seven', 'bell', 'gem', 'skull', 'coin', 'cherry'];
 
-const SYMBOL_LABEL: Record<SymbolId, string> = {
+const SYMBOL_LABEL: Record<SlotMachineSymbol, string> = {
   seven: '7',
   bell: 'BELL',
   gem: 'GEM',
@@ -24,7 +26,7 @@ const FRAME_PAD = 8;
 const STRIP_LENGTH = 24;
 
 interface ReelState {
-  strip: SymbolId[];
+  strip: SlotMachineSymbol[];
   offset: number;
   speed: number;
   spinning: boolean;
@@ -33,10 +35,7 @@ interface ReelState {
   stopPlayed: boolean;
 }
 
-type Phase = 'idle' | 'spinning' | 'resolved';
-type Resolution = 'big' | 'small' | 'lose' | null;
-
-function drawSymbol(ctx: CanvasRenderingContext2D, x: number, y: number, s: SymbolId): void {
+function drawSymbol(ctx: CanvasRenderingContext2D, x: number, y: number, s: SlotMachineSymbol): void {
   const cx = x + SYMBOL_SIZE / 2;
   const cy = y + SYMBOL_SIZE / 2;
 
@@ -151,8 +150,8 @@ function drawSymbol(ctx: CanvasRenderingContext2D, x: number, y: number, s: Symb
   ctx.restore();
 }
 
-function makeStrip(finalSymbol: SymbolId, reelSeed: number): { strip: SymbolId[]; finalIndex: number } {
-  const strip: SymbolId[] = [];
+function makeStrip(finalSymbol: SlotMachineSymbol, reelSeed: number): { strip: SlotMachineSymbol[]; finalIndex: number } {
+  const strip: SlotMachineSymbol[] = [];
   for (let i = 0; i < STRIP_LENGTH; i++) {
     strip.push(SYMBOLS[(i * 2 + reelSeed) % SYMBOLS.length]!);
   }
@@ -163,15 +162,49 @@ function makeStrip(finalSymbol: SymbolId, reelSeed: number): { strip: SymbolId[]
   return { strip, finalIndex };
 }
 
-function resolvePayout(result: SymbolId[]): Resolution {
+function resolvePayout(result: SlotMachineSymbol[]): SlotMachineResolution {
   if (result[0] === result[1] && result[1] === result[2]) return 'big';
   if (result[0] === result[1] || result[1] === result[2] || result[0] === result[2]) return 'small';
   return 'lose';
 }
 
-export function SlotMachineStation() {
+function randomFinals(): SlotMachineSymbol[] {
+  const finals: SlotMachineSymbol[] = [];
+  for (let i = 0; i < REEL_COUNT; i++) {
+    finals.push(SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]!);
+  }
+  // Slight bias: ~14% chance all three match for a jackpot feel.
+  if (Math.random() < 0.14) {
+    const winner = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]!;
+    finals[0] = winner;
+    finals[1] = winner;
+    finals[2] = winner;
+  }
+  return finals;
+}
+
+function normalizeFinals(finalSymbols?: SlotMachineSymbol[] | null): SlotMachineSymbol[] {
+  const fallback = randomFinals();
+  return Array.from({ length: REEL_COUNT }, (_, i) => finalSymbols?.[i] ?? fallback[i]!);
+}
+
+interface SlotMachineRigProps {
+  spinKey: number;
+  finalSymbols?: SlotMachineSymbol[] | null;
+  onResolved?: (symbols: SlotMachineSymbol[], resolution: SlotMachineResolution) => void;
+}
+
+export function SlotMachineRig({ spinKey, finalSymbols, onResolved }: SlotMachineRigProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const phaseRef = useRef<SlotMachinePhase>('idle');
+  const finalSymbolsRef = useRef<SlotMachineSymbol[] | null | undefined>(finalSymbols);
+  const onResolvedRef = useRef<typeof onResolved>(onResolved);
+  const [resolution, setResolution] = useState<SlotMachineResolution | null>(null);
+
+  const totalWidth = REEL_COUNT * REEL_WIDTH + (REEL_COUNT - 1) * 4 + FRAME_PAD * 2;
+  const totalHeight = REEL_HEIGHT + FRAME_PAD * 2;
+
   const reelsRef = useRef<ReelState[]>(
     Array.from({ length: REEL_COUNT }, (_, i) => ({
       strip: Array.from({ length: STRIP_LENGTH }, (_, j) => SYMBOLS[(i + j) % SYMBOLS.length]!),
@@ -183,13 +216,14 @@ export function SlotMachineStation() {
       stopPlayed: true,
     })),
   );
-  const phaseRef = useRef<Phase>('idle');
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [resolution, setResolution] = useState<Resolution>(null);
-  const [pulls, setPulls] = useState(0);
 
-  const totalWidth = REEL_COUNT * REEL_WIDTH + (REEL_COUNT - 1) * 4 + FRAME_PAD * 2;
-  const totalHeight = REEL_HEIGHT + FRAME_PAD * 2;
+  useEffect(() => {
+    finalSymbolsRef.current = finalSymbols;
+  }, [finalSymbols]);
+
+  useEffect(() => {
+    onResolvedRef.current = onResolved;
+  }, [onResolved]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -277,8 +311,7 @@ export function SlotMachineStation() {
 
       if (allStopped && phaseRef.current === 'spinning') {
         phaseRef.current = 'resolved';
-        setPhase('resolved');
-        const result: SymbolId[] = reels.map((r) => r.strip[r.finalIndex]!);
+        const result = reels.map((r) => r.strip[r.finalIndex]!);
         const res = resolvePayout(result);
         setResolution(res);
         if (res === 'big') {
@@ -288,6 +321,7 @@ export function SlotMachineStation() {
           playSfx('slot_win_small');
           haptic(HAPTIC.upgrade);
         }
+        onResolvedRef.current?.(result, res);
       }
 
       rafRef.current = requestAnimationFrame(render);
@@ -299,24 +333,12 @@ export function SlotMachineStation() {
     };
   }, [totalWidth, totalHeight, resolution]);
 
-  const pull = () => {
-    if (phaseRef.current === 'spinning') return;
+  useEffect(() => {
+    if (spinKey <= 0 || phaseRef.current === 'spinning') return;
     phaseRef.current = 'spinning';
-    setPhase('spinning');
     setResolution(null);
 
-    const finals: SymbolId[] = [];
-    for (let i = 0; i < REEL_COUNT; i++) {
-      finals.push(SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]!);
-    }
-    // Slight bias: ~14% chance all three match for a jackpot feel.
-    if (Math.random() < 0.14) {
-      const winner = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]!;
-      finals[0] = winner;
-      finals[1] = winner;
-      finals[2] = winner;
-    }
-
+    const finals = normalizeFinals(finalSymbolsRef.current);
     const now = performance.now();
     const reels = reelsRef.current;
     for (let i = 0; i < reels.length; i++) {
@@ -333,15 +355,35 @@ export function SlotMachineStation() {
 
     playSfx('slot_spin');
     haptic(HAPTIC.tap);
+  }, [spinKey]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={totalWidth}
+      height={totalHeight}
+      className="slot-canvas"
+    />
+  );
+}
+
+export function SlotMachineStation() {
+  const [phase, setPhase] = useState<SlotMachinePhase>('idle');
+  const [resolution, setResolution] = useState<SlotMachineResolution | null>(null);
+  const [resultSymbols, setResultSymbols] = useState<string[] | null>(null);
+  const [spinKey, setSpinKey] = useState(0);
+  const [pulls, setPulls] = useState(0);
+
+  const pull = () => {
+    if (phase === 'spinning') return;
+    setPhase('spinning');
+    setResolution(null);
+    setResultSymbols(null);
+    setSpinKey((key) => key + 1);
     setPulls((n) => n + 1);
   };
 
   const spinning = phase === 'spinning';
-  const resultSymbols =
-    phase === 'resolved'
-      ? reelsRef.current.map((r) => SYMBOL_LABEL[r.strip[r.finalIndex]!]!)
-      : null;
-
   const resultLabel =
     phase === 'idle'
       ? 'PULL THE LEVER'
@@ -368,11 +410,13 @@ export function SlotMachineStation() {
         Three reels. Match them all for the jackpot. Cost: nothing in the sandbox.
       </div>
       <div className="slot-wrap">
-        <canvas
-          ref={canvasRef}
-          width={totalWidth}
-          height={totalHeight}
-          className="slot-canvas"
+        <SlotMachineRig
+          spinKey={spinKey}
+          onResolved={(symbols, res) => {
+            setPhase('resolved');
+            setResolution(res);
+            setResultSymbols(symbols.map((symbol) => SYMBOL_LABEL[symbol]));
+          }}
         />
       </div>
       <div className={`slot-result pixel-text ${resultClass}`} aria-live="polite">

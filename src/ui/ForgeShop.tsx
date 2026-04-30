@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore, getRunState } from '../state/store';
 import {
-  rerollForgeShopOffers,
   forgeShopDone,
   forgeShopSkipForHeal,
   expandSlotCap,
@@ -137,7 +136,6 @@ export function ForgeShop() {
   void tick;
 
   const run = getRunState();
-  const rerollCost = BALANCE.shop.rerollCost(hud.wave);
   const skipHealCost = BALANCE.shop.skipHealCost(hud.wave);
   const slotExpandCost = BALANCE.shop.slotExpandCost(hud.wave);
   const purchased = useStore((s) => s.forgeShopPurchased);
@@ -200,12 +198,6 @@ export function ForgeShop() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [details]);
-
-  const onReroll = () => {
-    if (hud.gold < rerollCost) return;
-    playSfx('ui_click');
-    rerollForgeShopOffers();
-  };
 
   const onDone = () => {
     playSfx('ui_click');
@@ -537,7 +529,7 @@ export function ForgeShop() {
 
         <div className="forge-body">
           <div className="forge-body-col">
-            <div className="forge-section-label">OFFERS</div>
+            <div className="forge-section-label">OFFERS · 3 PICKS · NO REROLLS</div>
             <div className="forge-offers-row">
               {offers.length === 0 && (
                 <div className="forge-empty">— NO OFFERS —</div>
@@ -549,7 +541,7 @@ export function ForgeShop() {
                   const isBauble = o.kind === 'bauble';
                   const label = isBauble ? 'BAUBLE' : 'RELIC';
                   const canAfford = hud.gold >= o.price;
-                  const disabled = !canAfford || purchased;
+                  const disabled = !canAfford;
                   return (
                     <button
                       key={`${o.id}-${i}`}
@@ -789,16 +781,6 @@ export function ForgeShop() {
           className="upg-footer forge-footer"
           style={{ marginTop: 4, display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}
         >
-          <button
-            className="upg-card-v2 forge-action-btn"
-            onClick={onReroll}
-            disabled={hud.gold < rerollCost}
-            title={`Reroll offers · ${rerollCost}G`}
-            aria-label={`Reroll · ${rerollCost} gold`}
-          >
-            <span className="fab-icon" aria-hidden>↻</span>
-            <span className="fab-price">{rerollCost}G</span>
-          </button>
           <button
             className="upg-card-v2 forge-action-btn"
             onClick={onSkip}

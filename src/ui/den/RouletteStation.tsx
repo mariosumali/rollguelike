@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { playSfx } from '../../audio/sfx';
 import { haptic, HAPTIC } from '../../audio/haptics';
 
-type BetKind = 'red' | 'black' | 'green';
+export type RouletteBetKind = 'red' | 'black' | 'green';
+export type RoulettePhase = 'idle' | 'spinning' | 'resolved';
+export interface RouletteSpinResult {
+  slot: number;
+  color: RouletteBetKind;
+  paid: number;
+}
 
 const SLOT_COUNT = 12;
 const CANVAS_SIZE = 220;
@@ -15,24 +21,22 @@ const BALL_TRACK_INNER = 70;
 
 // 12 slots: slot 0 = green; remaining alternating red/black.
 // Colors by slot index (0..11).
-function slotColor(idx: number): 'green' | 'red' | 'black' {
+export function rouletteSlotColor(idx: number): RouletteBetKind {
   if (idx === 0) return 'green';
   return idx % 2 === 1 ? 'red' : 'black';
 }
 
-function slotHex(c: 'green' | 'red' | 'black'): string {
+function slotHex(c: RouletteBetKind): string {
   if (c === 'green') return '#2e6a2e';
   if (c === 'red') return '#c8322e';
   return '#141422';
 }
 
-function slotHexBright(c: 'green' | 'red' | 'black'): string {
+function slotHexBright(c: RouletteBetKind): string {
   if (c === 'green') return '#6ae07a';
   if (c === 'red') return '#ff6a5a';
   return '#3a3a55';
 }
-
-type Phase = 'idle' | 'spinning' | 'resolved';
 
 interface SpinState {
   active: boolean;
@@ -71,7 +75,7 @@ function drawWheel(
   for (let i = 0; i < SLOT_COUNT; i++) {
     const a0 = i * sliceAngle - sliceAngle / 2;
     const a1 = a0 + sliceAngle;
-    const color = slotColor(i);
+    const color = rouletteSlotColor(i);
     ctx.fillStyle = highlightSlot === i ? slotHexBright(color) : slotHex(color);
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -165,18 +169,45 @@ function drawPointer(ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
-export function RouletteStation() {
+function roulettePaid(bet: RouletteBetKind | null, color: RouletteBetKind): number {
+  if (bet === 'red' && color === 'red') return 2;
+  if (bet === 'black' && color === 'black') return 2;
+  if (bet === 'green' && color === 'green') return 12;
+  return 0;
+}
+
+interface RouletteRigProps {
+  spinKey: number;
+  bet: RouletteBetKind | null;
+  finalSlot?: number | null;
+  onResolved?: (result: RouletteSpinResult) => void;
+}
+
+export function RouletteRig({ spinKey, bet, finalSlot, onResolved }: RouletteRigProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const wheelAngleRef = useRef(0);
   const ballAngleRef = useRef(0);
   const spinRef = useRef<SpinState | null>(null);
-  const phaseRef = useRef<Phase>('idle');
+  const phaseRef = useRef<RoulettePhase>('idle');
+  const betRef = useRef<RouletteBetKind | null>(bet);
+  const finalSlotRef = useRef<number | null | undefined>(finalSlot);
+  const onResolvedRef = useRef<typeof onResolved>(onResolved);
 
-  const [bet, setBet] = useState<BetKind | null>(null);
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<RoulettePhase>('idle');
   const [landedSlot, setLandedSlot] = useState<number | null>(null);
-  const [win, setWin] = useState<null | { paid: number; color: 'green' | 'red' | 'black' }>(null);
+
+  useEffect(() => {
+    betRef.current = bet;
+  }, [bet]);
+
+  useEffect(() => {
+    finalSlotRef.current = finalSlot;
+  }, [finalSlot]);
+
+  useEffect(() => {
+    onResolvedRef.current = onResolved;
+  }, [onResolved]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -199,7 +230,6 @@ export function RouletteStation() {
         ballAngleRef.current = spin.startBall + (spin.endBall - spin.startBall) * eased;
         trackRadius = BALL_TRACK_OUTER - (BALL_TRACK_OUTER - BALL_TRACK_INNER) * eased;
 
-        // ticks
         const da = Math.abs(ballAngleRef.current - spin.lastTickAngle);
         if (da > Math.PI / 6) {
           spin.lastTickAngle = ballAngleRef.current;
@@ -214,17 +244,13 @@ export function RouletteStation() {
           highlight = spin.finalSlot;
           playSfx('roulette_land');
           haptic(HAPTIC.land);
-          // resolve bet
-          const color = slotColor(spin.finalSlot);
-          let paid = 0;
-          if (bet === 'red' && color === 'red') paid = 2;
-          else if (bet === 'black' && color === 'black') paid = 2;
-          else if (bet === 'green' && color === 'green') paid = 12;
-          setWin({ paid, color });
+          const color = rouletteSlotColor(spin.finalSlot);
+          const paid = roulettePaid(betRef.current, color);
           if (paid > 0) haptic(HAPTIC.upgrade);
+          onResolvedRef.current?.({ slot: spin.finalSlot, color, paid });
         }
       } else if (phaseRef.current === 'idle') {
-        // slow idle drift so the wheel breathes
+        // Slow idle drift so the wheel breathes.
         wheelAngleRef.current += 0.0015;
       }
 
@@ -239,20 +265,12 @@ export function RouletteStation() {
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
-  }, [bet, phase, landedSlot]);
+  }, [phase, landedSlot]);
 
-  const pickBet = (b: BetKind) => {
-    if (phaseRef.current === 'spinning') return;
-    setBet(b);
-    playSfx('ui_click');
-    haptic(HAPTIC.tap);
-  };
+  useEffect(() => {
+    if (spinKey <= 0 || phaseRef.current === 'spinning' || !betRef.current) return;
 
-  const spin = () => {
-    if (phaseRef.current === 'spinning') return;
-    if (!bet) return;
-
-    const finalSlot = Math.floor(Math.random() * SLOT_COUNT);
+    const resolvedFinalSlot = finalSlotRef.current ?? Math.floor(Math.random() * SLOT_COUNT);
     const sliceAngle = (Math.PI * 2) / SLOT_COUNT;
 
     const wheelTurns = 5 + Math.random() * 2;
@@ -260,19 +278,9 @@ export function RouletteStation() {
 
     const startWheel = wheelAngleRef.current;
     const startBall = ballAngleRef.current;
-
-    // At rest, pointer is at angle -PI/2 (12 o'clock, screen-up).
-    // Ball final angle in screen space should point at the slot: for slot i,
-    // the wedge center in wheel frame is i * sliceAngle. In world it's wheelAngle + i*sliceAngle.
-    // We want ball at -PI/2 relative to wheel final orientation.
     const endWheel = startWheel + Math.PI * 2 * wheelTurns;
-    // slot world angle at end: endWheel + finalSlot * sliceAngle
-    // we want ball final angle to equal that (pointer at top)
-    const slotWorld = endWheel + finalSlot * sliceAngle;
-    // normalize endBall so ball reaches slotWorld - PI/2 after going `ballTurns` the opposite way
-    const targetBall = slotWorld - Math.PI / 2;
-    // pick an end that is at least `ballTurns` turns ahead of startBall in the opposite direction
-    // ball moves negative direction so endBall < startBall
+    const slotWorld = endWheel + resolvedFinalSlot * sliceAngle;
+    const targetBall = slotWorld;
     let endBall = targetBall;
     while (endBall > startBall - Math.PI * 2 * ballTurns) {
       endBall -= Math.PI * 2;
@@ -286,7 +294,7 @@ export function RouletteStation() {
       startBall,
       endWheel,
       endBall,
-      finalSlot,
+      finalSlot: resolvedFinalSlot,
       lastTickAngle: startBall,
       tickPlayed: false,
     };
@@ -294,14 +302,38 @@ export function RouletteStation() {
     phaseRef.current = 'spinning';
     setPhase('spinning');
     setLandedSlot(null);
-    setWin(null);
     playSfx('roulette_spin');
     haptic(HAPTIC.tap);
+  }, [spinKey]);
+
+  return <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="roulette-canvas" />;
+}
+
+export function RouletteStation() {
+  const [bet, setBet] = useState<RouletteBetKind | null>(null);
+  const [phase, setPhase] = useState<RoulettePhase>('idle');
+  const [landedSlot, setLandedSlot] = useState<number | null>(null);
+  const [win, setWin] = useState<null | RouletteSpinResult>(null);
+  const [spinKey, setSpinKey] = useState(0);
+
+  const pickBet = (b: RouletteBetKind) => {
+    if (phase === 'spinning') return;
+    setBet(b);
+    playSfx('ui_click');
+    haptic(HAPTIC.tap);
+  };
+
+  const spin = () => {
+    if (phase === 'spinning' || !bet) return;
+    setPhase('spinning');
+    setLandedSlot(null);
+    setWin(null);
+    setSpinKey((key) => key + 1);
   };
 
   const disabled = phase === 'spinning';
 
-  const betLabel = (b: BetKind) => (b === 'red' ? 'RED · 2×' : b === 'black' ? 'BLACK · 2×' : 'GREEN · 12×');
+  const betLabel = (b: RouletteBetKind) => (b === 'red' ? 'RED · 2×' : b === 'black' ? 'BLACK · 2×' : 'GREEN · 12×');
 
   let resultText = 'PLACE A BET';
   if (phase === 'spinning') resultText = 'SPINNING...';
@@ -327,13 +359,21 @@ export function RouletteStation() {
         Place a bet. Ball rides the rim, settles into a slot. Green 0 pays the moon.
       </div>
       <div className="roulette-wrap">
-        <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="roulette-canvas" />
+        <RouletteRig
+          spinKey={spinKey}
+          bet={bet}
+          onResolved={(result) => {
+            setPhase('resolved');
+            setLandedSlot(result.slot);
+            setWin(result);
+          }}
+        />
       </div>
       <div className={`roulette-result pixel-text ${resultClass}`} aria-live="polite">
         {resultText}
       </div>
       <div className="roulette-bets pixel-text">
-        {(['red', 'black', 'green'] as BetKind[]).map((b) => (
+        {(['red', 'black', 'green'] as RouletteBetKind[]).map((b) => (
           <button
             key={b}
             type="button"

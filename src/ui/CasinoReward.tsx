@@ -1,24 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { haptic, HAPTIC } from '../audio/haptics';
 import { playSfx } from '../audio/sfx';
-import { useStore } from '../state/store';
+import { getRunState, useStore } from '../state/store';
 import {
   claimCasinoReward,
   convertCasinoRewardToGold,
   getCasinoFaceRewardSlots,
   openCasinoChest,
   resolveCasinoGame,
+  settleCasinoGame,
 } from '../engine/engine';
 import {
   CASINO_GAME_LABELS,
   CHEST_TIER_LABELS,
   LUCK_GRADE_LABELS,
 } from '../systems/chestRewards';
+import { getCharacter } from '../content/characters/registry';
 import { getFaceUpgrade } from '../content/upgrades/faceRegistry';
 import { getFaceName } from '../content/upgrades/faceNames';
 import { getUpgrade } from '../content/upgrades/registry';
 import { mulberry32, shuffle } from '../engine/rng';
 import { BaubleIcon, RelicIcon } from './RelicIcon';
+import { SlotMachineRig, type SlotMachineSymbol } from './den/SlotMachineStation';
+import { RouletteRig, type RouletteBetKind, type RouletteSpinResult } from './den/RouletteStation';
 import type {
   CasinoChestReward,
   CasinoChestTier,
@@ -67,11 +71,16 @@ const CHEST_OPEN_TAPS: Record<CasinoChestTier, number> = {
 const CHEST_SHAKE_MS = 380;
 const CHEST_OPEN_MS = 1250;
 const RESULT_HOLD_MS = 1850;
+const PRE_ANNOUNCE_HOLD_MS: Partial<Record<CasinoGameId, number>> = {
+  slots: 1600,
+  roulette: 1600,
+  coinFlip: 1600,
+};
 const GAME_ANIM_MS: Record<CasinoGameId, number> = {
-  slots: 1700,
+  slots: 2100,
   roulette: 2100,
   blackjack: 1350,
-  coinFlip: 1250,
+  coinFlip: 1500,
 };
 
 type BlackjackAction = 'hit' | 'stand';
@@ -169,6 +178,58 @@ function serializeBlackjackChoice(hand: BlackjackHand): string {
   ].join(':');
 }
 
+function needsPreAnnouncementHold(game: CasinoGameId): boolean {
+  return game === 'slots' || game === 'roulette' || game === 'coinFlip';
+}
+
+function slotSymbolsForResult(result: CasinoGameResult | null): SlotMachineSymbol[] | null {
+  if (!result) return null;
+  switch (result.outcome) {
+    case 'jackpot':
+      return ['seven', 'seven', 'seven'];
+    case 'big':
+      return ['bell', 'bell', 'bell'];
+    case 'small':
+      return ['coin', 'coin', 'gem'];
+    case 'miss':
+      return ['skull', 'gem', 'coin'];
+  }
+}
+
+const ROULETTE_SLOTS: Record<RouletteBetKind, number[]> = {
+  green: [0],
+  red: [1, 3, 5, 7, 9, 11],
+  black: [2, 4, 6, 8, 10],
+};
+
+function rouletteFinalSlotForResult(
+  result: CasinoGameResult | null,
+  bet: RouletteBetKind | null,
+  seed: number,
+): number | null {
+  if (!result || !bet) return null;
+  if (result.outcome === 'jackpot') return 0;
+
+  const winningColor = bet === 'green' ? 'green' : bet;
+  const losingColor = bet === 'black' ? 'red' : 'black';
+  const targetColor = result.outcome === 'big' ? winningColor : losingColor;
+  const slots = ROULETTE_SLOTS[targetColor] ?? ROULETTE_SLOTS.red;
+  return slots[Math.abs(seed + result.label.length) % slots.length] ?? slots[0]!;
+}
+
+function coinFaceForResult(choice: string | null, result: CasinoGameResult | null): 'heads' | 'tails' | 'edge' | null {
+  if (!result) return null;
+  if (result.outcome === 'jackpot') return 'edge';
+  const calledFace = choice === 'tails' ? 'tails' : 'heads';
+  if (result.outcome === 'big') return calledFace;
+  return calledFace === 'heads' ? 'tails' : 'heads';
+}
+
+function coinFaceText(face: 'heads' | 'tails' | 'edge'): string {
+  if (face === 'edge') return 'EDGE';
+  return face.toUpperCase();
+}
+
 function ResultReveal({
   gameLabel,
   result,
@@ -205,12 +266,24 @@ function ResultReveal({
 function GamePrompt({ game, seed }: { game: CasinoGameId; seed: number }) {
   const [animating, setAnimating] = useState(false);
   const [choice, setChoice] = useState<string | null>(null);
+  const [visibleResult, setVisibleResult] = useState<CasinoGameResult | null>(null);
+  const [pendingSlotResult, setPendingSlotResult] = useState<CasinoGameResult | null>(null);
+  const [slotSpinKey, setSlotSpinKey] = useState(0);
+  const [pendingRouletteResult, setPendingRouletteResult] = useState<CasinoGameResult | null>(null);
+  const [rouletteSpinResult, setRouletteSpinResult] = useState<RouletteSpinResult | null>(null);
+  const [rouletteSpinKey, setRouletteSpinKey] = useState(0);
   const [blackjack, setBlackjack] = useState<BlackjackHand>(() => createBlackjackHand(seed));
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setAnimating(false);
     setChoice(null);
+    setVisibleResult(null);
+    setPendingSlotResult(null);
+    setSlotSpinKey(0);
+    setPendingRouletteResult(null);
+    setRouletteSpinResult(null);
+    setRouletteSpinKey(0);
     setBlackjack(createBlackjackHand(seed));
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
@@ -225,7 +298,7 @@ function GamePrompt({ game, seed }: { game: CasinoGameId; seed: number }) {
   }, [game, seed]);
 
   const startGame = (nextChoice?: string) => {
-    if (animating) return;
+    if (animating || visibleResult) return;
     const chosen = nextChoice ?? null;
     setChoice(chosen);
     setAnimating(true);
@@ -233,12 +306,88 @@ function GamePrompt({ game, seed }: { game: CasinoGameId; seed: number }) {
     haptic(HAPTIC.tap);
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
+      if (needsPreAnnouncementHold(game)) {
+        const result = settleCasinoGame(chosen ?? undefined);
+        if (!result) return;
+        setAnimating(false);
+        setVisibleResult(result);
+        if (game === 'slots') {
+          playSfx('slot_stop');
+          haptic(HAPTIC.land);
+        } else if (game === 'roulette') {
+          playSfx('roulette_land');
+          haptic(HAPTIC.land);
+        } else {
+          const face = coinFaceForResult(chosen, result);
+          playSfx(face === 'tails' ? 'coin_land_tails' : 'coin_land_heads');
+          haptic(HAPTIC.land);
+        }
+        timerRef.current = window.setTimeout(() => {
+          timerRef.current = null;
+          resolveCasinoGame(chosen ?? undefined);
+        }, PRE_ANNOUNCE_HOLD_MS[game] ?? 0);
+        return;
+      }
       resolveCasinoGame(chosen ?? undefined);
     }, GAME_ANIM_MS[game]);
   };
 
+  const startSlots = () => {
+    if (animating || visibleResult || pendingSlotResult) return;
+    const result = settleCasinoGame();
+    if (!result) return;
+    setChoice(null);
+    setPendingSlotResult(result);
+    setAnimating(true);
+    setSlotSpinKey((key) => key + 1);
+  };
+
+  const finishSlots = () => {
+    if (!pendingSlotResult) return;
+    const result = pendingSlotResult;
+    setPendingSlotResult(null);
+    setAnimating(false);
+    setVisibleResult(result);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      resolveCasinoGame();
+    }, PRE_ANNOUNCE_HOLD_MS.slots ?? 0);
+  };
+
+  const pickRouletteBet = (bet: RouletteBetKind) => {
+    if (animating || visibleResult || pendingRouletteResult) return;
+    setChoice(bet);
+    playSfx('ui_click');
+    haptic(HAPTIC.tap);
+  };
+
+  const startRoulette = () => {
+    if (animating || visibleResult || pendingRouletteResult) return;
+    const bet = choice === 'green' || choice === 'black' || choice === 'red' ? choice : null;
+    if (!bet) return;
+    const result = settleCasinoGame(bet);
+    if (!result) return;
+    setPendingRouletteResult(result);
+    setRouletteSpinResult(null);
+    setAnimating(true);
+    setRouletteSpinKey((key) => key + 1);
+  };
+
+  const finishRoulette = (spinResult: RouletteSpinResult) => {
+    if (!pendingRouletteResult) return;
+    const result = pendingRouletteResult;
+    setRouletteSpinResult(spinResult);
+    setPendingRouletteResult(null);
+    setAnimating(false);
+    setVisibleResult(result);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      resolveCasinoGame(choice ?? undefined);
+    }, PRE_ANNOUNCE_HOLD_MS.roulette ?? 0);
+  };
+
   const finishBlackjack = (nextHand: BlackjackHand) => {
-    if (animating) return;
+    if (animating || visibleResult) return;
     setBlackjack(nextHand);
     setChoice(nextHand.action ?? null);
     setAnimating(true);
@@ -274,34 +423,107 @@ function GamePrompt({ game, seed }: { game: CasinoGameId; seed: number }) {
   };
 
   if (game === 'slots') {
+    const slotResult = pendingSlotResult ?? visibleResult;
+    const finalSymbols = slotSymbolsForResult(slotResult);
+    const slotResultClass = !visibleResult
+      ? 'result-idle'
+      : visibleResult.outcome === 'miss'
+        ? 'result-lose'
+        : visibleResult.outcome === 'small'
+          ? 'result-small'
+          : 'result-big';
     return (
-      <div className={`casino-play-box ${animating ? 'is-playing' : ''}`}>
-        <div className={`casino-machine ${animating ? 'is-playing' : ''}`} aria-hidden>
-          <span><b>7</b><b>◆</b><b>$</b><b>7</b></span>
-          <span><b>◆</b><b>$</b><b>7</b><b>◆</b></span>
-          <span><b>$</b><b>7</b><b>◆</b><b>$</b></span>
+      <div className={`casino-play-box ${animating ? 'is-playing' : ''} ${visibleResult ? 'is-settled' : ''}`}>
+        <div className="station-slot casino-slot-station">
+          <div className="slot-wrap casino-slot-wrap" aria-hidden>
+            <SlotMachineRig
+              key={`casino-slot-${seed}`}
+              spinKey={slotSpinKey}
+              finalSymbols={finalSymbols}
+              onResolved={finishSlots}
+            />
+          </div>
+          <div className={`slot-result pixel-text ${slotResultClass}`} aria-live="polite">
+            {visibleResult
+              ? `REELS STOPPED · ${visibleResult.label.toUpperCase()}`
+              : animating
+                ? 'SPINNING...'
+                : 'PULL THE LEVER'}
+          </div>
+          <button
+            type="button"
+            className="slot-lever pixel-text casino-slot-lever"
+            onClick={startSlots}
+            disabled={animating || Boolean(visibleResult)}
+          >
+            ▸ {visibleResult ? 'PENDING' : animating ? 'ROLLING' : 'PULL'}
+            <span className="slot-lever-sub">{visibleResult ? 'PAYOUT' : 'LEVER'}</span>
+          </button>
         </div>
-        <button
-          className="btn-pixel btn-primary-v2 casino-main-action"
-          onClick={() => startGame()}
-          disabled={animating}
-        >
-          {animating ? 'REELS SPINNING' : 'PULL LEVER'}
-        </button>
       </div>
     );
   }
   if (game === 'roulette') {
+    const rouletteBet = choice === 'green' || choice === 'black' || choice === 'red' ? choice : null;
+    const rouletteResult = pendingRouletteResult ?? visibleResult;
+    const finalSlot = rouletteFinalSlotForResult(rouletteResult, rouletteBet, seed);
+    const rouletteResultClass = !visibleResult
+      ? 'result-idle'
+      : visibleResult.outcome === 'miss'
+        ? 'result-lose'
+        : 'result-big';
+
+    let rouletteResultText = 'PLACE A BET';
+    if (animating) {
+      rouletteResultText = 'SPINNING...';
+    } else if (visibleResult) {
+      const color = rouletteSpinResult?.color.toUpperCase() ?? rouletteBet?.toUpperCase() ?? 'TABLE';
+      rouletteResultText = rouletteSpinResult
+        ? `LANDED ${rouletteSpinResult.slot} · ${color} · ${visibleResult.label.toUpperCase()}`
+        : `BALL LANDED · ${visibleResult.label.toUpperCase()}`;
+    } else if (rouletteBet) {
+      rouletteResultText = `BET ${rouletteBet.toUpperCase()} · SPIN WHEN READY`;
+    }
+
     return (
-      <div className={`casino-play-box ${animating ? 'is-playing' : ''}`}>
-        <div className={`casino-wheel ${animating ? 'is-playing' : ''}`} aria-hidden>
-          <span className="casino-wheel-ball" />
-        </div>
-        {choice && <div className="casino-play-status">BET {choice.toUpperCase()} · BALL IN MOTION</div>}
-        <div className="casino-bet-row">
-          <button className="btn-pixel btn-ghost-v2" onClick={() => startGame('red')} disabled={animating}>BET RED</button>
-          <button className="btn-pixel btn-ghost-v2" onClick={() => startGame('black')} disabled={animating}>BET BLACK</button>
-          <button className="btn-pixel btn-primary-v2" onClick={() => startGame('green')} disabled={animating}>RISK GREEN</button>
+      <div className={`casino-play-box ${animating ? 'is-playing' : ''} ${visibleResult ? 'is-settled' : ''}`}>
+        <div className="station-roulette casino-roulette-station">
+          <div className="station-intro pixel-text">
+            Place a bet. Ball rides the rim, settles into a slot. Green 0 pays the moon.
+          </div>
+          <div className="roulette-wrap" aria-hidden>
+            <RouletteRig
+              key={`casino-roulette-${seed}`}
+              spinKey={rouletteSpinKey}
+              bet={rouletteBet}
+              finalSlot={finalSlot}
+              onResolved={finishRoulette}
+            />
+          </div>
+          <div className={`roulette-result pixel-text ${rouletteResultClass}`} aria-live="polite">
+            {rouletteResultText}
+          </div>
+          <div className="roulette-bets pixel-text">
+            {(['red', 'black', 'green'] as RouletteBetKind[]).map((bet) => (
+              <button
+                key={bet}
+                type="button"
+                className={`roulette-bet-btn bet-${bet} ${rouletteBet === bet ? 'is-active' : ''}`}
+                onClick={() => pickRouletteBet(bet)}
+                disabled={animating || Boolean(visibleResult)}
+              >
+                {bet === 'red' ? 'RED · 2×' : bet === 'black' ? 'BLACK · 2×' : 'GREEN · 12×'}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="roulette-spin-btn pixel-text"
+            onClick={startRoulette}
+            disabled={animating || Boolean(visibleResult) || !rouletteBet}
+          >
+            ▸ {animating ? 'SPINNING' : 'SPIN'}
+          </button>
         </div>
       </div>
     );
@@ -333,14 +555,14 @@ function GamePrompt({ game, seed }: { game: CasinoGameId; seed: number }) {
         </div>
         <div className="casino-bet-row casino-blackjack-actions">
           <button
-            className="btn-pixel btn-ghost-v2 casino-blackjack-action"
+            className="btn-pixel casino-choice-btn choice-hit casino-blackjack-action"
             onClick={hitBlackjack}
             disabled={animating || blackjack.settled || playerTotal >= 21}
           >
             HIT
           </button>
           <button
-            className="btn-pixel btn-primary-v2 casino-blackjack-action"
+            className="btn-pixel casino-choice-btn choice-stand casino-blackjack-action"
             onClick={standBlackjack}
             disabled={animating || blackjack.settled}
           >
@@ -350,15 +572,27 @@ function GamePrompt({ game, seed }: { game: CasinoGameId; seed: number }) {
       </div>
     );
   }
+  const landedFace = coinFaceForResult(choice, visibleResult);
+  const coinGlyph = landedFace === 'edge'
+    ? 'E'
+    : landedFace === 'tails' || (!landedFace && choice === 'tails')
+      ? 'T'
+      : 'H';
   return (
-    <div className={`casino-play-box ${animating ? 'is-playing' : ''}`}>
-      <div className={`casino-coin ${animating ? 'is-playing' : ''}`} aria-hidden>
-        <span>{choice === 'tails' ? 'T' : 'H'}</span>
+    <div className={`casino-play-box ${animating ? 'is-playing' : ''} ${visibleResult ? 'is-settled' : ''}`}>
+      <div className={`casino-coin ${animating ? 'is-playing' : ''} ${visibleResult ? 'is-settled' : ''}`} aria-hidden>
+        <span>{coinGlyph}</span>
       </div>
-      {choice && <div className="casino-play-status">CALLED {choice.toUpperCase()}</div>}
+      {visibleResult && landedFace ? (
+        <div className="casino-play-status casino-play-result">
+          LANDED {coinFaceText(landedFace)} · {visibleResult.label.toUpperCase()}
+        </div>
+      ) : (
+        choice && <div className="casino-play-status">CALLED {choice.toUpperCase()}</div>
+      )}
       <div className="casino-bet-row casino-coin-actions">
-        <button className="btn-pixel btn-ghost-v2 casino-coin-choice" onClick={() => startGame('heads')} disabled={animating}>HEADS</button>
-        <button className="btn-pixel btn-ghost-v2 casino-coin-choice" onClick={() => startGame('tails')} disabled={animating}>TAILS</button>
+        <button className="btn-pixel casino-choice-btn choice-heads casino-coin-choice" onClick={() => startGame('heads')} disabled={animating || Boolean(visibleResult)}>HEADS</button>
+        <button className="btn-pixel casino-choice-btn choice-tails casino-coin-choice" onClick={() => startGame('tails')} disabled={animating || Boolean(visibleResult)}>TAILS</button>
       </div>
     </div>
   );
@@ -447,6 +681,27 @@ function RewardTile({ reward, characterId }: { reward: CasinoChestReward; charac
   );
 }
 
+function casinoSlotLabel(slotIndex: number): { name: string; description: string; kind: string } {
+  const run = getRunState();
+  const slot = run?.slotLayout[slotIndex];
+  const character = run ? getCharacter(run.characterId) : undefined;
+  const replacer = slot?.replacerId ? getFaceUpgrade(slot.replacerId) : null;
+  if (replacer) {
+    return {
+      name: getFaceName(replacer.id, run?.characterId ?? null, replacer.name),
+      description: replacer.description,
+      kind: 'FORGE',
+    };
+  }
+
+  const baseline = character?.defaultFaces?.[slotIndex];
+  return {
+    name: baseline?.name ?? 'Baseline',
+    description: baseline?.description ?? 'Baseline face',
+    kind: 'BASE',
+  };
+}
+
 function RewardView() {
   const casino = useStore((s) => s.casinoState);
   const hud = useStore((s) => s.hud);
@@ -482,11 +737,22 @@ function RewardView() {
         <>
           <div className="casino-slot-row">
             {faceSlots.length === 0 && <span className="casino-small-note">NO VALID SLOT</span>}
-            {faceSlots.map((slot) => (
-              <button key={slot} className="btn-pixel btn-ghost-v2" onClick={() => claimCasinoReward(slot)}>
-                FACE {slot + 1}
-              </button>
-            ))}
+            {faceSlots.map((slot) => {
+              const currentFace = casinoSlotLabel(slot);
+              return (
+                <button
+                  key={slot}
+                  className="btn-pixel btn-ghost-v2 casino-face-choice"
+                  onClick={() => claimCasinoReward(slot)}
+                  title={`Face ${slot + 1} · ${currentFace.name}\n${currentFace.description}`}
+                  aria-label={`Put reward on face ${slot + 1}, currently ${currentFace.name}`}
+                >
+                  <span className="casino-face-choice-num">FACE {slot + 1}</span>
+                  <span className="casino-face-choice-name">{currentFace.name}</span>
+                  <span className="casino-face-choice-kind">{currentFace.kind}</span>
+                </button>
+              );
+            })}
           </div>
           {canConvert && (
             <button className="btn-pixel btn-ghost-v2 casino-convert casino-prize-action" onClick={() => convertCasinoRewardToGold()}>

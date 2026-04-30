@@ -4,13 +4,14 @@ import { playSfx } from '../audio/sfx';
 import { CoinFlipStation } from './den/CoinFlipStation';
 import { SlotMachineStation } from './den/SlotMachineStation';
 import { RouletteStation } from './den/RouletteStation';
+import { CardDrawStation } from './den/CardDrawStation';
 
 interface Station {
   id: StationId;
   name: string;
   tagline: string;
   glyph: string;
-  status: 'coming-soon' | 'prototype';
+  status: 'prototype';
 }
 
 type StationId = 'coin' | 'slot' | 'roulette' | 'cards';
@@ -42,7 +43,7 @@ const STATIONS: Station[] = [
     name: 'CARD DRAW',
     tagline: 'A hand of four. Play wisely.',
     glyph: '♠',
-    status: 'coming-soon',
+    status: 'prototype',
   },
 ];
 
@@ -69,7 +70,7 @@ export function DenScene() {
 
       <div className="den-toolbar">
         <button className="toolbar-btn" aria-label="back to menu" onClick={onBack}>
-          ◂
+          <span className="back-triangle" aria-hidden />
         </button>
       </div>
 
@@ -103,7 +104,7 @@ export function DenScene() {
                 </div>
                 <div className="den-station-tag">{station.tagline}</div>
                 <div className={`den-station-status status-${station.status}`}>
-                  {station.status === 'coming-soon' ? 'COMING SOON' : 'PROTOTYPE'}
+                  PROTOTYPE
                 </div>
               </button>
             );
@@ -124,6 +125,8 @@ export function DenScene() {
                   <SlotMachineStation />
                 ) : active.id === 'roulette' ? (
                   <RouletteStation />
+                ) : active.id === 'cards' ? (
+                  <CardDrawStation />
                 ) : (
                   <>
                     {active.tagline}
