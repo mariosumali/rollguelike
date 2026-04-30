@@ -1,0 +1,8 @@
+---
+description: Omit Cursor / tooling attribution from git commit messages.
+alwaysApply: true
+---
+
+# Git commit messages
+
+Do not mention Cursor—or any “made with” IDE/AI tooling attribution—in commit titles, bodies, or trailers (including `Made-with:` / `Co-authored-by:` lines for tools). Keep messages human-readable and scoped to the actual change.
