@@ -7,6 +7,7 @@ import {
   PARTICLE_DENSITY_VALUES,
   ENEMY_HP_BAR_VALUES,
   HAPTIC_STRENGTH_VALUES,
+  GAME_SPEED_MULTIPLIERS,
   DIE_THEME_IDS,
 } from './store';
 import type {
@@ -15,6 +16,7 @@ import type {
   ParticleDensity,
   EnemyHpBarMode,
   HapticStrength,
+  GameSpeedMultiplier,
   DieThemeId,
 } from './store';
 import { listUpgrades } from '../content/upgrades/registry';
@@ -47,6 +49,11 @@ export function loadMeta(): MetaState {
     merged.unlockedArsenal = Array.from(existing);
     merged.pendingArsenalUnlocks = merged.pendingArsenalUnlocks ?? [];
     merged.encounteredEnemyIds = uniqueStringArray(merged.encounteredEnemyIds);
+    merged.houseClears = merged.houseClears ?? 0;
+    merged.clockmakerRewindsUsed = merged.clockmakerRewindsUsed ?? 0;
+    merged.objectivesCompleted = merged.objectivesCompleted ?? 0;
+    merged.elementalSetMilestones = uniqueStringArray(merged.elementalSetMilestones);
+    merged.contractClears = merged.contractClears ?? {};
     // Dice themes: always grant defaults; retroactively re-check challenges so
     // new themes light up for returning players who already met the criteria.
     const diceStarter = new Set(base.unlockedDiceThemes);
@@ -114,6 +121,8 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     momentumT: parsed.momentumT,
     casinoWaveDamageTaken: parsed.casinoWaveDamageTaken ?? 0,
     casinoWaveEliteKills: parsed.casinoWaveEliteKills ?? 0,
+    easyWaveStreak: parsed.easyWaveStreak ?? 0,
+    adaptivePressure: parsed.adaptivePressure ?? 0,
     gold: parsed.gold ?? 0,
     ownedFaceUpgrades,
     slotLayout,
@@ -125,6 +134,16 @@ function migrateRun(parsed: Partial<RunState>): RunState {
     nextForgeDiscount: parsed.nextForgeDiscount,
     guaranteedForgeRarity: parsed.guaranteedForgeRarity,
     pendingCasino: migratePendingCasino(parsed.pendingCasino),
+    clockmakerRewindUsed: parsed.clockmakerRewindUsed ?? false,
+    clockmakerRewindFromWave: parsed.clockmakerRewindFromWave,
+    maxWaveThisRun: parsed.maxWaveThisRun ?? parsed.wave ?? 1,
+    houseCleared: parsed.houseCleared ?? false,
+    selectedContractId: parsed.selectedContractId ?? parsed.runMutatorId,
+    objectivesCompleted: parsed.objectivesCompleted ?? 0,
+    objectiveState: undefined,
+    elementalMeters: parsed.elementalMeters ?? {},
+    elementalCooldowns: parsed.elementalCooldowns ?? {},
+    elementalMilestonesSeen: uniqueStringArray(parsed.elementalMilestonesSeen),
   };
 }
 
@@ -227,6 +246,10 @@ function isHapticStrength(v: unknown): v is HapticStrength {
   return typeof v === 'string' && (HAPTIC_STRENGTH_VALUES as readonly string[]).includes(v);
 }
 
+function isGameSpeedMultiplier(v: unknown): v is GameSpeedMultiplier {
+  return typeof v === 'number' && (GAME_SPEED_MULTIPLIERS as readonly number[]).includes(v);
+}
+
 function isDieThemeId(v: unknown): v is DieThemeId {
   return typeof v === 'string' && (DIE_THEME_IDS as readonly string[]).includes(v);
 }
@@ -266,6 +289,7 @@ export function loadSettings(): Settings {
     if (!isParticleDensity(merged.particleDensity)) merged.particleDensity = DEFAULT_SETTINGS.particleDensity;
     if (!isEnemyHpBarMode(merged.enemyHpBars)) merged.enemyHpBars = DEFAULT_SETTINGS.enemyHpBars;
     if (!isHapticStrength(merged.hapticStrength)) merged.hapticStrength = DEFAULT_SETTINGS.hapticStrength;
+    if (!isGameSpeedMultiplier(merged.gameSpeedMultiplier)) merged.gameSpeedMultiplier = DEFAULT_SETTINGS.gameSpeedMultiplier;
     if (!isDieThemeId(merged.dieTheme)) merged.dieTheme = DEFAULT_SETTINGS.dieTheme;
 
     // Legacy `reduceShake` toggle → new `shakeIntensity` slider.
@@ -321,6 +345,11 @@ export interface RunSummary {
   characterId: string;
   kills?: number;
   goldSpent?: number;
+  houseCleared?: boolean;
+  clockmakerRewindsUsed?: number;
+  objectivesCompleted?: number;
+  elementalSetMilestones?: string[];
+  contractId?: string;
 }
 
 export function incrementRunsCompleted(summary: RunSummary): MetaState {
@@ -330,6 +359,11 @@ export function incrementRunsCompleted(summary: RunSummary): MetaState {
     characterId,
     kills = 0,
     goldSpent = 0,
+    houseCleared = false,
+    clockmakerRewindsUsed = 0,
+    objectivesCompleted = 0,
+    elementalSetMilestones = [],
+    contractId,
   } = summary;
   const meta = { ...useStore.getState().meta };
   meta.totalRunsCompleted += 1;
@@ -341,6 +375,16 @@ export function incrementRunsCompleted(summary: RunSummary): MetaState {
     Math.max(0, goldSpent),
   );
   meta.bestSingleRunKills = Math.max(meta.bestSingleRunKills ?? 0, kills);
+  meta.houseClears = (meta.houseClears ?? 0) + (houseCleared ? 1 : 0);
+  meta.clockmakerRewindsUsed = (meta.clockmakerRewindsUsed ?? 0) + clockmakerRewindsUsed;
+  meta.objectivesCompleted = (meta.objectivesCompleted ?? 0) + objectivesCompleted;
+  const milestoneSet = new Set(meta.elementalSetMilestones ?? []);
+  for (const id of elementalSetMilestones) milestoneSet.add(id);
+  meta.elementalSetMilestones = Array.from(milestoneSet);
+  if (contractId) {
+    meta.contractClears = { ...(meta.contractClears ?? {}) };
+    if (houseCleared) meta.contractClears[contractId] = (meta.contractClears[contractId] ?? 0) + 1;
+  }
   meta.highScores = { ...meta.highScores };
   const prev = meta.highScores[characterId] ?? 0;
   if (finalScore > prev) meta.highScores[characterId] = finalScore;
@@ -451,5 +495,10 @@ function defaultMeta(): MetaState {
     bestSingleRunKills: 0,
     unlockedDiceThemes: [...DIE_THEME_DEFAULT_UNLOCKS],
     pendingDiceThemeUnlocks: [],
+    houseClears: 0,
+    clockmakerRewindsUsed: 0,
+    objectivesCompleted: 0,
+    elementalSetMilestones: [],
+    contractClears: {},
   };
 }

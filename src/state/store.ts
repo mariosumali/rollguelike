@@ -19,8 +19,8 @@ export interface ForgeShopOffer {
 }
 
 export const BGM_TRACK_IDS = [
-  'overworld',
   'overture',
+  'overworld',
   'ancient',
   'courage',
   'omen',
@@ -31,13 +31,13 @@ export type BgmTrackId = (typeof BGM_TRACK_IDS)[number];
 
 /** Short labels in Settings; long descriptions for testing picks. */
 export const BGM_TRACK_CHOICES: { id: BgmTrackId; label: string; blurb: string }[] = [
-  { id: 'overworld', label: 'Overworld', blurb: 'Hyrule Field–style sky & rolling hills' },
-  { id: 'overture', label: 'Dice Overture', blurb: 'Orchestral title motif — harp, horns, and heroic D minor' },
-  { id: 'ancient', label: 'Ancient path', blurb: 'Kokiri / forest quest — mysterious woodwind & harp' },
-  { id: 'courage', label: 'Gold & steel', blurb: 'Castle + fanfare — brass, strings, heroic D major' },
-  { id: 'omen', label: 'Omen', blurb: 'Grave D minor: drums of fate, sombre brass & string cantus' },
-  { id: 'storm', label: 'Stormwall', blurb: 'Relentless E minor siege — driving kit & rising line' },
-  { id: 'throne', label: 'Throne', blurb: 'Slow G minor coronation: wide intervals, cavernous weight' },
+  { id: 'overture', label: 'Dice Overture', blurb: 'Playable title motif — harp, horns, and heroic D minor' },
+  { id: 'overworld', label: 'Front Foyer', blurb: 'Bright House entry arrangement of the title hook' },
+  { id: 'ancient', label: 'Ledger Grove', blurb: 'Hushed lower-register variation with old-wood ceremony' },
+  { id: 'courage', label: 'Gold & Steel', blurb: 'Major-key fanfare variation with brass answers' },
+  { id: 'omen', label: 'Omen Ledger', blurb: 'Grave half-time title statement with low brass' },
+  { id: 'storm', label: 'Stormwall', blurb: 'Driving transposed siege variation of the title hook' },
+  { id: 'throne', label: 'Throne Room', blurb: 'Slow, wide coronation variation with heavy cadence' },
 ];
 
 export const PARTICLE_DENSITY_VALUES = ['low', 'normal', 'high'] as const;
@@ -49,17 +49,22 @@ export type EnemyHpBarMode = (typeof ENEMY_HP_BAR_VALUES)[number];
 export const HAPTIC_STRENGTH_VALUES = ['low', 'normal', 'high'] as const;
 export type HapticStrength = (typeof HAPTIC_STRENGTH_VALUES)[number];
 
+export const GAME_SPEED_MULTIPLIERS = [1, 2, 4] as const;
+export type GameSpeedMultiplier = (typeof GAME_SPEED_MULTIPLIERS)[number];
+
 export { DIE_THEME_IDS };
 export type { DieThemeId };
 
 export interface Settings {
   // Audio
+  /** When true, all audio buses are silenced without changing volume sliders. */
+  audioMuted: boolean;
   masterVolume: number;
   sfxVolume: number;
   musicVolume: number;
   /** Independent volume for UI click sounds (menus, buttons). */
   uiVolume: number;
-  /** Procedural BGM variant (A/B test in Settings). */
+  /** Procedural adventure BGM arrangement. */
   bgmTrack: BgmTrackId;
   /** When true, master volume is silenced while the tab/window is unfocused. */
   muteWhenUnfocused: boolean;
@@ -101,6 +106,8 @@ export interface Settings {
   showTooltips: boolean;
   /** Automatically roll dice when idle so the player doesn't have to tap. */
   autoRoll: boolean;
+  /** Multiplies fixed-step simulation speed during active gameplay. */
+  gameSpeedMultiplier: GameSpeedMultiplier;
 
   // Legacy — retained only for backwards-compatible migration.
   /** @deprecated superseded by shakeIntensity. */
@@ -108,11 +115,12 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  audioMuted: false,
   masterVolume: 0.8,
   sfxVolume: 1,
   musicVolume: 0.6,
   uiVolume: 1,
-  bgmTrack: 'overworld',
+  bgmTrack: 'overture',
   muteWhenUnfocused: true,
   haptics: true,
   hapticStrength: 'normal',
@@ -130,6 +138,7 @@ export const DEFAULT_SETTINGS: Settings = {
   confirmQuit: true,
   showTooltips: true,
   autoRoll: false,
+  gameSpeedMultiplier: 1,
 };
 
 interface StoreState {
@@ -157,6 +166,11 @@ interface StoreState {
     roomLine: string;
     omenLine: string;
     forgeBonusLabel: string;
+    objectiveLabel: string;
+    objectiveStatus: string;
+    elementalSetLabel: string;
+    elementalSetDesc: string;
+    houseClearLabel: string;
   };
 
   upgradeOffers: UpgradeOffer[];
@@ -222,6 +236,11 @@ export const useStore = create<StoreState>()(
       roomLine: '',
       omenLine: '',
       forgeBonusLabel: '',
+      objectiveLabel: '',
+      objectiveStatus: '',
+      elementalSetLabel: '',
+      elementalSetDesc: '',
+      houseClearLabel: '',
     },
     upgradeOffers: [],
     upgradePicksRemaining: 0,
@@ -245,6 +264,11 @@ export const useStore = create<StoreState>()(
       bestSingleRunKills: 0,
       unlockedDiceThemes: [...DIE_THEME_DEFAULT_UNLOCKS],
       pendingDiceThemeUnlocks: [],
+      houseClears: 0,
+      clockmakerRewindsUsed: 0,
+      objectivesCompleted: 0,
+      elementalSetMilestones: [],
+      contractClears: {},
     },
     settings: { ...DEFAULT_SETTINGS },
     onboarded: false,
