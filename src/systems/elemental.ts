@@ -48,7 +48,7 @@ export function elementalDotDps(element: Element, base: number): number {
     case 'fire':
       return base * 0.35;
     case 'poison':
-      return base * 0.5;
+      return base * 0.7;
     default:
       return 0;
   }
