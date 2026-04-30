@@ -9,6 +9,7 @@ import { playSfx } from '../audio/sfx';
 import { CharacterPortrait } from './CharacterPortrait';
 import type { Character, Element, Face, FaceKind } from '../types';
 import { BALANCE } from '../config/balance';
+import { RUN_MUTATORS } from '../content/runMutators';
 
 const FACE_LABEL: Record<FaceKind, string> = {
   SHOT: 'SHOT',
@@ -149,6 +150,7 @@ export function CharacterSelect() {
   const setScreen = useStore((s) => s.setScreen);
   const meta = useStore((s) => s.meta);
   const [selected, setSelected] = useState<string>('soldier');
+  const [selectedContract, setSelectedContract] = useState<string>(RUN_MUTATORS[0]?.id ?? '');
   const [tick, setTick] = useState(0);
   const initialized = useRef(false);
 
@@ -181,7 +183,7 @@ export function CharacterSelect() {
   const onPlay = () => {
     if (!selChar || !selUnlocked) return;
     playSfx('ui_click');
-    startRun(selChar.id);
+    startRun(selChar.id, undefined, selectedContract || undefined);
   };
 
   const onBack = () => {
@@ -206,7 +208,7 @@ export function CharacterSelect() {
             onClick={onBack}
             aria-label="back"
           >
-            <span className="btn-chev">◂</span>
+            <span className="btn-chev back-triangle" aria-hidden />
             <span className="btn-label">BACK</span>
           </button>
 
@@ -346,6 +348,26 @@ export function CharacterSelect() {
         </div>
 
         <div className="select-foot">
+          <div className="contract-strip" aria-label="run contract">
+            {RUN_MUTATORS.slice(0, 3).map((contract) => {
+              const active = selectedContract === contract.id;
+              return (
+                <button
+                  key={contract.id}
+                  type="button"
+                  className={`contract-chip ${active ? 'active' : ''}`}
+                  onClick={() => {
+                    playSfx('ui_click');
+                    setSelectedContract(contract.id);
+                  }}
+                  title={contract.desc}
+                >
+                  <span className="contract-name">{contract.shortName}</span>
+                  <span className="contract-desc">{contract.name}</span>
+                </button>
+              );
+            })}
+          </div>
           <button
             className={`btn-pixel btn-primary-v2 btn-roll ${!selUnlocked ? 'locked' : ''}`}
             onClick={onPlay}

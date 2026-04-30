@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   useStore,
   getRunState,
-  BGM_TRACK_CHOICES,
   PARTICLE_DENSITY_VALUES,
   ENEMY_HP_BAR_VALUES,
   HAPTIC_STRENGTH_VALUES,
@@ -217,30 +216,12 @@ export function SettingsPanel({ onClose, inline }: Props) {
 
   const audioPane = (
     <>
+      {toggle('Mute all audio', settings.audioMuted, (v) => setSettings({ audioMuted: v }))}
       {slider('Master', settings.masterVolume, (v) => setSettings({ masterVolume: v }))}
       {slider('Music', settings.musicVolume, (v) => setSettings({ musicVolume: v }))}
       {slider('SFX', settings.sfxVolume, (v) => setSettings({ sfxVolume: v }))}
       {slider('UI clicks', settings.uiVolume, (v) => setSettings({ uiVolume: v }))}
       {toggle('Mute when unfocused', settings.muteWhenUnfocused, (v) => setSettings({ muteWhenUnfocused: v }))}
-      <div className="settings-bgm-block">
-        <div className="settings-bgm-title pixel-text">Adventure BGM</div>
-        <div className="bgm-track-row" role="group" aria-label="Background music style">
-          {BGM_TRACK_CHOICES.map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              className={`bgm-track-pill pixel-text ${settings.bgmTrack === o.id ? 'active' : ''}`}
-              title={settings.showTooltips ? o.blurb : undefined}
-              onClick={() => {
-                playSfx('ui_click');
-                setSettings({ bgmTrack: o.id });
-              }}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      </div>
     </>
   );
 

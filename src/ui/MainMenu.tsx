@@ -313,11 +313,19 @@ export function MainMenu() {
               </span>
               <span className="stat-key">CODEX</span>
             </button>
+            <div className="stat-tile">
+              <span className="stat-val">{meta.houseClears ?? 0}</span>
+              <span className="stat-key">HOUSE</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-val">{meta.objectivesCompleted ?? 0}</span>
+              <span className="stat-key">OATHS</span>
+            </div>
           </div>
         </div>
 
         <div className="foot-row">
-          <span className="foot-seg">V0.2</span>
+          <span className="foot-seg">V1.5</span>
           <span className="foot-dot">◆</span>
           <span className="foot-seg">MOBILE</span>
         </div>
@@ -982,7 +990,7 @@ function CodexPanel({ onClose }: { onClose: () => void }) {
             disabled={pageIndex === 0 || isTurning}
             aria-label="Previous codex page"
           >
-            ◂
+            <span className="back-triangle" aria-hidden />
           </button>
           <button
             type="button"
