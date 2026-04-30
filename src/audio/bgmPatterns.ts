@@ -76,10 +76,11 @@ function fillEnd(snare: boolean[]): boolean[] {
 }
 
 /**
- * ①–③ Adventure tone (field / woods / fanfare).
- * ④ Omen — D minor, half-time, grave.
- * ⑤ Stormwall — E minor, driving kit.
- * ⑥ Throne — G minor, slow & wide, coronation weight.
+ * Legacy seed sketches remain here for the debug menu and as arrangement
+ * reference. Playable adventure tracks are overridden below by
+ * `ADVENTURE_SUITE`, which makes every run cue a variation of the title
+ * leitmotif.
+ *
  * ⑦ Overture — the title leitmotif in playable adventure form.
  * + `menu` — non-selectable title-screen arrangement of the same leitmotif.
  *
@@ -943,6 +944,382 @@ const BGM_SEEDS: Record<
   },
 };
 
+const TITLE_BASS = [
+  38, 0, 45, 0, 34, 0, 41, 0, 36, 0, 43, 0, 33, 0, 40, 0,
+];
+const TITLE_LEAD = [
+  74, 77, 81, 84, 82, 81, 77, 74, 72, 74, 77, 79, 81, 79, 76, 74,
+];
+const TITLE_STATEMENT = [
+  74, 0, 77, 0, 81, 0, 84, 0, 82, 0, 81, 0, 77, 76, 74, 0,
+];
+const TITLE_COUNTER = [
+  0, 65, 0, 69, 0, 70, 0, 65, 0, 67, 0, 72, 0, 69, 0, 64,
+];
+const TITLE_ARP = [
+  62, 65, 69, 74, 58, 62, 65, 70, 60, 64, 67, 72, 57, 61, 64, 69,
+];
+const TITLE_STRINGS = [
+  50, 50, 50, 50, 46, 46, 46, 46, 48, 48, 48, 48, 45, 45, 45, 45,
+];
+const TITLE_BRASS = [
+  50, 0, 0, 57, 46, 0, 0, 53, 48, 0, 0, 55, 45, 0, 52, 0,
+];
+const FIELD_KICK = [
+  true, false, false, false, true, false, true, false, true, false, false, false, true, false, true, false,
+];
+const FIELD_SNARE = [
+  false, false, false, false, true, false, false, true, false, false, true, false, true, false, false, true,
+];
+const FIELD_HIHAT = [
+  true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false,
+];
+const DRIVE_KICK = [
+  true, false, true, false, true, false, true, true, true, false, true, false, true, false, true, true,
+];
+const DRIVE_SNARE = [
+  false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true,
+];
+const DRIVE_HIHAT = [
+  true, true, false, true, true, true, false, true, true, true, false, true, true, true, false, true,
+];
+const CEREMONY_KICK = [
+  true, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false,
+];
+const CEREMONY_SNARE = [
+  false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false,
+];
+const CEREMONY_HIHAT = [
+  false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false,
+];
+
+type SuitePatternOpts = {
+  bpm: number;
+  stepMul?: number;
+  bass: number[];
+  lead: number[];
+  strings: number[];
+  counter?: number[];
+  arp?: number[];
+  brass?: number[];
+  kick?: boolean[];
+  snare?: boolean[];
+  hihat?: boolean[];
+};
+
+function suitePattern(opts: SuitePatternOpts): BgmLayerPattern {
+  return {
+    bpm: opts.bpm,
+    stepMul: opts.stepMul ?? 1,
+    tone: 'orchestral',
+    bass: opts.bass,
+    lead: opts.lead,
+    counter: opts.counter ?? TITLE_COUNTER,
+    arp: opts.arp ?? TITLE_ARP,
+    strings: opts.strings,
+    brass: opts.brass ?? TITLE_BRASS,
+    kick: opts.kick ?? FIELD_KICK,
+    snare: opts.snare ?? FIELD_SNARE,
+    hihat: opts.hihat ?? FIELD_HIHAT,
+  };
+}
+
+// The playable suite reuses the title hook as source material so adventure
+// music feels like the same House seen through different rooms, not a playlist
+// of unrelated genre sketches.
+const ADVENTURE_SUITE: Record<
+  BgmTrackId,
+  { normal: BgmLayerPattern; boss: BgmLayerPattern }
+> = {
+  overworld: {
+    normal: suitePattern({
+      bpm: 150,
+      bass: TITLE_BASS,
+      lead: TITLE_LEAD,
+      strings: TITLE_STRINGS,
+      brass: [
+        50, 0, 0, 0, 46, 0, 0, 53, 48, 0, 0, 0, 45, 0, 52, 0,
+      ],
+    }),
+    boss: suitePattern({
+      bpm: 156,
+      stepMul: 0.9,
+      bass: [
+        38, 38, 45, 38, 34, 34, 41, 34, 36, 36, 43, 36, 33, 33, 40, 33,
+      ],
+      lead: [
+        74, 0, 77, 0, 81, 0, 84, 0, 82, 81, 77, 74, 76, 77, 79, 81,
+      ],
+      strings: TITLE_STRINGS,
+      brass: [
+        38, 0, 50, 0, 34, 0, 46, 0, 36, 0, 48, 0, 33, 0, 45, 52,
+      ],
+      kick: DRIVE_KICK,
+      snare: DRIVE_SNARE,
+      hihat: DRIVE_HIHAT,
+    }),
+  },
+  overture: {
+    normal: suitePattern({
+      bpm: 148,
+      bass: TITLE_BASS,
+      lead: TITLE_LEAD,
+      strings: TITLE_STRINGS,
+      brass: TITLE_BRASS,
+    }),
+    boss: suitePattern({
+      bpm: 154,
+      stepMul: 0.9,
+      bass: [
+        38, 38, 45, 38, 34, 34, 41, 34, 36, 36, 43, 36, 33, 33, 40, 33,
+      ],
+      lead: [
+        74, 0, 77, 0, 81, 0, 84, 0, 82, 81, 77, 74, 76, 77, 79, 81,
+      ],
+      counter: [
+        62, 0, 65, 0, 58, 0, 65, 0, 60, 0, 67, 0, 61, 0, 64, 0,
+      ],
+      strings: TITLE_STRINGS,
+      brass: [
+        38, 0, 50, 0, 34, 0, 46, 0, 36, 0, 48, 0, 33, 0, 45, 52,
+      ],
+      kick: DRIVE_KICK,
+      snare: DRIVE_SNARE,
+      hihat: DRIVE_HIHAT,
+    }),
+  },
+  ancient: {
+    normal: suitePattern({
+      bpm: 136,
+      stepMul: 1.06,
+      bass: [
+        38, 0, 0, 45, 34, 0, 0, 41, 36, 0, 43, 0, 33, 0, 40, 0,
+      ],
+      lead: offsetLayer(TITLE_STATEMENT, -12),
+      counter: [
+        0, 57, 0, 0, 0, 62, 0, 0, 0, 60, 0, 0, 0, 55, 0, 0,
+      ],
+      arp: offsetLayer(rotateArr(TITLE_ARP, 2), -7),
+      strings: offsetLayer(TITLE_STRINGS, -5),
+      brass: [
+        45, 0, 0, 0, 41, 0, 0, 0, 43, 0, 0, 0, 40, 0, 0, 0,
+      ],
+      kick: CEREMONY_KICK,
+      snare: CEREMONY_SNARE,
+      hihat: CEREMONY_HIHAT,
+    }),
+    boss: suitePattern({
+      bpm: 144,
+      stepMul: 0.94,
+      bass: [
+        38, 37, 38, 45, 34, 33, 34, 41, 36, 35, 36, 43, 33, 32, 33, 40,
+      ],
+      lead: [
+        62, 0, 65, 0, 69, 0, 72, 0, 70, 69, 65, 62, 64, 65, 67, 69,
+      ],
+      counter: [
+        57, 0, 60, 0, 53, 0, 60, 0, 55, 0, 62, 0, 54, 0, 57, 0,
+      ],
+      arp: offsetLayer(TITLE_ARP, -5),
+      strings: offsetLayer(TITLE_STRINGS, -7),
+      brass: [
+        38, 0, 45, 0, 34, 0, 41, 0, 36, 0, 43, 0, 33, 0, 40, 0,
+      ],
+      kick: DRIVE_KICK,
+      snare: DRIVE_SNARE,
+      hihat: DRIVE_HIHAT,
+    }),
+  },
+  courage: {
+    normal: suitePattern({
+      bpm: 160,
+      bass: [
+        41, 0, 48, 0, 38, 0, 45, 0, 43, 0, 50, 0, 40, 0, 47, 0,
+      ],
+      lead: [
+        77, 81, 84, 89, 86, 84, 81, 77, 79, 81, 84, 86, 89, 86, 84, 81,
+      ],
+      counter: [
+        0, 69, 0, 72, 0, 74, 0, 69, 0, 71, 0, 76, 0, 72, 0, 68,
+      ],
+      arp: [
+        65, 69, 72, 77, 62, 65, 69, 74, 67, 71, 74, 79, 64, 68, 71, 76,
+      ],
+      strings: [
+        53, 53, 53, 53, 50, 50, 50, 50, 55, 55, 55, 55, 52, 52, 52, 52,
+      ],
+      brass: [
+        53, 0, 0, 60, 50, 0, 0, 57, 55, 0, 0, 62, 52, 0, 59, 0,
+      ],
+    }),
+    boss: suitePattern({
+      bpm: 166,
+      stepMul: 0.88,
+      bass: [
+        41, 41, 48, 41, 38, 38, 45, 38, 43, 43, 50, 43, 40, 40, 47, 40,
+      ],
+      lead: [
+        77, 0, 81, 0, 84, 0, 89, 0, 86, 84, 81, 77, 79, 81, 84, 86,
+      ],
+      counter: [
+        65, 0, 69, 0, 62, 0, 69, 0, 67, 0, 71, 0, 64, 0, 68, 0,
+      ],
+      arp: [
+        65, 69, 72, 77, 62, 65, 69, 74, 67, 71, 74, 79, 64, 68, 71, 76,
+      ],
+      strings: [
+        53, 53, 53, 53, 50, 50, 50, 50, 55, 55, 55, 55, 52, 52, 52, 52,
+      ],
+      brass: [
+        41, 0, 53, 0, 38, 0, 50, 0, 43, 0, 55, 0, 40, 0, 52, 59,
+      ],
+      kick: DRIVE_KICK,
+      snare: DRIVE_SNARE,
+      hihat: DRIVE_HIHAT,
+    }),
+  },
+  omen: {
+    normal: suitePattern({
+      bpm: 112,
+      stepMul: 1.22,
+      bass: [
+        26, 0, 0, 0, 22, 0, 0, 0, 24, 0, 0, 0, 21, 0, 0, 0,
+      ],
+      lead: offsetLayer(TITLE_STATEMENT, -12),
+      counter: [
+        0, 53, 0, 0, 0, 58, 0, 0, 0, 55, 0, 0, 0, 52, 0, 0,
+      ],
+      arp: [
+        50, 53, 57, 53, 46, 50, 53, 46, 48, 52, 55, 52, 45, 49, 52, 49,
+      ],
+      strings: [
+        50, 50, 50, 50, 46, 46, 46, 46, 48, 48, 48, 48, 45, 45, 45, 45,
+      ],
+      brass: [
+        38, 0, 0, 0, 34, 0, 0, 0, 36, 0, 0, 0, 33, 0, 0, 0,
+      ],
+      kick: CEREMONY_KICK,
+      snare: CEREMONY_SNARE,
+      hihat: CEREMONY_HIHAT,
+    }),
+    boss: suitePattern({
+      bpm: 124,
+      stepMul: 0.98,
+      bass: [
+        26, 38, 26, 38, 22, 34, 22, 34, 24, 36, 24, 36, 21, 33, 21, 33,
+      ],
+      lead: [
+        62, 0, 65, 0, 69, 0, 72, 0, 70, 69, 65, 62, 64, 65, 67, 69,
+      ],
+      counter: [
+        50, 0, 53, 0, 46, 0, 53, 0, 48, 0, 55, 0, 45, 0, 52, 0,
+      ],
+      arp: [
+        50, 53, 57, 62, 46, 50, 53, 58, 48, 52, 55, 60, 45, 49, 52, 57,
+      ],
+      strings: offsetLayer(TITLE_STRINGS, -5),
+      brass: [
+        26, 0, 38, 0, 22, 0, 34, 0, 24, 0, 36, 0, 21, 0, 33, 40,
+      ],
+      kick: DRIVE_KICK,
+      snare: DRIVE_SNARE,
+      hihat: DRIVE_HIHAT,
+    }),
+  },
+  storm: {
+    normal: suitePattern({
+      bpm: 158,
+      stepMul: 0.96,
+      bass: offsetLayer(TITLE_BASS, 2),
+      lead: offsetLayer([
+        74, 0, 77, 0, 81, 0, 84, 0, 82, 81, 77, 74, 72, 74, 77, 79,
+      ], 2),
+      counter: offsetLayer([
+        62, 0, 65, 0, 58, 0, 65, 0, 60, 0, 67, 0, 61, 0, 64, 0,
+      ], 2),
+      arp: offsetLayer(TITLE_ARP, 2),
+      strings: offsetLayer(TITLE_STRINGS, 2),
+      brass: offsetLayer([
+        38, 0, 50, 0, 34, 0, 46, 0, 36, 0, 48, 0, 33, 0, 45, 0,
+      ], 2),
+      kick: [
+        true, false, false, false, true, false, true, false, true, false, false, true, true, false, true, false,
+      ],
+      snare: [
+        false, false, true, false, false, true, false, true, false, false, true, false, true, false, false, true,
+      ],
+      hihat: [
+        true, true, true, true, true, true, false, true, true, true, true, true, true, true, false, true,
+      ],
+    }),
+    boss: suitePattern({
+      bpm: 168,
+      stepMul: 0.86,
+      bass: offsetLayer([
+        38, 38, 45, 38, 34, 34, 41, 34, 36, 36, 43, 36, 33, 33, 40, 33,
+      ], 2),
+      lead: offsetLayer([
+        74, 0, 77, 0, 81, 0, 84, 0, 82, 81, 77, 74, 76, 77, 79, 81,
+      ], 2),
+      counter: offsetLayer([
+        62, 0, 65, 0, 58, 0, 65, 0, 60, 0, 67, 0, 61, 0, 64, 0,
+      ], 2),
+      arp: offsetLayer(TITLE_ARP, 2),
+      strings: offsetLayer(TITLE_STRINGS, 2),
+      brass: offsetLayer([
+        38, 0, 50, 0, 34, 0, 46, 0, 36, 0, 48, 0, 33, 0, 45, 52,
+      ], 2),
+      kick: DRIVE_KICK,
+      snare: DRIVE_SNARE,
+      hihat: DRIVE_HIHAT,
+    }),
+  },
+  throne: {
+    normal: suitePattern({
+      bpm: 104,
+      stepMul: 1.28,
+      bass: offsetLayer([
+        38, 0, 0, 0, 34, 0, 0, 0, 36, 0, 0, 0, 33, 0, 0, 0,
+      ], -7),
+      lead: offsetLayer(TITLE_STATEMENT, -7),
+      counter: offsetLayer([
+        0, 65, 0, 0, 0, 70, 0, 0, 0, 67, 0, 0, 0, 64, 0, 0,
+      ], -7),
+      arp: offsetLayer([
+        62, 0, 65, 0, 58, 0, 65, 0, 60, 0, 67, 0, 57, 0, 64, 0,
+      ], -7),
+      strings: offsetLayer(TITLE_STRINGS, -7),
+      brass: offsetLayer([
+        50, 0, 0, 0, 46, 0, 0, 0, 48, 0, 0, 0, 45, 0, 52, 0,
+      ], -7),
+      kick: CEREMONY_KICK,
+      snare: CEREMONY_SNARE,
+      hihat: CEREMONY_HIHAT,
+    }),
+    boss: suitePattern({
+      bpm: 118,
+      stepMul: 1.02,
+      bass: offsetLayer([
+        38, 0, 45, 38, 34, 0, 41, 34, 36, 0, 43, 36, 33, 0, 40, 33,
+      ], -7),
+      lead: offsetLayer([
+        74, 0, 77, 0, 81, 0, 84, 0, 82, 81, 77, 74, 76, 77, 79, 81,
+      ], -7),
+      counter: offsetLayer([
+        62, 0, 65, 0, 58, 0, 65, 0, 60, 0, 67, 0, 61, 0, 64, 0,
+      ], -7),
+      arp: offsetLayer(TITLE_ARP, -7),
+      strings: offsetLayer(TITLE_STRINGS, -7),
+      brass: offsetLayer([
+        38, 0, 50, 0, 34, 0, 46, 0, 36, 0, 48, 0, 33, 0, 45, 52,
+      ], -7),
+      kick: DRIVE_KICK,
+      snare: DRIVE_SNARE,
+      hihat: DRIVE_HIHAT,
+    }),
+  },
+};
+
 type Phrase = Omit<BgmLayerPattern, 'bpm' | 'stepMul'>;
 
 function phraseOf(p: BgmLayerPattern): Phrase {
@@ -1023,12 +1400,16 @@ export const BGM_SETS: Record<
   BgmPatternKey,
   { normal: BgmLayerPattern; boss: BgmLayerPattern }
 > = (() => {
+  const seeds: Record<
+    BgmPatternKey,
+    { normal: BgmLayerPattern; boss: BgmLayerPattern }
+  > = { ...BGM_SEEDS, ...ADVENTURE_SUITE };
   const out = {} as Record<
     BgmPatternKey,
     { normal: BgmLayerPattern; boss: BgmLayerPattern }
   >;
-  for (const key of Object.keys(BGM_SEEDS) as BgmPatternKey[]) {
-    const s = BGM_SEEDS[key];
+  for (const key of Object.keys(seeds) as BgmPatternKey[]) {
+    const s = seeds[key];
     out[key] = { normal: expandSong(s.normal), boss: expandSong(s.boss) };
   }
   return out;
