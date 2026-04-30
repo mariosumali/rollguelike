@@ -1,6 +1,13 @@
-import type { EnemyType, Enemy } from '../../types';
+import type { EnemyType, Enemy, Face, Projectile } from '../../types';
+import { BALANCE } from '../../config/balance';
 import { ARENA_W, HUD_H, WALL_Y } from '../../config/constants';
 import { palHex } from '../../sprites/palette';
+
+const BROODMOTHER_SPAWN_INTERVAL = [0, 8.0, 6.5, 5.4] as const;
+const BROODMOTHER_BURST_COUNT = [0, 2, 2, 3] as const;
+const BROODMOTHER_ACTIVE_CAP = [0, 3, 4, 5] as const;
+const GLASS_TWIN_COPY_INTERVAL = [0, 5.6, 4.8, 4.0] as const;
+const GLASS_TWIN_COPY_WINDUP = 0.9;
 
 function oscillate(e: Enemy, dt: number, amplitude: number): void {
   e.data['t'] = ((e.data['t'] as number | undefined) ?? 0) + dt;
@@ -10,13 +17,104 @@ function oscillate(e: Enemy, dt: number, amplitude: number): void {
   if (e.x > ARENA_W - 24) e.x = ARENA_W - 24;
 }
 
-function approachTargetY(e: Enemy, dt: number, targetY: number): void {
-  if (e.y < targetY) e.vy = e.speed;
-  else if (e.y > targetY + 2) e.vy = -e.speed * 0.5;
+function approachTargetY(e: Enemy, dt: number, targetY: number, speedMul = 1): void {
+  const speed = e.speed * speedMul;
+  if (e.y < targetY) e.vy = speed;
+  else if (e.y > targetY + 2) e.vy = -speed * 0.5;
   else e.vy = 0;
   e.y += e.vy * dt;
   e.y = Math.max(HUD_H + 24, Math.min(e.y, targetY + 2));
   e.vy = 0;
+}
+
+interface MirrorVolleySpec {
+  count: number;
+  damage: number;
+  faceValue: number;
+  radius: number;
+  speed: number;
+  spreadStep: number;
+}
+
+function readyHostileMirrorProjectile(p: Projectile, e: Enemy, angle: number, spec: MirrorVolleySpec): void {
+  p.alive = true;
+  p.x = e.x;
+  p.y = e.y + 10;
+  p.vx = Math.cos(angle) * spec.speed;
+  p.vy = Math.sin(angle) * spec.speed;
+  p.damage = spec.damage;
+  p.radius = spec.radius;
+  p.pierce = 0;
+  p.bounces = 0;
+  p.chain = 0;
+  p.split = 0;
+  p.homing = false;
+  p.aoeOnHit = 0;
+  p.lifesteal = 0;
+  p.element = 'arcane';
+  p.age = 0;
+  p.maxAge = 2;
+  p.trail.length = 0;
+  p.hitIds.clear();
+  p.color = palHex('H')!;
+  p.sourceFaceValue = spec.faceValue;
+  p.archetype = null;
+  p.rotation = angle;
+  p.tags.clear();
+  p.tags.add('hostile');
+  p.critChance = 0;
+  p.burnDps = 0;
+  p.burnDur = 0;
+  p.orbit = undefined;
+  p.minion = undefined;
+  p.animTrailId = undefined;
+}
+
+function mirrorVolleySpec(face: Face | null, phase: number): MirrorVolleySpec | null {
+  if (!face) return null;
+  if (face.kind === 'SHOT' || face.kind === 'BURST' || face.kind === 'CHARGED_BOLT' || face.kind === 'BOMB' || face.kind === 'SOUL_DRAIN') {
+    const cap = phase >= 3 ? 5 : phase >= 2 ? 4 : 3;
+    const baseCount = face.projectileCount ?? (face.kind === 'SHOT' || face.kind === 'BURST' ? face.value : 1);
+    return {
+      count: Math.max(1, Math.min(cap, baseCount)),
+      damage: phase >= 3 ? 12 : phase >= 2 ? 10 : 8,
+      faceValue: face.value,
+      radius: face.kind === 'BOMB' ? 4 : 3,
+      speed: 118,
+      spreadStep: face.kind === 'BURST' || face.kind === 'BOMB' ? 0.18 : 0.12,
+    };
+  }
+  if (face.kind === 'PULSE' || face.kind === 'RAGE_SMASH') {
+    return {
+      count: phase >= 3 ? 4 : phase >= 2 ? 3 : 2,
+      damage: phase >= 3 ? 10 : 8,
+      faceValue: face.value,
+      radius: 4,
+      speed: 96,
+      spreadStep: 0.26,
+    };
+  }
+  return null;
+}
+
+function spawnMirrorTell(e: Enemy, life: number, size: number): void {
+  import('../../engine/engine').then(({ getEngineState }) => {
+    const st = getEngineState();
+    const v = st.vfx.find((x) => !x.alive);
+    if (!v) return;
+    v.alive = true;
+    v.age = 0;
+    v.life = life;
+    v.kind = 'ring';
+    v.x = e.x;
+    v.y = e.y + 8;
+    v.vx = 0;
+    v.vy = 0;
+    v.color = palHex('H')!;
+    v.size = size;
+    v.angle = 0;
+    v.rot = 0;
+  });
 }
 
 export const BOSS_TYPES: EnemyType[] = [
@@ -52,10 +150,7 @@ export const BOSS_TYPES: EnemyType[] = [
     },
     behavior: (e, dt) => {
       const maxY = WALL_Y - 60;
-      if (e.y < maxY) {
-        e.y += 4 * dt;
-        if (e.y > maxY) e.y = maxY;
-      }
+      approachTargetY(e, dt, maxY, 0.5);
       oscillate(e, dt, 18);
     },
     bossMechanic: (e, dt) => {
@@ -85,7 +180,7 @@ export const BOSS_TYPES: EnemyType[] = [
     weakness: 'Area denial and quick egg cleanup keep the board readable.',
     spawnLine: 'The Broodmother antes a nest of loaded dice.',
     deathLine: 'The brood scatters from an empty throne.',
-    baseHp: 145,
+    baseHp: 72,
     baseSpeed: 8,
     radius: 16,
     minWave: 10,
@@ -104,19 +199,23 @@ export const BOSS_TYPES: EnemyType[] = [
     },
     behavior: (e, dt) => {
       approachTargetY(e, dt, HUD_H + 50);
-      oscillate(e, dt, 36);
+      oscillate(e, dt, 18);
     },
     bossMechanic: (e, dt) => {
       e.data['spawnT'] = ((e.data['spawnT'] as number | undefined) ?? 0) + dt;
       const phase = bossPhase(e);
-      if ((e.data['spawnT'] as number) > (phase >= 2 ? 2.9 : 4.2)) {
+      if ((e.data['spawnT'] as number) > BROODMOTHER_SPAWN_INTERVAL[phase]) {
         e.data['spawnT'] = 0;
         import('../../engine/engine').then(({ getEngineState }) => {
           const st = getEngineState();
-          const count = phase >= 3 ? 5 : phase >= 2 ? 4 : 3;
+          if (!st.run) return;
+          const activeBrood = st.enemies.filter((x) => x.alive && x.typeId === 'swarm' && x.data['brood']).length;
+          const count = Math.min(BROODMOTHER_BURST_COUNT[phase], BROODMOTHER_ACTIVE_CAP[phase] - activeBrood);
+          if (count <= 0) return;
           for (let i = 0; i < count; i++) {
             const c = st.enemies.find((x) => !x.alive);
             if (!c) return;
+            const minionHp = 8 + Math.floor(BALANCE.enemy.scalingWave(st.run.wave) * 0.7);
             Object.assign(c, {
               alive: true,
               typeId: 'swarm',
@@ -124,15 +223,15 @@ export const BOSS_TYPES: EnemyType[] = [
               y: e.y + 14,
               vx: 0,
               vy: e.speed + 30,
-              maxHp: 8 + Math.floor(st.run!.wave * 0.7),
-              hp: 8 + Math.floor(st.run!.wave * 0.7),
+              maxHp: minionHp,
+              hp: minionHp,
               radius: 5,
               speed: 40,
               age: 0,
               state: 'walk',
               flashT: 0,
               dieT: 0,
-              data: {},
+              data: { brood: true },
               element: 'none',
               hitFlash: 0,
               slow: 0,
@@ -155,8 +254,8 @@ export const BOSS_TYPES: EnemyType[] = [
     role: 'Warden of copied intent',
     lore: 'A perfect reflection that learned to hate the original.',
     tell: 'Its glass body shows your last face before it fires.',
-    threat: 'Turns your projectile faces into hostile mirrored volleys.',
-    weakness: 'Use timing, pulses, and defensive rolls to deny clean copies.',
+    threat: 'Copies your attack faces into hostile mirrored volleys after a glass tell.',
+    weakness: 'Defensive rolls during the tell deny the copy; attacks and pulses can shatter incoming glass.',
     spawnLine: 'The mirror blinks first.',
     deathLine: 'The reflection forgets your shape.',
     baseHp: 135,
@@ -167,11 +266,11 @@ export const BOSS_TYPES: EnemyType[] = [
     touchDamage: 16,
     scoreValue: 400,
     isBoss: true,
-    mechanicDesc: 'Copies your last projectile face. Bait mirrored shots away from the wall.',
+    mechanicDesc: 'Telegraphs a copy window, then mirrors your current attack face into hostile glass.',
     bossDossier: {
       title: 'Warden of Reflected Intent',
-      rule: 'Your last projectile face returns as a hostile mirror volley.',
-      weakness: 'Non-projectile faces and staggered timing break the copy rhythm.',
+      rule: 'After a tell, your current attack face returns as hostile glass.',
+      weakness: 'Roll defense to deny the copy, or shoot and pulse the shards before they reach the wall.',
       lore: 'The House keeps a duplicate receipt for every heroic decision.',
       phaseLines: ['It learns the shape of one shot.', 'The copy sharpens.', 'The mirror starts firing first.'],
       rewardLine: 'Broken glass is still sharp enough for the forge.',
@@ -185,63 +284,42 @@ export const BOSS_TYPES: EnemyType[] = [
       e.x += Math.sign(d) * Math.min(Math.abs(d), 40 * dt);
     },
     bossMechanic: (e, dt) => {
-      e.data['copyT'] = ((e.data['copyT'] as number | undefined) ?? 0) + dt;
       const phase = bossPhase(e);
-      if ((e.data['copyT'] as number) > (phase >= 2 ? 2.2 : 3.2)) {
+      if (e.data['copyArming']) {
+        e.data['copyWindupT'] = ((e.data['copyWindupT'] as number | undefined) ?? 0) + dt;
+        const tellBucket = Math.floor((e.data['copyWindupT'] as number) * 8);
+        if (e.data['copyTellBucket'] !== tellBucket) {
+          e.data['copyTellBucket'] = tellBucket;
+          spawnMirrorTell(e, 0.22, 18 + tellBucket * 2);
+        }
+        if ((e.data['copyWindupT'] as number) < GLASS_TWIN_COPY_WINDUP) return;
+        e.data['copyArming'] = false;
+        e.data['copyWindupT'] = 0;
         e.data['copyT'] = 0;
         import('../../engine/engine').then(({ getEngineState }) => {
           const st = getEngineState();
           const run = st.run;
-          if (!run || !st.lastRolled) return;
-          const face = st.lastRolled;
-          if (face.kind === 'SHOT' || face.kind === 'BURST') {
-            const count = face.projectileCount ?? face.value;
-            for (let i = 0; i < count; i++) {
-              const spread = count > 1 ? (i - (count - 1) / 2) * 0.14 : 0;
-              const ang = Math.PI / 2 + spread;
-              const np = st.projectiles.find((p) => !p.alive);
-              if (!np) continue;
-              np.alive = true;
-              np.x = e.x;
-              np.y = e.y + 10;
-              np.vx = Math.cos(ang) * 140;
-              np.vy = Math.sin(ang) * 140;
-              np.damage = phase >= 2 ? 16 : 11;
-              np.radius = 3;
-              np.pierce = 0;
-              np.bounces = 0;
-              np.chain = 0;
-              np.split = 0;
-              np.homing = false;
-              np.aoeOnHit = 0;
-              np.lifesteal = 0;
-              np.element = 'arcane';
-              np.age = 0;
-              np.maxAge = 2;
-              np.trail.length = 0;
-              np.hitIds.clear();
-              np.color = palHex('H')!;
-              np.sourceFaceValue = face.value;
-              np.hitIds.add(-2);
-            }
-          } else if (phase >= 3 && face.kind === 'PULSE') {
-            const v = st.vfx.find((x) => !x.alive);
-            if (v) {
-              v.alive = true;
-              v.age = 0;
-              v.life = 0.45;
-              v.kind = 'ring';
-              v.x = e.x;
-              v.y = e.y + 16;
-              v.vx = 0;
-              v.vy = 0;
-              v.color = palHex('H')!;
-              v.size = 34;
-              v.angle = 0;
-              v.rot = 0;
-            }
+          if (!run) return;
+          const face = st.lastRolled ?? null;
+          const volley = mirrorVolleySpec(face, phase);
+          if (!volley) return;
+          for (let i = 0; i < volley.count; i++) {
+            const spread = volley.count > 1 ? (i - (volley.count - 1) / 2) * volley.spreadStep : 0;
+            const ang = Math.PI / 2 + spread;
+            const np = st.projectiles.find((p) => !p.alive);
+            if (!np) continue;
+            readyHostileMirrorProjectile(np, e, ang, volley);
           }
+          spawnMirrorTell(e, 0.35, 28);
         });
+        return;
+      }
+      e.data['copyT'] = ((e.data['copyT'] as number | undefined) ?? 0) + dt;
+      if ((e.data['copyT'] as number) > GLASS_TWIN_COPY_INTERVAL[phase]) {
+        e.data['copyArming'] = true;
+        e.data['copyWindupT'] = 0;
+        e.data['copyTellBucket'] = -1;
+        spawnMirrorTell(e, GLASS_TWIN_COPY_WINDUP, 24);
       }
     },
   },

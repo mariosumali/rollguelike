@@ -1,4 +1,4 @@
-import type { WaveScript, SpawnEvent, EnemyType, RunState, WaveArchetypeId, EliteKind, HouseEnemyFamily } from '../../types';
+import type { WaveScript, SpawnEvent, EnemyType, RunState, WaveArchetypeId, EliteKind, HouseEnemyFamily, WaveObjectiveScript } from '../../types';
 import { BALANCE } from '../../config/balance';
 import { ARENA_W } from '../../config/constants';
 import { listNonBosses, listBosses } from '../enemies/registry';
@@ -16,9 +16,11 @@ function generateRegularWave(waveNum: number, rng: () => number, run?: RunState)
   const biome = biomeRuleForWave(waveNum);
   const archetype = pickArchetype(waveNum, rng, mutator?.modifiers.forceOddEvenEarly ? 'puzzle' : undefined, biome.archetypeWeights);
   const pool = eligiblePool(waveNum, mutator?.modifiers.forceOddEvenEarly ?? false);
+  const pressureCountMul = BALANCE.enemy.endlessCountMul(waveNum) * BALANCE.enemy.adaptiveCountMul(run?.adaptivePressure ?? 0);
+  const countWave = BALANCE.enemy.scalingWave(waveNum) * pressureCountMul;
   const baseCount = BALANCE.enemy.countPerWave(waveNum, false);
-  const count = Math.max(3, Math.round(baseCount * (mutator?.modifiers.enemyCountMul ?? 1) * archetypeCountMul(archetype)));
-  const spawnInterval = BALANCE.enemy.baseSpawnInterval(waveNum) * archetypeIntervalMul(archetype);
+  const count = Math.max(3, Math.round(baseCount * pressureCountMul * (mutator?.modifiers.enemyCountMul ?? 1) * archetypeCountMul(archetype)));
+  const spawnInterval = Math.max(0.18, BALANCE.enemy.baseSpawnInterval(waveNum) * archetypeIntervalMul(archetype) / Math.sqrt(pressureCountMul));
   const events: SpawnEvent[] = [];
   let t = 0.2;
 
@@ -28,6 +30,7 @@ function generateRegularWave(waveNum: number, rng: () => number, run?: RunState)
     BALANCE.enemy.eliteBaseChance(waveNum) +
       (mutator?.modifiers.eliteChanceBonus ?? 0) +
       (biome.eliteChanceBonus ?? 0) +
+      Math.min(0.26, Math.max(0, waveNum - BALANCE.waves.houseClearWave) * 0.01 + (run?.adaptivePressure ?? 0) * 0.015) +
       (archetype === 'eliteDuel' ? 0.5 : 0),
   );
 
@@ -39,12 +42,12 @@ function generateRegularWave(waveNum: number, rng: () => number, run?: RunState)
   }
 
   if (archetype === 'rush' || archetype === 'splitterFlood') {
-    const clusters = Math.max(1, Math.floor(waveNum / 6));
+    const clusters = Math.max(1, Math.floor(countWave / 6));
     for (let c = 0; c < clusters; c++) {
       const type = pickArchetypeEnemy(rng, pool, weights, preferred, c);
       const baseT = randRange(rng, 1.1, Math.max(2, t - 0.5));
       const cx = randRange(rng, 40, ARENA_W - 40);
-      const clusterSize = archetype === 'rush' ? 4 + Math.floor(waveNum / 12) : 3 + Math.floor(waveNum / 16);
+      const clusterSize = archetype === 'rush' ? 4 + Math.floor(countWave / 12) : 3 + Math.floor(countWave / 16);
       for (let k = 0; k < clusterSize; k++) {
         pushSpawn(events, type, baseT + k * 0.15, cx + (k - (clusterSize - 1) / 2) * 11, rng, eliteChance * 0.35, false);
       }
@@ -61,14 +64,24 @@ function generateRegularWave(waveNum: number, rng: () => number, run?: RunState)
   }
 
   if (archetype === 'ambush') {
-    for (let i = 0; i < Math.max(2, Math.floor(waveNum / 7)); i++) {
+    for (let i = 0; i < Math.max(2, Math.floor(countWave / 7)); i++) {
       const ambusher = pickByIds(rng, pool, ['invisible', 'drifter', 'copier']) ?? weighted(rng, weights);
       pushSpawn(events, ambusher, randRange(rng, 1.0, Math.max(2.5, t - 0.25)), i % 2 === 0 ? 32 : ARENA_W - 32, rng, eliteChance * 0.5, false);
     }
   }
 
+  const objective = pickObjective(waveNum, rng, archetype, pool);
+  if (objective?.targetTypeId && objective.targetT !== undefined && objective.targetX !== undefined) {
+    events.push({
+      typeId: objective.targetTypeId,
+      t: objective.targetT,
+      x: objective.targetX,
+      objectiveRole: objective.kind === 'banner' ? 'banner' : objective.kind === 'chest' ? 'chest' : undefined,
+    });
+  }
+
   events.sort((a, b) => a.t - b.t);
-  return { wave: waveNum, isBoss: false, events, duration: t + 1, archetypeId: archetype, biomeRuleId: biome.id };
+  return { wave: waveNum, isBoss: false, events, duration: t + 1, archetypeId: archetype, biomeRuleId: biome.id, objective };
 }
 
 function generateBossWave(waveNum: number, rng: () => number, run?: RunState): WaveScript {
@@ -78,7 +91,8 @@ function generateBossWave(waveNum: number, rng: () => number, run?: RunState): W
   const events: SpawnEvent[] = [
     { typeId: boss.id, t: 2.0, x: ARENA_W / 2 },
   ];
-  const minions = Math.floor(waveNum / 10);
+  const pressureCountMul = BALANCE.enemy.endlessCountMul(waveNum) * BALANCE.enemy.adaptiveCountMul(run?.adaptivePressure ?? 0);
+  const minions = Math.floor((BALANCE.enemy.scalingWave(waveNum) * pressureCountMul) / 10);
   const minionPool = eligiblePool(waveNum, getRunMutator(run?.runMutatorId)?.modifiers.forceOddEvenEarly ?? false)
     .filter((t) => !t.elite);
   if (minions > 0 && minionPool.length > 0) {
@@ -207,6 +221,58 @@ function pickByIds(rng: () => number, pool: EnemyType[], ids: string[]): EnemyTy
   const matches = ids.map((id) => pool.find((t) => t.id === id)).filter((t): t is EnemyType => !!t);
   if (matches.length === 0) return null;
   return pick(rng, matches);
+}
+
+function pickObjective(
+  waveNum: number,
+  rng: () => number,
+  archetype: WaveArchetypeId,
+  pool: EnemyType[],
+): WaveObjectiveScript | undefined {
+  if (waveNum < 3 || waveNum % BALANCE.waves.bossEvery === 0) return undefined;
+  const chance = waveNum < 8 ? 0.24 : 0.38;
+  if (rng() > chance) return undefined;
+  const kinds: WaveObjectiveScript['kind'][] = waveNum >= 10
+    ? ['banner', 'chest', 'timer', 'protect']
+    : ['banner', 'chest', 'timer'];
+  const kind = pick(rng, kinds);
+  const rewardGold = 8 + Math.floor(waveNum * 1.6);
+  if (kind === 'timer') {
+    return {
+      kind,
+      label: 'CURSED CLOCK',
+      desc: 'Clear before the clock expires for bonus forge luck.',
+      timeLimit: Math.max(10, 18 - Math.floor(waveNum / 4)),
+      rewardGold,
+      rewardRarity: waveNum >= 12 ? 'epic' : 'rare',
+    };
+  }
+  if (kind === 'protect') {
+    return {
+      kind,
+      label: 'HOLD THE WALL',
+      desc: 'Take no wall damage this wave for a forge discount.',
+      rewardGold,
+      rewardForgeDiscount: 0.12,
+    };
+  }
+  const target = kind === 'banner'
+    ? pickByIds(rng, pool, ['healer', 'debuffer', 'copier', 'tank']) ?? pool[0]
+    : pickByIds(rng, pool, ['tank', 'absorber', 'drifter']) ?? pool[0];
+  if (!target) return undefined;
+  return {
+    kind,
+    label: kind === 'banner' ? 'BREAK THE BANNER' : 'CRACK THE CHEST',
+    desc: kind === 'banner'
+      ? 'Kill the marked servant before wave end for rarer forge odds.'
+      : 'Break the marked vault before it reaches the wall for a richer chest.',
+    targetTypeId: target.id,
+    targetT: kind === 'banner' ? 1.2 : 1.6,
+    targetX: randRange(rng, 28, ARENA_W - 28),
+    rewardGold,
+    rewardForgeDiscount: kind === 'chest' ? 0.08 : undefined,
+    rewardRarity: kind === 'banner' || archetype === 'eliteDuel' ? 'rare' : undefined,
+  };
 }
 
 function laneX(rng: () => number, type: EnemyType): number {

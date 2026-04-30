@@ -169,7 +169,8 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_soldier',
     startingDice: [soldierStart],
     baseProjectile: PROJECTILE_ARCHETYPES.soldier_bullet!,
-    exclusiveUpgrades: ['overwatch', 'bastion_bolt'],
+    exclusiveUpgrades: ['bastion_bolt'],
+    startingPassiveUpgrades: ['overwatch'],
     passive: {},
     defaultFaces: SOLDIER_DEFAULTS,
   },
@@ -182,7 +183,8 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_gambler',
     startingDice: [gamblerStart],
     baseProjectile: PROJECTILE_ARCHETYPES.gambler_chip!,
-    exclusiveUpgrades: ['all_in', 'loaded_jackpot'],
+    exclusiveUpgrades: [],
+    startingPassiveUpgrades: ['all_in', 'loaded_jackpot'],
     passive: {
       onRoll: ({ face }) => {
         const run = getRunState();
@@ -212,7 +214,8 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_alchemist',
     startingDice: [alchemistStart],
     baseProjectile: PROJECTILE_ARCHETYPES.alchemist_flask!,
-    exclusiveUpgrades: ['transmute', 'reaction_mastery', 'volatile_mixture'],
+    exclusiveUpgrades: [],
+    startingPassiveUpgrades: ['transmute', 'reaction_mastery', 'volatile_mixture'],
     passive: {},
     defaultFaces: ALCHEMIST_DEFAULTS,
     restrictedKinds: ALCHEMIST_RESTRICT,
@@ -229,7 +232,8 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_necromancer',
     startingDice: [necromancerStart],
     baseProjectile: PROJECTILE_ARCHETYPES.necromancer_bone!,
-    exclusiveUpgrades: ['soul_harvest', 'grave_contract'],
+    exclusiveUpgrades: ['grave_contract'],
+    startingPassiveUpgrades: ['soul_harvest'],
     passive: {},
     defaultFaces: NECROMANCER_DEFAULTS,
     lockedSlots: [5],
@@ -246,7 +250,8 @@ export const CHARACTERS: Character[] = [
     spriteId: 'char_berserker',
     startingDice: [berserkerStart],
     baseProjectile: PROJECTILE_ARCHETYPES.berserker_axe!,
-    exclusiveUpgrades: ['bloodrush', 'rage_cyclone'],
+    exclusiveUpgrades: ['rage_cyclone'],
+    startingPassiveUpgrades: ['bloodrush'],
     passive: {},
     defaultFaces: BERSERKER_DEFAULTS,
     unlockCondition: (meta) =>
@@ -265,10 +270,9 @@ export const CHARACTERS: Character[] = [
     exclusiveUpgrades: ['time_snare'],
     passive: {},
     defaultFaces: CLOCKMAKER_DEFAULTS,
-    // Intentionally unreachable for now — a future "Go back in time" mechanic
-    // will replace this predicate.
-    unlockCondition: () => false,
-    unlockHint: 'Go back in time.',
+    unlockCondition: (meta) =>
+      (meta.totalRunsCompleted ?? 0) >= BALANCE.meta.clockmakerUnlockRuns,
+    unlockHint: `Finish ${BALANCE.meta.clockmakerUnlockRuns} runs.`,
   },
 ];
 
