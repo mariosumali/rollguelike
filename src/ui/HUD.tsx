@@ -49,6 +49,17 @@ export function HUD({ onPause }: Props) {
             <span className="chip-val">{hud.runMutatorShortName}</span>
           </div>
         )}
+        {hud.elementalSetLabel && (
+          <div className="hud-chip elemental-set-chip pixel-text" title={hud.elementalSetDesc}>
+            <span className="chip-key">SET</span>
+            <span className="chip-val">{hud.elementalSetLabel}</span>
+          </div>
+        )}
+        {hud.houseClearLabel && (
+          <div className="hud-chip house-clear-chip pixel-text">
+            <span className="chip-val">{hud.houseClearLabel}</span>
+          </div>
+        )}
         <div key={scorePopKey} className="hud-chip score-chip pixel-text score-pop">
           <span className="chip-dot">{pip}</span>
           <span className="chip-val">{hud.score}</span>
@@ -73,6 +84,12 @@ export function HUD({ onPause }: Props) {
         <div className="hud-encounter-line pixel-text">
           <span>{hud.roomLine || hud.encounterLine}</span>
           {hud.omenLine && <span className="hud-omen-line">{hud.omenLine}</span>}
+        </div>
+      )}
+      {hud.objectiveLabel && (
+        <div className="hud-encounter-line hud-objective-line pixel-text">
+          <span>{hud.objectiveLabel}</span>
+          {hud.objectiveStatus && <span className="hud-omen-line">{hud.objectiveStatus}</span>}
         </div>
       )}
       <div className="hud-row hud-bottom">

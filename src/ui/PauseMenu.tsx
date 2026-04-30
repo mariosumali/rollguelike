@@ -280,7 +280,7 @@ export function PauseMenu() {
             className="btn-pixel btn-ghost-v2"
             onClick={() => { playSfx('ui_click'); returnToMainMenu(); }}
           >
-            <span className="btn-chev">◂</span>
+            <span className="btn-chev back-triangle" aria-hidden />
             <span className="btn-body">
               <span className="btn-label">MAIN MENU</span>
               <span className="btn-sub">KEEP THIS RUN</span>

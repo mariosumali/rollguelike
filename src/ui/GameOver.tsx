@@ -70,7 +70,7 @@ export function GameOver() {
         <div className="tagline-ribbon gameover-ribbon">
           <span className="tr-bracket">[</span>
           <span className="tr-track">
-            {isNewHigh ? 'THE HOUSE STUMBLES · NEW RECORD' : 'THE DIE FAVORS ANOTHER'}
+            {hud.houseClearLabel ? 'THE HOUSE HAS BEEN CLEARED' : isNewHigh ? 'THE HOUSE STUMBLES · NEW RECORD' : 'THE DIE FAVORS ANOTHER'}
           </span>
           <span className="tr-bracket">]</span>
         </div>
@@ -96,6 +96,11 @@ export function GameOver() {
               <span className="stat-icon" aria-hidden>♛</span>
               <span className="stat-val">{highScore}</span>
               <span className="stat-key">BEST</span>
+            </div>
+            <div className="gameover-stat-tile">
+              <span className="stat-icon" aria-hidden>⌁</span>
+              <span className="stat-val">{meta.houseClears ?? 0}</span>
+              <span className="stat-key">CLEARS</span>
             </div>
           </div>
 
@@ -124,7 +129,7 @@ export function GameOver() {
             className="btn-pixel btn-ghost-v2"
             onClick={() => { playSfx('ui_click'); setScreen('menu'); }}
           >
-            <span className="btn-chev">◂</span>
+            <span className="btn-chev back-triangle" aria-hidden />
             <span className="btn-body">
               <span className="btn-label">MAIN MENU</span>
               <span className="btn-sub">BACK TO THE SHRINE</span>

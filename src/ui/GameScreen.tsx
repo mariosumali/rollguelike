@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useStore } from '../state/store';
+import { GAME_SPEED_MULTIPLIERS, useStore, type GameSpeedMultiplier } from '../state/store';
 import { HUD } from './HUD';
 import { PauseMenu } from './PauseMenu';
 import { UpgradeSelect } from './UpgradeSelect';
@@ -41,6 +41,36 @@ function BaubleShelf() {
   );
 }
 
+function GameSpeedControl() {
+  const speed = useStore((s) => s.settings.gameSpeedMultiplier);
+  const setSettings = useStore((s) => s.setSettings);
+
+  const setSpeed = (next: GameSpeedMultiplier) => {
+    if (next === speed) return;
+    playSfx('ui_click');
+    setSettings({ gameSpeedMultiplier: next });
+  };
+
+  return (
+    <div className="game-speed-control pixel-text" aria-label="Game speed">
+      <span className="game-speed-label">SPD</span>
+      <div className="game-speed-options" role="group" aria-label="Game speed multiplier">
+        {GAME_SPEED_MULTIPLIERS.map((mul) => (
+          <button
+            key={mul}
+            className={`game-speed-option${mul === speed ? ' is-active' : ''}`}
+            type="button"
+            onClick={() => setSpeed(mul)}
+            aria-pressed={mul === speed}
+          >
+            {mul}x
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function GameScreen() {
   const screen = useStore((s) => s.screen);
   const handledRef = useRef(false);
@@ -61,6 +91,7 @@ export function GameScreen() {
       <GameCanvas />
       <HUD onPause={handlePause} />
       <FaceBar />
+      {screen === 'game' && <GameSpeedControl />}
       <BaubleShelf />
       {screen === 'upgrade' && <UpgradeSelect />}
       {screen === 'forge' && <ForgeShop />}
