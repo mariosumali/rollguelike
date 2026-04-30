@@ -1,5 +1,9 @@
 import type { CasinoChestTier, CasinoGameId, CasinoLuckGrade, Rarity } from '../types';
 
+const enemyScalingWave = (wave: number) => 1 + (Math.max(1, wave) - 1) * 0.5;
+const houseClearWave = 25;
+const endlessWave = (wave: number) => Math.max(0, wave - houseClearWave);
+
 export const BALANCE = {
   player: {
     startingHp: 100,
@@ -7,25 +11,59 @@ export const BALANCE = {
   },
 
   die: {
-    baseRollDuration: 0.9,
+    baseRollDuration: 0.78,
+    rollDurationMul: 1.3,
     rollDurationMin: 0.525,
     postRollCooldown: 0.25,
   },
 
   enemy: {
     // Hybrid curve keeps early pressure climbing while preventing late-wave HP walls.
-    hpScale: (wave: number) => Math.min(Math.pow(1.065, wave - 1), 1 + (wave - 1) * 0.16),
-    earlyHpMul: (wave: number) => (wave <= 5 ? 0.2 + (wave - 1) * 0.16 : 1),
+    scalingWave: enemyScalingWave,
+    hpScale: (wave: number) => {
+      const w = enemyScalingWave(wave);
+      return Math.min(Math.pow(1.065, w - 1), 1 + (w - 1) * 0.16);
+    },
+    earlyHpMul: (wave: number) => {
+      const w = enemyScalingWave(wave);
+      return w <= 5 ? 0.2 + (w - 1) * 0.16 : 1;
+    },
     speedScale: (wave: number) => Math.min(1 + (wave - 1) * 0.018, 1.65),
-    bossHpMul: (wave: number) => 2.8 + wave * 0.11,
+    endlessHpMul: (wave: number) => {
+      const w = endlessWave(wave);
+      return w <= 0 ? 1 : Math.pow(1.18, w) * (1 + w * 0.06);
+    },
+    endlessSpeedMul: (wave: number) => {
+      const w = endlessWave(wave);
+      return w <= 0 ? 1 : Math.min(2.35, 1 + w * 0.045 + Math.pow(w, 1.12) * 0.006);
+    },
+    endlessCountMul: (wave: number) => {
+      const w = endlessWave(wave);
+      return w <= 0 ? 1 : Math.min(5.5, 1 + w * 0.11 + Math.pow(w, 1.14) * 0.035);
+    },
+    adaptivePressureMax: 12,
+    adaptivePressureMinWave: 6,
+    adaptivePressureStreakThreshold: 8,
+    easyClearRatio: 0.78,
+    easyClearMinSeconds: 9,
+    easyClearMaxSeconds: 18,
+    adaptiveHpMul: (pressure: number) => {
+      const p = Math.max(0, pressure);
+      return 1 + p * 0.18 + Math.pow(p, 1.22) * 0.028;
+    },
+    adaptiveSpeedMul: (pressure: number) => 1 + Math.max(0, pressure) * 0.04,
+    adaptiveCountMul: (pressure: number) => 1 + Math.max(0, pressure) * 0.12,
+    travelSpeedMul: 0.6,
+    bossHpMul: (wave: number) => 2.8 + enemyScalingWave(wave) * 0.11,
     eliteHpMul: 1.45,
     eliteSpeedMul: 1.12,
     eliteBaseChance: (wave: number) => Math.min(0.18, Math.max(0, (wave - 4) * 0.012)),
     baseSpawnInterval: (wave: number) => Math.max(0.4, 1.3 - wave * 0.035),
     countPerWave: (wave: number, isBoss: boolean) => {
-      if (isBoss) return 1 + Math.floor(wave / 10);
-      if (wave <= 10) return 4 + Math.floor(wave * 1.0);
-      return 14 + Math.floor((wave - 10) * 1.1);
+      const w = enemyScalingWave(wave);
+      if (isBoss) return 1 + Math.floor(w / 10);
+      if (w <= 10) return 4 + Math.floor(w * 1.0);
+      return 14 + Math.floor((w - 10) * 1.1);
     },
   },
 
@@ -73,17 +111,17 @@ export const BALANCE = {
   waves: {
     bossEvery: 5,
     upgradeEvery: 1,
+    houseClearWave,
   },
 
   meta: {
     // Challenge thresholds to unlock each character. Tuned to demand sustained
     // play — see src/content/characters/index.ts for how each is applied.
-    // Clockmaker is intentionally left off here — its unlock is hard-gated
-    // (always false) until a future mechanic ("Go back in time") is added.
     gamblerUnlockGoldSpent: 500,
     alchemistUnlockWave: 40,
     necromancerUnlockKills: 2000,
     berserkerUnlockRunKills: 500,
+    clockmakerUnlockRuns: 3,
   },
 
   gold: {
@@ -95,7 +133,8 @@ export const BALANCE = {
   },
 
   shop: {
-    cardsPerOffer: 4,
+    cardsPerOffer: 3,
+    forgePriceMul: 3.5,
     rerollCost: (wave: number) => 10 + wave * 3,
     skipHealCost: (wave: number) => 10 + wave * 3,
     removeDefaultCost: (wave: number) => 25 + wave * 5,
