@@ -15,6 +15,8 @@ import type {
   DamageContext,
   HouseEnemyFamily,
   CasinoChestReward,
+  CasinoGameId,
+  CasinoGameResult,
 } from '../types';
 import { BALANCE } from '../config/balance';
 import {
@@ -100,6 +102,7 @@ import type { FaceUpgradeTiming } from '../content/upgrades/types';
 import { resolveFace, deriveProjectileColor, findNearestEnemyXY, DEFAULT_AIM } from '../systems/faceResolve';
 import { createSlotLayout, canPlaceSupplement, expandSlot, slotAllowedTags, isSlotLocked } from '../systems/slots';
 import { baubleMul, collectBaubleStats } from '../systems/baubles';
+import { collectElementalSynergy, hasElementalSet, syncElementalMilestones } from '../systems/elementalSynergies';
 import {
   adjustChestTier,
   casinoFaceSlotOptions,
@@ -233,6 +236,26 @@ interface PendingPulse {
   knockback: number;
 }
 
+interface ActiveBeam {
+  originX: number;
+  originY: number;
+  dirX: number;
+  dirY: number;
+  width: number;
+  dps: number;
+  targetId: number | null;
+  t: number;
+  duration: number;
+  pierce: number;
+  element: Element;
+  lifesteal: number;
+  face: Face;
+  baseDamage: number;
+  baseApplied: boolean;
+  damageT: number;
+  vfxT: number;
+}
+
 interface ReflectState {
   t: number;
   duration: number;
@@ -244,14 +267,15 @@ interface ReflectState {
 // no enemy has died (or reached the wall) for FRENZY_TRIGGER_DELAY seconds.
 // While active, simulation time is multiplied by FRENZY_SPEED_MUL so the
 // stalemate resolves quickly; when FRENZY_DURATION elapses any remaining
-// enemies are force-killed so the round can end. Tuned small because most
-// healthy waves never see this ring appear.
+// enemies are force-killed so the round can end. Keep the visible countdown
+// long enough for players to react before the safety net resolves the wave.
 const FRENZY_TRIGGER_DELAY = 8;
-const FRENZY_DURATION = 6;
+const FRENZY_DURATION = 12;
 const FRENZY_SPEED_MUL = 2;
 const TWIN_DICE_UPGRADE_ID = 'landmark_twin_dice';
 const TWIN_DICE_SUFFIX = '__twin';
 const TWIN_DICE_DAMAGE_MUL = 0.5;
+const BEAM_DAMAGE_TICK = 0.12;
 let knownEncounteredEnemyIds = new Set<string>();
 
 interface EngineState {
@@ -280,6 +304,7 @@ interface EngineState {
   groundZones: GroundZone[];
   timedStrikes: TimedStrike[];
   pendingPulses: PendingPulse[];
+  activeBeams: ActiveBeam[];
   reflect: ReflectState | null;
   lastRolled: Face | null;
   spawnedForWave: boolean;
@@ -303,6 +328,7 @@ interface EngineState {
     shield: number; souls: number; rage: number; gold: number; gambitStacks: number; characterId: string;
     isBossWave: boolean; waveProgress: number; runMutatorName: string; runMutatorShortName: string;
     waveArchetypeName: string; biomeName: string; encounterLine: string; roomLine: string; omenLine: string; forgeBonusLabel: string;
+    objectiveLabel: string; objectiveStatus: string; elementalSetLabel: string; elementalSetDesc: string; houseClearLabel: string;
   } | null;
 }
 
@@ -332,6 +358,7 @@ const state: EngineState = {
   groundZones: [],
   timedStrikes: [],
   pendingPulses: [],
+  activeBeams: [],
   reflect: null,
   lastRolled: null,
   spawnedForWave: false,
@@ -360,7 +387,7 @@ export function initEngine(): void {
   knownEncounteredEnemyIds = new Set(useStore.getState().meta.encounteredEnemyIds ?? []);
 }
 
-export function startRun(characterId: string, resumeRun?: RunState): void {
+export function startRun(characterId: string, resumeRun?: RunState, contractId?: string): void {
   initEngine();
   const ch = getCharacter(characterId);
   if (!ch) {
@@ -379,6 +406,7 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
   state.groundZones = [];
   state.timedStrikes = [];
   state.pendingPulses = [];
+  state.activeBeams = [];
   state.reflect = null;
   state.lastRolled = null;
   state.wave = null;
@@ -426,19 +454,36 @@ export function startRun(characterId: string, resumeRun?: RunState): void {
       pickCount: 0,
       casinoWaveDamageTaken: 0,
       casinoWaveEliteKills: 0,
+      easyWaveStreak: 0,
+      adaptivePressure: 0,
       gold: 0,
       ownedFaceUpgrades: {},
       slotLayout: createSlotLayout(ch),
       gambitStacks: 0,
       goldSpent: 0,
+      clockmakerRewindUsed: false,
+      maxWaveThisRun: 1,
+      houseCleared: false,
+      selectedContractId: undefined,
+      objectivesCompleted: 0,
+      elementalMeters: {},
+      elementalCooldowns: {},
+      elementalMilestonesSeen: [],
     };
 
   state.run = run;
+  run.easyWaveStreak = run.easyWaveStreak ?? 0;
+  run.adaptivePressure = run.adaptivePressure ?? 0;
+  ensureStartingPassiveUpgrades(run);
   setRunState(run);
   state.rng = mulberry32(run.seed);
-  if (!run.runMutatorId) {
-    run.runMutatorId = pickRunMutator(state.rng).id;
-  }
+  if (!run.runMutatorId) run.runMutatorId = contractId && getRunMutator(contractId) ? contractId : pickRunMutator(state.rng).id;
+  run.selectedContractId = run.selectedContractId ?? run.runMutatorId;
+  run.objectivesCompleted = run.objectivesCompleted ?? 0;
+  run.maxWaveThisRun = Math.max(run.maxWaveThisRun ?? 1, run.wave);
+  run.elementalMeters = run.elementalMeters ?? {};
+  run.elementalCooldowns = run.elementalCooldowns ?? {};
+  run.elementalMilestonesSeen = run.elementalMilestonesSeen ?? [];
   ensureTwinDice(run);
   state.dice = buildDieInstances(run.dice);
 
@@ -517,6 +562,16 @@ function hasUpgrade(run: RunState, id: string): boolean {
   return run.upgrades.some((u) => u.id === id && u.stacks > 0);
 }
 
+function ensureStartingPassiveUpgrades(run: RunState): void {
+  const ch = getCharacter(run.characterId);
+  if (!ch?.startingPassiveUpgrades) return;
+  for (const id of ch.startingPassiveUpgrades) {
+    const existing = run.upgrades.find((u) => u.id === id);
+    if (existing) existing.stacks = Math.max(1, existing.stacks);
+    else run.upgrades.push({ id, stacks: 1 });
+  }
+}
+
 function makeTwinDie(source: DieConfig): DieConfig {
   const die = cloneDie(source);
   die.id = source.id.endsWith(TWIN_DICE_SUFFIX)
@@ -538,7 +593,7 @@ function envFor(run: RunState) {
   return {
     run,
     rng: state.rng,
-    ctx: { wave: run.wave, rng: state.rng } satisfies HookCtx,
+    ctx: { wave: run.wave, rng: state.rng, rollCount: state.rollCount, time: state.time } satisfies HookCtx,
   };
 }
 
@@ -560,9 +615,14 @@ function baubleGoldAmount(
 function setupWave(waveNum: number): void {
   const isBoss = waveNum % BALANCE.waves.bossEvery === 0;
   const run = state.run!;
+  run.maxWaveThisRun = Math.max(run.maxWaveThisRun ?? waveNum, waveNum);
   state.wave = generateWave(waveNum, state.rng, isBoss, run);
+  syncElementalMilestones(run);
   run.currentWaveArchetypeId = state.wave.archetypeId;
   run.currentBiomeRuleId = state.wave.biomeRuleId;
+  run.objectiveState = state.wave.objective
+    ? { ...state.wave.objective, status: 'active', progress: 0, timer: state.wave.objective.timeLimit }
+    : undefined;
   state.waveT = 0;
   state.nextSpawnIdx = 0;
   state.spawnedForWave = false;
@@ -727,6 +787,7 @@ export function update(dt: number): void {
   tickGroundZones(dt, run);
   tickTimedStrikes(dt, run);
   tickPendingPulses(dt, run);
+  tickActiveBeams(dt, run);
   if (state.reflect) {
     state.reflect.t += dt;
     if (state.reflect.t >= state.reflect.duration) state.reflect = null;
@@ -779,6 +840,7 @@ export function update(dt: number): void {
   if (run.characterId === 'berserker') updateRage(run, dt);
   if (run.characterId === 'clockmaker') applyClockmakerSlow();
   updateMomentum(run, dt);
+  tickWaveObjective(run, dt);
 
   // Safety clamp: non-boss enemies must never be shoved above their spawn
   // line. Pull-zones, graviton projectiles, and knockback effects mutate e.y
@@ -831,6 +893,10 @@ function updateDie(die: DieInstance, dt: number, run: RunState): void {
   }
 }
 
+function getRollDuration(baseDuration: number): number {
+  return Math.max(BALANCE.die.rollDurationMin, baseDuration) * BALANCE.die.rollDurationMul;
+}
+
 function pickFace(die: DieInstance, run: RunState): Face {
   if (run.lockedFaceValue !== undefined && run.lockedFaceValue > 0) {
     const candidates = die.config.faces.filter((f) => f.value !== run.lockedFaceValue);
@@ -856,6 +922,7 @@ function resolveRoll(die: DieInstance, face: Face, run: RunState, timing: FaceUp
   state.rollCount++;
   fireOnRoll(envFor(run), face, die.config.id);
   emitEvent('roll-land', { face });
+  triggerElementalRollSynergy(face, run);
   state.pendingAttacks.push({
     face,
     dieId: die.config.id,
@@ -868,6 +935,47 @@ function resolveRoll(die: DieInstance, face: Face, run: RunState, timing: FaceUp
     if (reaction) triggerReaction(reaction, run);
   }
   state.lastRolled = face;
+}
+
+function triggerElementalRollSynergy(face: Face, run: RunState): void {
+  const element = face.element;
+  if (element === 'none') return;
+  syncElementalMilestones(run);
+  run.elementalMeters = run.elementalMeters ?? {};
+
+  if (element === 'fire' && hasElementalSet(run, 'fire', 5)) {
+    const next = (run.elementalMeters.fire ?? 0) + 1;
+    if (next >= 3) {
+      run.elementalMeters.fire = 0;
+      const target = findNearestEnemyXY(state.enemies) ?? { x: PLAYER_X, y: PLAYER_Y - 42 };
+      doPulseAt(target.x, target.y, 76, 58 + run.wave * 2.5, 'fire', run, 10);
+      spawnVfx({ x: target.x, y: target.y, life: 0.65, kind: 'flamePillar', color: palHex('u')!, size: 52 });
+      spawnPopup(target.x, target.y - 20, 'INFERNO', palHex('u')!, 12);
+      playSfx('reaction');
+    } else {
+      run.elementalMeters.fire = next;
+    }
+  }
+
+  if (element === 'lightning' && hasElementalSet(run, 'lightning', 5)) {
+    const next = (run.elementalMeters.lightning ?? 0) + 1;
+    if (next >= 3) {
+      run.elementalMeters.lightning = 0;
+      strikeAt(PLAYER_X, PLAYER_Y - 48, {
+        kind: 'column',
+        delay: 0,
+        radius: 62,
+        damage: 42 + run.wave * 2,
+        element: 'lightning',
+        stunDur: 0.45,
+        chainToExtra: 5,
+        t: 0,
+      }, run);
+      spawnPopup(PLAYER_X, PLAYER_Y - 48, 'STORM', palHex('y')!, 12);
+    } else {
+      run.elementalMeters.lightning = next;
+    }
+  }
 }
 
 function gambitDamageMul(run: RunState): number {
@@ -1051,7 +1159,7 @@ function executeFace(face: Face, dieId: string, run: RunState): void {
       spawnOrbiters(params);
     },
     startBeam: (params) => {
-      doBeam(params, run);
+      startBeam(params);
     },
     startPull: (params) => {
       state.pullZones.push({
@@ -1212,12 +1320,10 @@ function spawnOrbiters(params: { count: number; radius: number; rpm: number; dam
   }
 }
 
-function doBeam(params: { width: number; dps: number; duration: number; pierce: number; element: Element; lifesteal: number; face: Face; baseDamage: number }, run: RunState): void {
-  const total = params.dps * params.duration + params.baseDamage;
+function startBeam(params: { width: number; dps: number; duration: number; pierce: number; element: Element; lifesteal: number; face: Face; baseDamage: number }): void {
   const originX = PLAYER_X;
   const originY = PROJECTILE_SPAWN_Y;
-  const topY = HUD_H + 4;
-  const target = findNearestEnemyXY(state.enemies);
+  const target = findNearestBeamTarget(originX, originY);
   let dirX = 0;
   let dirY = -1;
   if (target) {
@@ -1230,47 +1336,130 @@ function doBeam(params: { width: number; dps: number; duration: number; pierce: 
     }
   }
 
-  const reachCandidates: number[] = [];
-  if (dirY < -0.001) reachCandidates.push((topY - originY) / dirY);
-  if (dirX > 0.001) reachCandidates.push((ARENA_W - originX) / dirX);
-  else if (dirX < -0.001) reachCandidates.push((0 - originX) / dirX);
-  const maxReach = Math.min(...reachCandidates.filter((t) => t > 0));
-  const beamReach = Number.isFinite(maxReach) ? maxReach : originY - topY;
-  const sortedEnemies = state.enemies
-    .filter((e) => e.alive && e.state !== 'die')
-    .map((enemy) => {
-      const dx = enemy.x - originX;
-      const dy = enemy.y - originY;
-      const along = dx * dirX + dy * dirY;
-      const closestX = originX + dirX * along;
-      const closestY = originY + dirY * along;
-      const dist = Math.hypot(enemy.x - closestX, enemy.y - closestY);
-      return { enemy, along, dist };
-    })
-    .filter(({ enemy, along, dist }) => along >= -enemy.radius && along <= beamReach + enemy.radius && dist <= params.width / 2 + enemy.radius)
-    .sort((a, b) => a.along - b.along);
+  const shouldKick = state.activeBeams.length === 0;
+  state.activeBeams.push({
+    originX,
+    originY,
+    dirX,
+    dirY,
+    width: params.width,
+    dps: params.dps,
+    targetId: target?.id ?? null,
+    t: 0,
+    duration: params.duration,
+    pierce: params.pierce,
+    element: params.element,
+    lifesteal: params.lifesteal,
+    face: params.face,
+    baseDamage: params.baseDamage,
+    baseApplied: false,
+    damageT: 0,
+    vfxT: 0,
+  });
+  if (shouldKick) addTrauma(0.015);
+}
 
-  const maxHits = Math.max(1, Math.floor(params.pierce) + 1);
-  const hitCount = Math.min(maxHits, sortedEnemies.length);
-  let farthestAlong = 0;
-  for (let i = 0; i < hitCount; i++) {
-    const e = sortedEnemies[i]!.enemy;
-    const damaged = hitEnemy(e, total, params.element, run, undefined, { source: 'beam', face: params.face });
-    if (damaged && params.lifesteal > 0) {
-      run.hp = Math.min(run.maxHp, run.hp + baubleHealingAmount(run, params.lifesteal));
+function findNearestBeamTarget(originX: number, originY: number): Enemy | null {
+  let best: Enemy | null = null;
+  let bestDist = Infinity;
+  for (const e of state.enemies) {
+    if (!e.alive || e.state === 'die') continue;
+    const dx = e.x - originX;
+    const dy = e.y - originY;
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) {
+      best = e;
+      bestDist = dist;
     }
-    farthestAlong = Math.max(farthestAlong, sortedEnemies[i]!.along);
+  }
+  return best;
+}
+
+function getActiveBeamTarget(beam: ActiveBeam): Enemy | null {
+  if (beam.targetId === null) return null;
+  const target = state.enemies.find((e) => e.id === beam.targetId);
+  return target && target.alive && target.state !== 'die' ? target : null;
+}
+
+function retargetBeam(beam: ActiveBeam): Enemy | null {
+  let target = getActiveBeamTarget(beam);
+  if (!target) {
+    target = findNearestBeamTarget(beam.originX, beam.originY);
+    beam.targetId = target?.id ?? null;
+  }
+  if (!target) return null;
+  const dx = target.x - beam.originX;
+  const dy = target.y - beam.originY;
+  const len = Math.hypot(dx, dy);
+  if (len <= 0.001) return target;
+  beam.dirX = dx / len;
+  beam.dirY = dy / len;
+  return target;
+}
+
+function activeBeamReach(beam: ActiveBeam): number {
+  const topY = HUD_H + 4;
+  const reachCandidates: number[] = [];
+  if (beam.dirY < -0.001) reachCandidates.push((topY - beam.originY) / beam.dirY);
+  if (beam.dirX > 0.001) reachCandidates.push((ARENA_W - beam.originX) / beam.dirX);
+  else if (beam.dirX < -0.001) reachCandidates.push((0 - beam.originX) / beam.dirX);
+  const maxReach = Math.min(...reachCandidates.filter((t) => t > 0));
+  return Number.isFinite(maxReach) ? maxReach : beam.originY - topY;
+}
+
+function activeBeamEndReach(beam: ActiveBeam): number {
+  const reach = activeBeamReach(beam);
+  const target = getActiveBeamTarget(beam);
+  if (!target) return reach;
+  const targetReach = Math.hypot(target.x - beam.originX, target.y - beam.originY) + target.radius;
+  return Math.min(reach, Math.max(0, targetReach));
+}
+
+function tickActiveBeam(beam: ActiveBeam, dt: number, run: RunState): void {
+  const target = retargetBeam(beam);
+  if (target) {
+    beam.damageT += dt;
+  } else {
+    beam.damageT = 0;
+  }
+  const shouldApplyDamage = target && (!beam.baseApplied || beam.damageT >= BEAM_DAMAGE_TICK);
+  if (shouldApplyDamage) {
+    const tickDt = beam.damageT;
+    const damage = beam.dps * tickDt + (beam.baseApplied ? 0 : beam.baseDamage);
+    const damaged = hitEnemy(target, damage, beam.element, run, undefined, { source: 'beam', face: beam.face });
+    if (damaged && beam.lifesteal > 0) {
+      run.hp = Math.min(run.maxHp, run.hp + baubleHealingAmount(run, beam.lifesteal * tickDt));
+    }
+    beam.damageT = 0;
+    beam.baseApplied = true;
   }
 
-  const endAlong = Math.max(farthestAlong, Math.min(beamReach, target ? Math.hypot(target.x - originX, target.y - originY) : beamReach));
-  const endX = originX + dirX * endAlong;
-  const endY = originY + dirY * endAlong;
-  for (let t = 0; t < endAlong; t += 12) {
-    spawnVfx({ x: originX + dirX * t, y: originY + dirY * t, life: params.duration * 0.8, kind: 'spark', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: Math.max(2, params.width / 4) });
+  beam.vfxT -= dt;
+  if (beam.vfxT <= 0) {
+    beam.vfxT = 0.08;
+    const endAlong = activeBeamEndReach(beam);
+    const sparkAlong = state.rng() * endAlong;
+    spawnVfx({
+      x: beam.originX + beam.dirX * sparkAlong,
+      y: beam.originY + beam.dirY * sparkAlong,
+      life: 0.12,
+      kind: 'spark',
+      color: ELEMENT_COLORS[beam.element] ?? '#fff',
+      size: Math.max(2, beam.width / 4),
+    });
   }
-  spawnVfx({ x: originX, y: originY, life: params.duration, kind: 'lightning', color: ELEMENT_COLORS[params.element as 'none'] ?? '#fff', size: 0, data: encodePos(endX, Math.max(0, endY)) });
-  addTrauma(0.1);
-  playSfx('pulse');
+}
+
+function tickActiveBeams(dt: number, run: RunState): void {
+  for (let i = state.activeBeams.length - 1; i >= 0; i--) {
+    const beam = state.activeBeams[i]!;
+    const beamDt = Math.min(dt, Math.max(0, beam.duration - beam.t));
+    if (beamDt > 0) tickActiveBeam(beam, beamDt, run);
+    beam.t += dt;
+    if (beam.t >= beam.duration) {
+      state.activeBeams.splice(i, 1);
+    }
+  }
 }
 
 function tickPullZones(dt: number, run: RunState): void {
@@ -1647,6 +1836,34 @@ function updateProjectile(p: Projectile, dt: number, run: RunState): void {
 
   if (!p.alive) return;
 
+  if (p.tags.has('hostile')) {
+    for (const blocker of state.projectiles) {
+      if (!blocker.alive || blocker === p || blocker.tags.has('hostile')) continue;
+      const bx = blocker.x - p.x;
+      const by = blocker.y - p.y;
+      const blockRadius = blocker.radius + p.radius + 2;
+      if (bx * bx + by * by > blockRadius * blockRadius) continue;
+      spawnVfx({ x: p.x, y: p.y, life: 0.24, kind: 'spark', color: p.color, size: Math.max(2, p.radius) });
+      spawnVfx({ x: p.x, y: p.y, life: 0.28, kind: 'ring', color: p.color, size: Math.max(6, p.radius * 3) });
+      p.alive = false;
+      if (!blocker.orbit && !blocker.minion) {
+        if (blocker.pierce > 0) blocker.pierce--;
+        else blocker.alive = false;
+      }
+      return;
+    }
+    const dx = PLAYER_X - p.x;
+    const dy = (PLAYER_Y - 6) - p.y;
+    const hitRadius = p.radius + 8;
+    if (p.y >= WALL_Y - 8 || dx * dx + dy * dy <= hitRadius * hitRadius) {
+      damagePlayer(p.damage, run);
+      spawnVfx({ x: p.x, y: p.y, life: 0.28, kind: 'explosion', color: p.color, size: Math.max(8, p.radius * 3) });
+      spawnVfx({ x: p.x, y: p.y, life: 0.32, kind: 'ring', color: p.color, size: Math.max(8, p.radius * 3.5) });
+      p.alive = false;
+    }
+    return;
+  }
+
   for (const e of state.enemies) {
     if (!e.alive || e.state === 'die') continue;
     if (p.hitIds.has(e.id)) continue;
@@ -1812,32 +2029,44 @@ export function hitEnemy(
   spawnVfx({ x: e.x, y: e.y, life: 0.24, kind: 'spark', color: ELEMENT_COLORS[element as 'none'] ?? '#fff', size: 2 });
   spawnPopup(e.x, e.y - 8, Math.floor(dmg).toString(), popupColor(dmg), dmg > 25 ? 10 : 8);
   if (element === 'fire') {
-    e.poisonT = Math.max(e.poisonT, 2);
-    const fireDps = elementalDotDps('fire', dmg);
+    const fireSetMul = hasElementalSet(run, 'fire', 5) ? 2.15 : hasElementalSet(run, 'fire', 3) ? 1.65 : 1;
+    e.poisonT = Math.max(e.poisonT, 2 * (hasElementalSet(run, 'fire', 3) ? 1.25 : 1));
+    const fireDps = elementalDotDps('fire', dmg) * fireSetMul;
     if (fireDps >= e.poisonDps) e.data['dotKind'] = 2;
     e.poisonDps = Math.max(e.poisonDps, fireDps);
   } else if (element === 'poison') {
     const stats = collectBaubleStats(run);
-    const poisonDps = elementalDotDps('poison', dmg) * baubleMul(stats.poisonApplicationDpsMul);
+    const poisonSetMul = hasElementalSet(run, 'poison', 5) ? 2.0 : hasElementalSet(run, 'poison', 3) ? 1.55 : 1;
+    const poisonDps = elementalDotDps('poison', dmg) * baubleMul(stats.poisonApplicationDpsMul) * poisonSetMul;
     if (poisonDps >= e.poisonDps) e.data['dotKind'] = 1;
-    e.poisonT = Math.max(e.poisonT, 3 * baubleMul(stats.poisonDurationMul));
+    e.poisonT = Math.max(e.poisonT, 3 * baubleMul(stats.poisonDurationMul) * (hasElementalSet(run, 'poison', 3) ? 1.45 : 1));
     e.poisonDps = Math.max(e.poisonDps, poisonDps);
+    if (hasElementalSet(run, 'poison', 5)) {
+      e.data['plague'] = 1;
+      e.data['plaguePulseT'] = e.data['plaguePulseT'] ?? 0;
+    }
   } else if (element === 'ice') {
-    const freezeDur = 1.2 * baubleMul(collectBaubleStats(run).freezeDurationMul);
+    const freezeDur = 1.2 * baubleMul(collectBaubleStats(run).freezeDurationMul) * (hasElementalSet(run, 'ice', 5) ? 1.95 : hasElementalSet(run, 'ice', 3) ? 1.55 : 1);
     e.freeze = Math.max(e.freeze, freezeDur);
-    e.slow = Math.max(e.slow, 0.5);
+    e.slow = Math.max(e.slow, hasElementalSet(run, 'ice', 3) ? 0.65 : 0.5);
     e.slowT = Math.max(e.slowT, freezeDur + 0.4);
   } else if (element === 'lightning') {
-    const stunDur = BALANCE.combat.lightningStunT * baubleMul(collectBaubleStats(run).stunDurationMul);
+    const stunDur = BALANCE.combat.lightningStunT * baubleMul(collectBaubleStats(run).stunDurationMul) * (hasElementalSet(run, 'lightning', 5) ? 1.9 : hasElementalSet(run, 'lightning', 3) ? 1.45 : 1);
     e.freeze = Math.max(e.freeze, stunDur);
     e.slow = Math.max(e.slow, 0.6);
     e.slowT = Math.max(e.slowT, stunDur + 0.45);
-    const exclude = new Set<number>([e.id]);
-    const next = findNearestEnemy(e.x, e.y, exclude);
-    if (next) {
-      drawChainLightning(e.x, e.y, next.x, next.y);
-      const chainDmg = dmg * BALANCE.combat.lightningChainDamageMul;
-      hitEnemy(next, chainDmg, 'none', run, undefined, { source: 'chain', face: damageCtx.face });
+    if (hasElementalSet(run, 'lightning', 3)) e.charged = Math.max(e.charged, hasElementalSet(run, 'lightning', 5) ? 2.8 : 2.0);
+    if (damageCtx.source !== 'chain') {
+      const exclude = new Set<number>([e.id]);
+      const next = findNearestEnemy(e.x, e.y, exclude);
+      if (next) {
+        drawChainLightning(e.x, e.y, next.x, next.y);
+        const chainDmg = dmg * BALANCE.combat.lightningChainDamageMul * (hasElementalSet(run, 'lightning', 3) ? 1.55 : 1);
+        hitEnemy(next, chainDmg, 'none', run, undefined, { source: 'chain', face: damageCtx.face });
+      }
+    }
+    if (damageCtx.source !== 'chain' && hasElementalSet(run, 'lightning', 5)) {
+      doChainLightning({ jumps: 2, damage: Math.max(6, dmg * 0.22), radius: 92, stunDur: 0.12, element: 'lightning', fromDie: false }, run);
     }
   }
   if (e.chill >= 2 && e.hp > 0) {
@@ -1863,6 +2092,7 @@ export function hitEnemy(
 
 function damageTraumaForSource(source: DamageContext['source']): number {
   switch (source) {
+    case 'beam':
     case 'ground':
     case 'pull':
     case 'status':
@@ -1874,6 +2104,7 @@ function damageTraumaForSource(source: DamageContext['source']): number {
 
 function shouldPlayHitSfx(source: DamageContext['source']): boolean {
   switch (source) {
+    case 'beam':
     case 'ground':
     case 'pull':
     case 'status':
@@ -1945,11 +2176,23 @@ function applyBaubleDamageModifiers(
   if (damageCtx.source === 'beam') additive += stats.beamDamageMul;
   if (damageCtx.source === 'orbit') additive += stats.orbitDamageMul;
   if (damageCtx.source === 'strike') additive += stats.strikeDamageMul;
+  if (element === 'fire' && hasElementalSet(run, 'fire', 3)) additive += hasElementalSet(run, 'fire', 5) ? 0.55 : 0.35;
+  if (element === 'poison' && hasElementalSet(run, 'poison', 3)) additive += hasElementalSet(run, 'poison', 5) ? 0.45 : 0.28;
+  if (element === 'lightning' && hasElementalSet(run, 'lightning', 3)) additive += hasElementalSet(run, 'lightning', 5) ? 0.42 : 0.25;
+  if (element === 'arcane' && hasElementalSet(run, 'arcane', 3)) additive += hasElementalSet(run, 'arcane', 5) ? 0.5 : 0.3;
+  if ((e.freeze > 0 || e.slow > 0 || e.chill > 0) && hasElementalSet(run, 'ice', 3)) {
+    additive += hasElementalSet(run, 'ice', 5) ? 0.55 : 0.35;
+  }
   return dmg * baubleMul(additive);
 }
 
 function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   if (e.state === 'die') return;
+  const wasBurning = e.poisonT > 0 && e.data['dotKind'] === 2;
+  const wasPoisoned = e.poisonT > 0 && e.poisonDps > 0 && e.data['dotKind'] !== 2;
+  const wasFrozen = e.freeze > 0 || e.chill >= 1.5;
+  const deathX = e.x;
+  const deathY = e.y;
   e.state = 'die';
   e.dieT = 0.3;
   e.hp = 0;
@@ -1992,6 +2235,14 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
   } else if (e.eliteKind === 'twin' && !e.isBoss) {
     spawnEliteTwinRemnants(e);
   }
+  const objectiveRole = e.objectiveRole;
+  if (
+    (objectiveRole === 'banner' || objectiveRole === 'chest') &&
+    run.objectiveState?.targetEnemyId === e.id
+  ) {
+    completeObjective(run, run.objectiveState.label);
+  }
+  triggerElementalKillSynergy(run, { x: deathX, y: deathY, maxHp: e.maxHp, wasBurning, wasPoisoned, wasFrozen });
   type?.onDeath?.(e);
   fireOnKill(envFor(run), e);
   if (run.characterId === 'necromancer') spawnSoul(e.x, e.y);
@@ -2004,6 +2255,35 @@ function killEnemy(e: Enemy, run: RunState, _p?: Projectile): void {
     state.hitStopT = 0.18;
     haptic(HAPTIC.bossKill);
     addTrauma(0.35);
+  }
+}
+
+function triggerElementalKillSynergy(
+  run: RunState,
+  info: { x: number; y: number; maxHp: number; wasBurning: boolean; wasPoisoned: boolean; wasFrozen: boolean },
+): void {
+  if (info.wasBurning && hasElementalSet(run, 'fire', 3)) {
+    const damage = Math.max(12, Math.min(58, info.maxHp * (hasElementalSet(run, 'fire', 5) ? 0.28 : 0.18)));
+    doPulseAt(info.x, info.y, hasElementalSet(run, 'fire', 5) ? 48 : 36, damage, 'fire', run);
+    spawnVfx({ x: info.x, y: info.y, life: 0.45, kind: 'flamePillar', color: palHex('u')!, size: 28 });
+  }
+
+  if (info.wasPoisoned && hasElementalSet(run, 'poison', 3)) {
+    const damage = Math.max(8, Math.min(42, info.maxHp * (hasElementalSet(run, 'poison', 5) ? 0.2 : 0.12)));
+    doPulseAt(info.x, info.y, hasElementalSet(run, 'poison', 5) ? 44 : 32, damage, 'poison', run);
+    spawnVfx({ x: info.x, y: info.y, life: 0.55, kind: 'poison', color: palHex('z')!, size: 16 });
+  }
+
+  if (info.wasFrozen && hasElementalSet(run, 'ice', 5)) {
+    const damage = Math.max(16, Math.min(62, info.maxHp * 0.24));
+    doPulseAt(info.x, info.y, 52, damage, 'ice', run);
+    const target = findNearestEnemy(info.x, info.y, new Set<number>());
+    if (target) {
+      target.freeze = Math.max(target.freeze, 1.2);
+      target.slow = Math.max(target.slow, 0.7);
+      target.slowT = Math.max(target.slowT, 1.6);
+    }
+    spawnPopup(info.x, info.y - 20, 'SHATTER', palHex('q')!, 10);
   }
 }
 
@@ -2089,6 +2369,15 @@ function doPulse(radius: number, damage: number, element: string, run: RunState,
 }
 
 function doPulseAt(cx: number, cy: number, radius: number, damage: number, element: string, run: RunState, knockback = 0): void {
+  for (const p of state.projectiles) {
+    if (!p.alive || !p.tags.has('hostile')) continue;
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    if (dx * dx + dy * dy <= radius * radius) {
+      p.alive = false;
+      spawnVfx({ x: p.x, y: p.y, life: 0.24, kind: 'spark', color: p.color, size: Math.max(2, p.radius) });
+    }
+  }
   for (const e of state.enemies) {
     if (!e.alive || e.state === 'die') continue;
     const dx = e.x - cx;
@@ -2109,9 +2398,17 @@ function triggerReaction(reaction: ReturnType<typeof getReaction>, run: RunState
   if (!reaction) return;
   addTrauma(0.15);
   const element = reactionEffectElement(reaction.effect);
-  doPulseAt(PLAYER_X, PLAYER_Y - 20, reaction.radius, reaction.damage, element, run);
-  spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 20, life: 0.55, kind: 'reaction', color: reaction.color, size: reaction.radius });
-  spawnPopup(PLAYER_X, PLAYER_Y - 40, reaction.name.toUpperCase(), reaction.color, 10);
+  const arcane3 = hasElementalSet(run, 'arcane', 3);
+  const arcane5 = hasElementalSet(run, 'arcane', 5);
+  const radius = reaction.radius * (arcane5 ? 1.75 : arcane3 ? 1.35 : 1);
+  const damage = reaction.damage * (arcane5 ? 1.75 : arcane3 ? 1.35 : 1);
+  doPulseAt(PLAYER_X, PLAYER_Y - 20, radius, damage, element, run);
+  if (arcane5) {
+    doPulseAt(PLAYER_X, PLAYER_Y - 28, radius * 0.72, damage * 0.55, 'arcane', run);
+    spawnPopup(PLAYER_X, PLAYER_Y - 52, 'PRISM ECHO', palHex('v')!, 10);
+  }
+  spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 20, life: 0.55, kind: 'reaction', color: reaction.color, size: radius });
+  spawnPopup(PLAYER_X, PLAYER_Y - 40, reaction.name.toUpperCase(), reaction.color, arcane3 ? 11 : 10);
   playSfx('reaction');
 }
 
@@ -2253,6 +2550,8 @@ function spawnEnemy(ev: SpawnEvent): void {
   let hpMul = type.isBoss ? BALANCE.enemy.bossHpMul(run.wave) : 1;
   hpMul *= mutator?.modifiers.enemyHpMul ?? 1;
   hpMul *= biome?.enemyHpMul ?? 1;
+  hpMul *= BALANCE.enemy.endlessHpMul(run.wave);
+  hpMul *= BALANCE.enemy.adaptiveHpMul(run.adaptivePressure ?? 0);
   hpMul *= BALANCE.enemy.earlyHpMul(run.wave);
   if (e.elite) {
     hpMul *= BALANCE.enemy.eliteHpMul;
@@ -2261,14 +2560,36 @@ function spawnEnemy(ev: SpawnEvent): void {
   }
   e.maxHp = Math.round(type.baseHp * BALANCE.enemy.hpScale(run.wave) * hpMul);
   e.hp = e.maxHp;
-  let speedMul = (mutator?.modifiers.enemySpeedMul ?? 1) * (biome?.enemySpeedMul ?? 1);
+  let speedMul =
+    (mutator?.modifiers.enemySpeedMul ?? 1) *
+    (biome?.enemySpeedMul ?? 1) *
+    BALANCE.enemy.endlessSpeedMul(run.wave) *
+    BALANCE.enemy.adaptiveSpeedMul(run.adaptivePressure ?? 0);
   if (e.elite) {
     speedMul *= BALANCE.enemy.eliteSpeedMul;
     if (e.eliteKind === 'swift') speedMul *= 1.28;
     if (e.eliteKind === 'armored') speedMul *= 0.88;
   }
-  e.speed = type.baseSpeed * BALANCE.enemy.speedScale(run.wave) * speedMul;
+  e.speed = type.baseSpeed * BALANCE.enemy.speedScale(run.wave) * speedMul * BALANCE.enemy.travelSpeedMul;
   e.isBoss = type.isBoss ?? false;
+  if (ev.objectiveRole) {
+    e.objectiveRole = ev.objectiveRole;
+    if (ev.objectiveRole === 'banner') {
+      e.elite = true;
+      e.eliteKind = 'golden';
+      e.maxHp = Math.round(e.maxHp * 1.35);
+      e.hp = e.maxHp;
+    } else if (ev.objectiveRole === 'chest') {
+      e.maxHp = Math.max(22, Math.round(26 + run.wave * 2.5));
+      e.hp = e.maxHp;
+      e.speed *= 0.72;
+    }
+    if (run.objectiveState) {
+      run.objectiveState.targetEnemyId = e.id;
+      run.objectiveState.targetHp = e.maxHp;
+    }
+    spawnPopup(e.x, e.y + 18, ev.objectiveRole.toUpperCase(), palHex(ev.objectiveRole === 'banner' ? 'y' : 'q')!, 9);
+  }
 }
 
 function rememberEnemyType(typeId: string): void {
@@ -2311,6 +2632,18 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
       }
     }
   }
+  if (e.poisonT > 0 && e.data['plague'] && hasElementalSet(run, 'poison', 5)) {
+    const prev = typeof e.data['plaguePulseT'] === 'number' ? e.data['plaguePulseT'] : 0;
+    const next = prev + dt;
+    if (next >= 0.8) {
+      e.data['plaguePulseT'] = 0;
+      const pulseDamage = Math.min(e.isBoss ? 34 : 48, Math.max(8, e.maxHp * (e.isBoss ? 0.035 : 0.09)));
+      doPulseAt(e.x, e.y, e.isBoss ? 34 : 42, pulseDamage, 'poison', run);
+      spawnPopup(e.x, e.y - 18, 'PLAGUE', palHex('z')!, 9);
+    } else {
+      e.data['plaguePulseT'] = next;
+    }
+  }
   if (e.freeze > 0) {
     e.freeze -= dt;
     if (e.freeze <= 0) e.slow = Math.max(0, e.slow - 0.5);
@@ -2338,6 +2671,26 @@ function updateEnemy(e: Enemy, dt: number, run: RunState): void {
   if (e.x > ARENA_W - 8) e.x = ARENA_W - 8;
   if (e.y >= WALL_Y - 4) {
     const dmg = type?.touchDamage ?? 10;
+    if (e.objectiveRole === 'chest') {
+      failObjective(run, 'CHEST LOST');
+      e.alive = false;
+      state.lastKillTime = state.time;
+      spawnVfx({ x: e.x, y: WALL_Y - 4, life: 0.35, kind: 'ring', color: palHex('q')!, size: 9 });
+      return;
+    }
+    if (e.isBoss) {
+      e.y = WALL_Y - 4;
+      e.vy = -Math.max(e.speed, 24);
+      const nextWallHitT = typeof e.data['bossWallHitT'] === 'number' ? e.data['bossWallHitT'] : 0;
+      if (e.age >= nextWallHitT) {
+        damagePlayer(dmg, run);
+        e.data['bossWallHitT'] = e.age + 1.2;
+        spawnVfx({ x: e.x, y: WALL_Y - 4, life: 0.35, kind: 'explosion', color: palHex('h')!, size: 12 });
+        spawnVfx({ x: e.x, y: WALL_Y - 2, life: 0.4, kind: 'ring', color: palHex('f')!, size: 10 });
+        addTrauma(0.18);
+      }
+      return;
+    }
     damagePlayer(dmg, run);
     e.alive = false;
     // Enemies that reach the wall also count as "progress" for frenzy gating;
@@ -2387,6 +2740,7 @@ function damagePlayer(raw: number, run: RunState): void {
   if (amt <= 0) return;
   run.hp -= amt;
   run.casinoWaveDamageTaken = (run.casinoWaveDamageTaken ?? 0) + amt;
+  if (run.objectiveState?.kind === 'protect') failObjective(run, 'WALL BROKEN');
   state.iframeT = BALANCE.player.iframeDuration;
   if (getScreenFlashesEnabled()) {
     state.screenFlashT = 0.2;
@@ -2400,8 +2754,54 @@ function damagePlayer(raw: number, run: RunState): void {
   emitEvent('player-damaged', { amount: amt });
   if (run.hp <= 0) {
     run.hp = 0;
+    if (tryClockmakerRewind(run)) return;
     onPlayerDied(run);
   }
+}
+
+function cloneRunState(run: RunState): RunState {
+  return JSON.parse(JSON.stringify(run)) as RunState;
+}
+
+function tryClockmakerRewind(run: RunState): boolean {
+  if (run.characterId !== 'clockmaker' || run.clockmakerRewindUsed) return false;
+  const rewindFromWave = Math.max(run.wave, run.maxWaveThisRun ?? run.wave);
+  const rewindRun = cloneRunState(run);
+  rewindRun.wave = 1;
+  rewindRun.hp = rewindRun.maxHp;
+  rewindRun.shield = Math.min(BALANCE.combat.shieldMax, Math.max(rewindRun.shield, 2));
+  rewindRun.souls = 0;
+  rewindRun.rage = 0;
+  rewindRun.pickCount = 0;
+  rewindRun.lockedFaceValue = undefined;
+  rewindRun.lockedFaceTimer = undefined;
+  rewindRun.momentum = 0;
+  rewindRun.momentumT = 0;
+  rewindRun.casinoWaveDamageTaken = 0;
+  rewindRun.casinoWaveEliteKills = 0;
+  rewindRun.easyWaveStreak = 0;
+  rewindRun.adaptivePressure = 0;
+  rewindRun.pendingCasino = undefined;
+  rewindRun.nextForgeDiscount = undefined;
+  rewindRun.guaranteedForgeRarity = undefined;
+  rewindRun.objectiveState = undefined;
+  rewindRun.clockmakerRewindUsed = true;
+  rewindRun.clockmakerRewindFromWave = rewindFromWave;
+  rewindRun.maxWaveThisRun = rewindFromWave;
+  rewindRun.seed = ((Date.now() ^ rewindRun.seed ^ 0x51f15e) >>> 0) || 1;
+
+  startRun(rewindRun.characterId, rewindRun);
+  saveRun(rewindRun);
+  playSfx('reaction');
+  haptic([40, 40, 80]);
+  addTrauma(0.5);
+  if (getScreenFlashesEnabled()) {
+    state.screenFlashT = 0.45;
+    state.screenFlashColor = palHex('q')!;
+  }
+  spawnPopup(PLAYER_X, PLAYER_Y - 52, 'TIME REWINDS', palHex('q')!, 12);
+  spawnVfx({ x: PLAYER_X, y: PLAYER_Y - 8, life: 0.8, kind: 'reaction', color: palHex('q')!, size: 34 });
+  return true;
 }
 
 function onPlayerDied(run: RunState): void {
@@ -2414,11 +2814,16 @@ function onPlayerDied(run: RunState): void {
   addTrauma(0.5);
   saveRun(null);
   incrementRunsCompleted({
-    wavesCleared: run.wave - 1,
+    wavesCleared: Math.max(run.wave - 1, (run.maxWaveThisRun ?? run.wave) - 1, (run.clockmakerRewindFromWave ?? 1) - 1),
     finalScore: run.score,
     characterId: run.characterId,
     kills: run.kills,
     goldSpent: run.goldSpent,
+    houseCleared: run.houseCleared,
+    clockmakerRewindsUsed: run.clockmakerRewindUsed ? 1 : 0,
+    objectivesCompleted: run.objectivesCompleted ?? 0,
+    elementalSetMilestones: run.elementalMilestonesSeen,
+    contractId: run.selectedContractId ?? run.runMutatorId,
   });
   state.deathT = 1.4;
 }
@@ -2472,9 +2877,101 @@ function tickFrenzy(realDt: number, run: RunState): void {
   }
 }
 
+function tickWaveObjective(run: RunState, dt: number): void {
+  const objective = run.objectiveState;
+  if (!objective || objective.status !== 'active') return;
+  if (objective.kind === 'timer') {
+    objective.timer = Math.max(0, (objective.timer ?? objective.timeLimit ?? 0) - dt);
+    objective.progress = objective.timeLimit ? 1 - objective.timer / objective.timeLimit : 0;
+    if (objective.timer <= 0) failObjective(run, 'TIME OUT');
+    return;
+  }
+
+  if (objective.kind === 'protect') {
+    objective.progress = computeWaveProgress();
+    return;
+  }
+
+  if (objective.targetEnemyId !== undefined) {
+    const target = state.enemies.find((e) => e.id === objective.targetEnemyId && e.alive);
+    if (target && objective.targetHp) {
+      objective.progress = 1 - Math.max(0, target.hp / objective.targetHp);
+    }
+  }
+}
+
+function completeObjective(run: RunState, label = 'OBJECTIVE'): void {
+  const objective = run.objectiveState;
+  if (!objective || objective.status !== 'active') return;
+  objective.status = 'success';
+  objective.progress = 1;
+  objective.rewardClaimed = true;
+  run.objectivesCompleted = (run.objectivesCompleted ?? 0) + 1;
+  run.gold += objective.rewardGold ?? 0;
+  if (objective.rewardForgeDiscount) {
+    run.nextForgeDiscount = Math.max(run.nextForgeDiscount ?? 0, objective.rewardForgeDiscount);
+  }
+  if (objective.rewardRarity) {
+    run.guaranteedForgeRarity = objective.rewardRarity;
+  }
+  spawnPopup(PLAYER_X, PLAYER_Y - 54, `${label} COMPLETE`, palHex('y')!, 10);
+  playSfx('upgrade_pick');
+  haptic(HAPTIC.upgrade);
+}
+
+function failObjective(run: RunState, label = 'OBJECTIVE FAILED'): void {
+  const objective = run.objectiveState;
+  if (!objective || objective.status !== 'active') return;
+  objective.status = 'failed';
+  spawnPopup(PLAYER_X, PLAYER_Y - 54, label, palHex('h')!, 9);
+  playSfx('ui_click');
+}
+
+function updateAdaptivePressure(run: RunState, isBoss: boolean): void {
+  if (isBoss || run.wave < BALANCE.enemy.adaptivePressureMinWave) return;
+
+  const elapsed = Math.max(0, state.time - run.waveStartedAt);
+  const scriptedDuration = Math.max(1, state.wave?.duration ?? elapsed);
+  const quickClearSeconds = Math.max(
+    BALANCE.enemy.easyClearMinSeconds,
+    Math.min(BALANCE.enemy.easyClearMaxSeconds, scriptedDuration * BALANCE.enemy.easyClearRatio),
+  );
+  const tookNoDamage = (run.casinoWaveDamageTaken ?? 0) <= 0;
+  const clearedQuickly = elapsed <= quickClearSeconds;
+  const previousPressure = run.adaptivePressure ?? 0;
+
+  if (tookNoDamage && clearedQuickly) {
+    run.easyWaveStreak = (run.easyWaveStreak ?? 0) + 1;
+    if (run.easyWaveStreak >= BALANCE.enemy.adaptivePressureStreakThreshold) {
+      run.adaptivePressure = Math.min(BALANCE.enemy.adaptivePressureMax, previousPressure + 1);
+      if (run.adaptivePressure > previousPressure) {
+        spawnPopup(PLAYER_X, PLAYER_Y - 70, `HOUSE PRESSES +${Math.ceil(run.adaptivePressure - previousPressure)}`, palHex('h')!, 10);
+      }
+    }
+    return;
+  }
+
+  run.easyWaveStreak = tookNoDamage ? Math.max(0, (run.easyWaveStreak ?? 0) - 1) : 0;
+  if (previousPressure > 0) {
+    run.adaptivePressure = Math.max(0, previousPressure - (tookNoDamage ? 0.25 : 0.6));
+  }
+}
+
 function endWave(run: RunState): void {
-  run.score += BALANCE.scoring.waveClearBonus(run.wave);
   const isBoss = run.wave % BALANCE.waves.bossEvery === 0;
+  if (run.objectiveState?.status === 'active') {
+    if (run.objectiveState.kind === 'timer' || run.objectiveState.kind === 'protect') completeObjective(run, run.objectiveState.label);
+    else failObjective(run);
+  }
+  updateAdaptivePressure(run, isBoss);
+  if (!run.houseCleared && run.wave >= BALANCE.waves.houseClearWave) {
+    run.houseCleared = true;
+    run.score += 1000;
+    spawnPopup(PLAYER_X, PLAYER_Y - 60, 'HOUSE CLEARED', palHex('y')!, 12);
+    playSfx('boss_kill');
+    haptic(HAPTIC.bossKill);
+  }
+  run.score += BALANCE.scoring.waveClearBonus(run.wave);
   const mutator = getRunMutator(run.runMutatorId);
   run.gold += baubleGoldAmount(run, BALANCE.gold.waveClearBonus(run.wave) * (mutator?.modifiers.goldMul ?? 1), 'round');
   fireOnWaveEnd(envFor(run), run.wave);
@@ -2545,11 +3042,31 @@ function normalizeCasinoIntermission(run: RunState): void {
   }
 }
 
+function ensureCasinoGameResult(
+  casino: NonNullable<RunState['pendingCasino']>,
+  game: CasinoGameId,
+  choice?: string,
+): CasinoGameResult {
+  if (!casino.result) {
+    casino.result = rollCasinoGameResult(game, casino.luckScore, state.rng, choice);
+  }
+  return casino.result;
+}
+
+export function settleCasinoGame(choice?: string): CasinoGameResult | null {
+  const run = state.run;
+  const casino = run?.pendingCasino;
+  if (!run || !casino || casino.phase !== 'play' || !casino.game) return null;
+  const result = ensureCasinoGameResult(casino, casino.game, choice);
+  syncCasinoToStore(run);
+  return result;
+}
+
 export function resolveCasinoGame(choice?: string): void {
   const run = state.run;
   const casino = run?.pendingCasino;
   if (!run || !casino || casino.phase !== 'play' || !casino.game) return;
-  const result = rollCasinoGameResult(casino.game, casino.luckScore, state.rng, choice);
+  const result = ensureCasinoGameResult(casino, casino.game, choice);
   casino.result = result;
   casino.chestTier = adjustChestTier(casino.baseChestTier, result.chestDelta);
   casino.phase = 'chest';
@@ -2644,9 +3161,9 @@ function priceFor(upgrade: ReturnType<typeof getFaceUpgrade>, tier: number): num
   if (!upgrade) return 0;
   const t = Math.max(1, Math.min(MAX_TIER, tier || getFaceRank(upgrade)));
   const custom = upgrade.basePrice?.[upgrade.rarity]?.[t - 1];
-  if (typeof custom === 'number') return custom;
+  if (typeof custom === 'number') return Math.max(1, Math.round(custom * BALANCE.shop.forgePriceMul));
   const fallback = BALANCE.faceUpgrade.basePrices[upgrade.rarity]?.[t - 1];
-  return fallback ?? 10;
+  return Math.max(1, Math.round((fallback ?? 10) * BALANCE.shop.forgePriceMul));
 }
 
 function hasEquippedFaceUpgrade(run: RunState, upgradeId: string): boolean {
@@ -2750,7 +3267,11 @@ export function generateForgeShopOffers(run: RunState): ForgeShopOffer[] {
   }
   const relicOffer = pickForgeRelicOffer(run);
   const baubleOffer = pickForgeBaubleOffer(run);
-  if (all.length === 0) return [baubleOffer, relicOffer].filter((offer): offer is ForgeShopOffer => Boolean(offer));
+  if (all.length === 0) {
+    return [baubleOffer, relicOffer]
+      .filter((offer): offer is ForgeShopOffer => Boolean(offer))
+      .slice(0, count);
+  }
 
   const weights: { id: string; w: number }[] = all.map((u) => {
     const rank = getFaceRank(u);
@@ -2792,7 +3313,7 @@ export function generateForgeShopOffers(run: RunState): ForgeShopOffer[] {
     offers.push({ id: picked, kind: 'face', slotIndex, rank, price });
   }
   if (relicOffer && state.rng() < BALANCE.relic.forgeOfferChance(wave)) addSpecialForgeOffer(offers, relicOffer, count);
-  if (baubleOffer && state.rng() < BALANCE.bauble.forgeOfferChance(wave)) addSpecialForgeOffer(offers, baubleOffer, count);
+  if (baubleOffer) addSpecialForgeOffer(offers, baubleOffer, count);
   return offers;
 }
 
@@ -2824,7 +3345,7 @@ function relicForgePrice(u: NonNullable<ReturnType<typeof getUpgrade>>, run: Run
     u.category === 'bauble' ? BALANCE.bauble.basePrices[u.rarity] : BALANCE.relic.basePrices[u.rarity]
   );
   const discount = Math.max(0, Math.min(0.5, run.nextForgeDiscount ?? 0));
-  return Math.max(1, Math.floor(base * (1 - discount)));
+  return Math.max(1, Math.floor(base * BALANCE.shop.forgePriceMul * (1 - discount)));
 }
 
 function pickForgeRelicOffer(run: RunState): ForgeShopOffer | null {
@@ -3406,7 +3927,7 @@ export function tap(): void {
     die.rolling = true;
     die.rollT = 0;
     die.shakeFrame = 0;
-    die.rollDuration = Math.max(BALANCE.die.rollDurationMin, die.config.rollDuration);
+    die.rollDuration = getRollDuration(die.config.rollDuration);
   }
   emitEvent('roll-start');
   playSfx('roll_start');
@@ -3440,10 +3961,7 @@ export function releaseCharge(): void {
     die.rolling = true;
     die.rollT = 0;
     die.shakeFrame = 0;
-    die.rollDuration = Math.max(
-      BALANCE.die.rollDurationMin,
-      die.config.rollDuration * (1 - Math.min(0.5, charge * 0.3)),
-    );
+    die.rollDuration = getRollDuration(die.config.rollDuration * (1 - Math.min(0.5, charge * 0.3)));
   }
   emitEvent('roll-start');
   playSfx('roll_start');
@@ -3564,6 +4082,10 @@ export function render(ctx: CanvasRenderingContext2D): void {
     drawArchetypeProjectile(ctx, p, arch);
   }
 
+  for (const beam of state.activeBeams) {
+    drawActiveBeam(ctx, beam);
+  }
+
   for (const v of state.vfx) {
     if (!v.alive) continue;
     drawVfx(ctx, v);
@@ -3617,6 +4139,27 @@ function drawGroundZone(ctx: CanvasRenderingContext2D, z: GroundZone): void {
   } else {
     drawRing(ctx, z.x, z.y, z.radius, ELEMENT_COLORS[z.element], alpha);
   }
+}
+
+function drawActiveBeam(ctx: CanvasRenderingContext2D, beam: ActiveBeam): void {
+  const reach = activeBeamEndReach(beam);
+  const endX = beam.originX + beam.dirX * reach;
+  const endY = beam.originY + beam.dirY * reach;
+  const remaining = Math.max(0, Math.min(1, (beam.duration - beam.t) / Math.min(0.35, beam.duration)));
+  const pulse = 0.75 + Math.sin(state.time * 42 + beam.width) * 0.18;
+  const alpha = Math.max(0.2, Math.min(0.85, remaining * pulse));
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.45;
+  ctx.strokeStyle = ELEMENT_COLORS[beam.element] ?? '#fff';
+  ctx.lineWidth = Math.max(2, beam.width * 0.45);
+  ctx.beginPath();
+  ctx.moveTo(beam.originX, beam.originY);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+  ctx.restore();
+
+  drawLightningBolt(ctx, beam.originX, beam.originY, endX, endY, alpha);
 }
 
 function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy): void {
@@ -4040,6 +4583,19 @@ function syncHudToStore(): void {
     : run.guaranteedForgeRarity
       ? `${run.guaranteedForgeRarity.toUpperCase()} FORGE`
       : '';
+  const synergy = collectElementalSynergy(run);
+  syncElementalMilestones(run, synergy);
+  const elementalSetLabel = synergy.label;
+  const elementalSetDesc = synergy.desc;
+  const objectiveLabel = run.objectiveState?.label ?? '';
+  const objectiveStatus = run.objectiveState
+    ? run.objectiveState.status === 'active'
+      ? run.objectiveState.desc
+      : run.objectiveState.status === 'success'
+        ? 'Objective complete'
+        : 'Objective failed'
+    : '';
+  const houseClearLabel = run.houseCleared ? 'HOUSE CLEARED' : '';
   const last = state.lastHud;
   if (
     last &&
@@ -4062,7 +4618,12 @@ function syncHudToStore(): void {
     last.encounterLine === encounterLine &&
     last.roomLine === roomLine &&
     last.omenLine === omenLine &&
-    last.forgeBonusLabel === forgeBonusLabel
+    last.forgeBonusLabel === forgeBonusLabel &&
+    last.objectiveLabel === objectiveLabel &&
+    last.objectiveStatus === objectiveStatus &&
+    last.elementalSetLabel === elementalSetLabel &&
+    last.elementalSetDesc === elementalSetDesc &&
+    last.houseClearLabel === houseClearLabel
   ) {
     return;
   }
@@ -4087,6 +4648,11 @@ function syncHudToStore(): void {
     roomLine,
     omenLine,
     forgeBonusLabel,
+    objectiveLabel,
+    objectiveStatus,
+    elementalSetLabel,
+    elementalSetDesc,
+    houseClearLabel,
   });
   state.lastHud = {
     wave,
@@ -4109,6 +4675,11 @@ function syncHudToStore(): void {
     roomLine,
     omenLine,
     forgeBonusLabel,
+    objectiveLabel,
+    objectiveStatus,
+    elementalSetLabel,
+    elementalSetDesc,
+    houseClearLabel,
   };
 }
 
@@ -4208,9 +4779,12 @@ export function quitRun(): void {
   state.vfx.forEach((v) => (v.alive = false));
   state.pendingAttacks = [];
   state.pendingShots = [];
+  state.pullZones = [];
   state.groundZones = [];
   state.timedStrikes = [];
   state.pendingPulses = [];
+  state.activeBeams = [];
+  state.reflect = null;
   state.tapQueued = false;
   state.deathT = 0;
   state.bossWarnT = 0;

@@ -112,6 +112,7 @@ export function makeEnemy(): Enemy {
     radiance: 0,
     charged: 0,
     eliteKind: undefined,
+    objectiveRole: undefined,
   };
 }
 
@@ -139,6 +140,7 @@ export function resetEnemy(e: Enemy): void {
   e.elite = false;
   e.eliteKind = undefined;
   e.isBoss = false;
+  e.objectiveRole = undefined;
 }
 
 export function createVfxPool(size: number): VfxParticle[] {

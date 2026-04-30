@@ -1,4 +1,5 @@
 import { update, render, fixedDt } from './engine';
+import { useStore } from '../state/store';
 
 let rafId: number | null = null;
 let lastT = 0;
@@ -24,14 +25,16 @@ function step(now: number): void {
   rafId = requestAnimationFrame(step);
   const dt = Math.min(0.1, (now - lastT) / 1000);
   lastT = now;
-  accum += dt;
+  const speedMul = useStore.getState().settings.gameSpeedMultiplier;
+  accum += dt * speedMul;
   const fixed = fixedDt();
   let iter = 0;
-  while (accum >= fixed && iter < 5) {
+  const maxIter = Math.max(5, Math.ceil(5 * speedMul));
+  while (accum >= fixed && iter < maxIter) {
     update(fixed);
     accum -= fixed;
     iter++;
   }
-  if (iter >= 5) accum = 0;
+  if (iter >= maxIter) accum = 0;
   if (ctxRef) render(ctxRef);
 }
