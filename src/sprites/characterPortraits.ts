@@ -124,69 +124,68 @@ const alchemistPortrait: string[] = [
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
-// NECROMANCER — just a crowned skull: huge hollow sockets, cracked nasal
-// cavity, exposed teeth, and tarnished gold crown. No robe/body rows.
-//   6/8/9: tarnished gold crown   c/d/e: aged bone
-//   0/1: hollow socket/crack shadow
+// NECROMANCER — hooded skull with a tarnished gold face trim and cold cyan
+// pendant, matching the reference cloak silhouette instead of a bare crown.
+//   E/F: dark violet hood   8/9: tarnished gold trim
+//   d/e: aged bone   0/1: hollow socket/crack shadow   C/D: pendant glow
 // ──────────────────────────────────────────────────────────────────────────
 const necromancerPortrait: string[] = [
-  blank(),
-  blank(),
-  r('9...9...9'),
-  r('99999999999'),
-  r('98e88888e89'),
-  r('66eeeeeee66'),
-  r('6eeddddddee6'),
-  r('6ed000000de6'),
-  r('6ed00dd00de6'),
-  r('6ed001100de6'),
-  r('6ed000000de6'),
-  r('6eddd11ddde6'),
-  r('66edd11dde66'),
-  r('666ed111de666'),
-  r('66ed111111de66'),
-  r('6ed1d1d1d1de6'),
-  r('6ed11111111de6'),
-  r('66ed1d1d1de66'),
-  r('666eeeeeee666'),
-  r('..666666666..'),
-  blank(),
-  blank(),
-  blank(),
-  blank(),
+  '........................',
+  '....EEE.................',
+  '...EEFFEE..............',
+  '..EEFFFFEE..............',
+  '.EEFFFFFFEE.............',
+  'EEFFFFFFFFFFEE..........',
+  '.EEFFFFF9999FFEE........',
+  '.EFFFF99988999FFE.......',
+  'EEFFF998eeee899FFE......',
+  'EFFFF98eeeeee89FFE......',
+  'EFFF998ee00ee899FFE.....',
+  'EFFF98ee0110ee89FFE.....',
+  'EFFF98eee11eee89FFE.....',
+  '.EFFF998eeeee899FFE.....',
+  '.EEFFFF99999999FFEE.....',
+  '..EEFFFFFFFFFFFFEE......',
+  '...EEFFF99ee99FFFEE.....',
+  '...EFFFF99DD99FFFFE.....',
+  '....EFFFFFDDFFFFFFE.....',
+  '.....EEFFFFCCFFFFEE.....',
+  '......EEEFFCCFFEEE......',
+  '........EECCCCEE........',
+  '.........EEDDEE.........',
+  '........................',
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
-// BERSERKER — Viking face close-up: iron helm, bone horns, red rage slit,
-// and a heavy beard. No torso/legs in character select portraits.
-//   a: dark seam / outline   4: helmet steel (dark blue-grey)
-//   P: horn base (grey)   Q: horn highlight (near-white)
-//   J/L: dark → bright rage marks   0/1: eye-slot shadow
-//   5/6/7: dark → light brown beard
+// BERSERKER — horned axe-helm close-up: black outline, pale horn sweep,
+// blue-grey plates, cyan inlay, and a heavy brown beard.
+//   R: hard black outline   4: helmet steel (dark blue-grey)
+//   b/c/d: horn shadow → highlight   B/C/D/S: cyan inlay shine
+//   5/6: dark → light brown beard
 // ──────────────────────────────────────────────────────────────────────────
 const berserkerPortrait: string[] = [
-  r('aa..............aa'),
-  r('aQQa..........aQQa'),
-  r('aQQPa........aPQQa'),
-  r('aaQPPa......aPPQaa'),
-  r('.aPPPaa4444aaPPPa.'),
-  r('..aaP44444444Paa..'),
-  r('...a4444LL4444a...'),
-  r('...a444LLLL444a...'),
-  r('..a44aa4444aa44a..'),
-  r('..a440011110044a..'),
-  r('..a4400JLLJ0044a..'),
-  r('...aa00111100aa...'),
-  r('....aa666666aa....'),
-  r('...a566666665a...'),
-  r('..a56667776665a..'),
-  r('.a5667777776665a.'),
-  r('.556677777776655.'),
-  r('.a5667777776655a.'),
-  r('..a55666666655a..'),
-  r('...aa555555aa...'),
-  r('....a55555a....'),
-  r('.....a555a.....'),
+  blank(),
+  r('RRR............RRR'),
+  r('RdddR........RdddR'),
+  r('RdccdR......RdccdR'),
+  r('RdbcddR.RR.RddcbdR'),
+  r('RdbbccRR44RRccbbdR'),
+  r('RRbbR444444RbbRR'),
+  r('RRR44444444RRR'),
+  r('R4444CCC4444R'),
+  r('R444CSDSC444R'),
+  r('R444CSSSC444R'),
+  r('R44BBBBBBBB44R'),
+  r('R44BCCBBCB44R'),
+  r('RR4466666644RR'),
+  r('R444665566444R'),
+  r('R444666666444R'),
+  r('R446665566644R'),
+  r('R466555555664R'),
+  r('R665555555566R'),
+  r('RR655555556RR'),
+  r('..RR555555RR..'),
+  r('....RR55RR....'),
   blank(),
   blank(),
 ];
