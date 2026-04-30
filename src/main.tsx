@@ -38,8 +38,13 @@ function applyUiAccessibilityFlags(s: ReturnType<typeof useStore.getState>['sett
   root.dataset.reduceMotion = s.reduceMotion ? 'on' : 'off';
 }
 
+function getEffectiveMasterVolume(s: ReturnType<typeof useStore.getState>['settings']): number {
+  const hiddenMuted = typeof document !== 'undefined' && document.hidden && s.muteWhenUnfocused;
+  return s.audioMuted || hiddenMuted ? 0 : s.masterVolume;
+}
+
 function applySettings(s: ReturnType<typeof useStore.getState>['settings']): void {
-  setMasterVolume(s.masterVolume);
+  setMasterVolume(getEffectiveMasterVolume(s));
   setSfxVolume(s.sfxVolume);
   setUiVolume(s.uiVolume);
   setMusicVolume(s.musicVolume);

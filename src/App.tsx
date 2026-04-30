@@ -15,6 +15,12 @@ import { pause as pauseEngine } from './engine/engine';
 /** Screens where we play the dedicated title theme instead of the gameplay track. */
 const MENU_SCREENS = new Set(['menu', 'select', 'gameover', 'den']);
 
+function effectiveMasterVolume(settings: ReturnType<typeof useStore.getState>['settings']): number {
+  return settings.audioMuted || (document.hidden && settings.muteWhenUnfocused)
+    ? 0
+    : settings.masterVolume;
+}
+
 export function App() {
   const screen = useStore((s) => s.screen);
   const bgmTrack = useStore((s) => s.settings.bgmTrack);
@@ -29,7 +35,7 @@ export function App() {
     const unlock = () => {
       initAudio();
       const s = useStore.getState().settings;
-      setMasterVolume(s.masterVolume);
+      setMasterVolume(effectiveMasterVolume(s));
       setSfxVolume(s.sfxVolume);
       setUiVolume(s.uiVolume);
       setMusicVolume(s.musicVolume);
@@ -77,8 +83,8 @@ export function App() {
     const onVisibility = () => {
       const hidden = document.hidden;
       const { settings, screen: current } = useStore.getState();
-      if (settings.muteWhenUnfocused) {
-        setMasterVolume(hidden ? 0 : settings.masterVolume);
+      if (settings.muteWhenUnfocused || settings.audioMuted) {
+        setMasterVolume(hidden || settings.audioMuted ? 0 : settings.masterVolume);
       }
       if (hidden && settings.autoPauseOnBlur && current === 'game') {
         pauseEngine();
