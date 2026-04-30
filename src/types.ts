@@ -17,6 +17,8 @@ export type CasinoPhase = 'choose' | 'play' | 'chest' | 'reward';
 export type CasinoLuckGrade = 'COLD' | 'WARM' | 'HOT' | 'LUCKY' | 'JACKPOT';
 export type CasinoChestTier = 'rusty' | 'copper' | 'bronze' | 'iron' | 'silver' | 'gold' | 'diamond' | 'jackpot';
 export type CasinoOutcome = 'miss' | 'small' | 'big' | 'jackpot';
+export type WaveObjectiveKind = 'banner' | 'chest' | 'timer' | 'protect';
+export type WaveObjectiveStatus = 'active' | 'success' | 'failed';
 
 export interface CasinoGameResult {
   outcome: CasinoOutcome;
@@ -227,6 +229,7 @@ export interface Enemy {
   elite?: boolean;
   eliteKind?: EliteKind;
   isBoss?: boolean;
+  objectiveRole?: 'banner' | 'chest' | 'protect';
 }
 
 export interface SoulPickup {
@@ -289,6 +292,8 @@ export interface NumberPopup {
 export interface HookCtx {
   wave: number;
   rng: () => number;
+  rollCount?: number;
+  time?: number;
 }
 
 export interface RollResult {
@@ -480,6 +485,7 @@ export interface Character {
   baseProjectile: ProjectileArchetype;
   passive?: Partial<UpgradeHooks>;
   exclusiveUpgrades: string[];
+  startingPassiveUpgrades?: string[];
   unlockCondition?: (meta: MetaState) => boolean;
   unlockHint?: string;
 
@@ -505,6 +511,11 @@ export interface MetaState {
   // Cosmetic dice unlocks (IDs from DIE_THEME_IDS).
   unlockedDiceThemes: string[];
   pendingDiceThemeUnlocks: string[];
+  houseClears: number;
+  clockmakerRewindsUsed: number;
+  objectivesCompleted: number;
+  elementalSetMilestones: string[];
+  contractClears: Record<string, number>;
 }
 
 export interface AppliedUpgrade {
@@ -534,6 +545,8 @@ export interface RunState {
   momentumT?: number;
   casinoWaveDamageTaken?: number;
   casinoWaveEliteKills?: number;
+  easyWaveStreak?: number;
+  adaptivePressure?: number;
 
   // Dice Forge rework (new)
   gold: number;
@@ -551,6 +564,16 @@ export interface RunState {
   nextForgeDiscount?: number;
   guaranteedForgeRarity?: Rarity;
   pendingCasino?: CasinoIntermissionState;
+  clockmakerRewindUsed?: boolean;
+  clockmakerRewindFromWave?: number;
+  maxWaveThisRun?: number;
+  houseCleared?: boolean;
+  selectedContractId?: string;
+  objectivesCompleted?: number;
+  objectiveState?: WaveObjectiveState;
+  elementalMeters?: Partial<Record<Element, number>>;
+  elementalCooldowns?: Partial<Record<Element, number>>;
+  elementalMilestonesSeen?: string[];
 }
 
 export interface SpawnEvent {
@@ -559,6 +582,7 @@ export interface SpawnEvent {
   x: number;
   elite?: boolean;
   eliteKind?: EliteKind;
+  objectiveRole?: 'banner' | 'chest' | 'protect';
 }
 
 export interface WaveScript {
@@ -569,4 +593,27 @@ export interface WaveScript {
   bossTypeId?: string;
   archetypeId?: WaveArchetypeId;
   biomeRuleId?: string;
+  objective?: WaveObjectiveScript;
+}
+
+export interface WaveObjectiveScript {
+  kind: WaveObjectiveKind;
+  label: string;
+  desc: string;
+  targetTypeId?: string;
+  targetT?: number;
+  targetX?: number;
+  timeLimit?: number;
+  rewardGold?: number;
+  rewardForgeDiscount?: number;
+  rewardRarity?: Rarity;
+}
+
+export interface WaveObjectiveState extends WaveObjectiveScript {
+  status: WaveObjectiveStatus;
+  progress: number;
+  targetEnemyId?: number;
+  targetHp?: number;
+  timer?: number;
+  rewardClaimed?: boolean;
 }
