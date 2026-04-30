@@ -183,6 +183,7 @@ function drawShadow(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale
 function useFlipAnimator(mode: Mode, width: number, height: number) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const requestRenderRef = useRef<() => void>(() => undefined);
   const flipRef = useRef<FlipState>({ active: false, startedAt: 0, duration: 0, outcome: 'H', played: false });
   const restingFace = useRef<Face>('H');
   const [outcome, setOutcome] = useState<Face | null>(null);
@@ -194,7 +195,7 @@ function useFlipAnimator(mode: Mode, width: number, height: number) {
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
 
-    const render = (now: number) => {
+    const drawFrame = (now: number): boolean => {
       ctx.clearRect(0, 0, width, height);
 
       const groundY = mode === 'arc' ? height - ARC_REST_FROM_BOTTOM : height / 2;
@@ -205,9 +206,11 @@ function useFlipAnimator(mode: Mode, width: number, height: number) {
       let flipPhase = 0;
       let faceForRender: Face = restingFace.current;
       let shadowScale = 1;
-      let shine = 0;
+      let shine = 0.2;
+      let keepAnimating = false;
 
       if (flip.active) {
+        keepAnimating = true;
         const t = Math.min(1, (now - flip.startedAt) / flip.duration);
         const rotations = mode === 'arc' ? 6.5 : 9.5;
         const eased = mode === 'arc' ? t : 1 - Math.pow(1 - t, 3);
@@ -227,6 +230,7 @@ function useFlipAnimator(mode: Mode, width: number, height: number) {
 
         if (t >= 1) {
           flip.active = false;
+          keepAnimating = false;
           faceForRender = flip.outcome;
           flipPhase = 0;
           restingFace.current = flip.outcome;
@@ -237,8 +241,6 @@ function useFlipAnimator(mode: Mode, width: number, height: number) {
             haptic(HAPTIC.land);
           }
         }
-      } else {
-        shine = 0.18 + 0.12 * Math.sin(now / 260);
       }
 
       if (mode === 'arc') {
@@ -246,12 +248,27 @@ function useFlipAnimator(mode: Mode, width: number, height: number) {
       }
       drawCoin(ctx, cxBase, cy, flipPhase, faceForRender, shine);
 
-      rafRef.current = requestAnimationFrame(render);
+      return keepAnimating;
     };
 
-    rafRef.current = requestAnimationFrame(render);
+    const render = (now: number) => {
+      rafRef.current = null;
+      if (drawFrame(now)) {
+        rafRef.current = requestAnimationFrame(render);
+      }
+    };
+
+    requestRenderRef.current = () => {
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(render);
+      }
+    };
+
+    drawFrame(performance.now());
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      requestRenderRef.current = () => undefined;
     };
   }, [mode, width, height]);
 
@@ -268,6 +285,7 @@ function useFlipAnimator(mode: Mode, width: number, height: number) {
     setOutcome(null);
     playSfx('coin_flip');
     haptic(HAPTIC.tap);
+    requestRenderRef.current();
   };
 
   return { canvasRef, outcome, flip, flipping: flipRef.current.active };
